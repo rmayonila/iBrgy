@@ -1,0 +1,30 @@
+{
+  "project_info": {
+    "project_number": "216938110229",
+    "firebase_url": "https://ibrgy-mobile-app-services-default-rtdb.firebaseio.com",
+    "project_id": "ibrgy-mobile-app-services",
+    "storage_bucket": "ibrgy-mobile-app-services.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:216938110229:android:afd7662a9b747e59eb5d1c",
+        "android_client_info": {
+          "package_name": "com.example.ibrgy_mobile_app_services"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDGju8dwB5iav1SmkiQCpwrVRopWezeKXc"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

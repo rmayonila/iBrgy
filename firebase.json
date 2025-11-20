@@ -1,0 +1,35 @@
+{
+  "flutter": {
+    "platforms": {
+      "android": {
+        "default": {
+          "projectId": "ibrgy-mobile-app-services",
+          "appId": "1:216938110229:android:afd7662a9b747e59eb5d1c",
+          "fileOutput": "android/app/google-services.json"
+        }
+      },
+      "dart": {
+        "lib/firebase_options.dart": {
+          "projectId": "ibrgy-mobile-app-services",
+          "configurations": {
+            "android": "1:216938110229:android:afd7662a9b747e59eb5d1c",
+            "ios": "1:216938110229:ios:3f9d58c50abdf77feb5d1c",
+            "macos": "1:216938110229:ios:3f9d58c50abdf77feb5d1c",
+            "web": "1:216938110229:web:8b87b542b1ebe6adeb5d1c",
+            "windows": "1:216938110229:web:e2750c18fe46c0b0eb5d1c"
+          }
+        }
+      }
+    }
+  },
+  "firestore": { "rules": "firestore.rules" },
+  "emulators": {
+    "firestore": { "port": 8090 },
+    "database": { "port": 8000 },
+    "hosting": { "port": 5000 },
+    "storage": { "port": 9199 },
+    "ui": { "enabled": true },
+    "singleProjectMode": true
+  },
+  "storage": { "rules": "storage.rules" }
+}
