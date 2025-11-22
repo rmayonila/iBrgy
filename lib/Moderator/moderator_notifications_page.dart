@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
-class StaffNotificationsPage extends StatelessWidget {
-  const StaffNotificationsPage({super.key});
+class ModeratorNotificationsPage extends StatelessWidget {
+  const ModeratorNotificationsPage({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -36,7 +36,7 @@ class StaffNotificationsPage extends StatelessWidget {
     ];
 
     // Wrap the existing Scaffold with StaffPhoneFrame
-    return StaffPhoneFrame(
+    return ModeratorPhoneFrame(
       child: Scaffold(
         backgroundColor:
             Colors.white, // <-- ensure inner scaffold interior is white
@@ -109,10 +109,10 @@ class StaffNotificationsPage extends StatelessWidget {
 }
 
 // Phone frame wrapper for web view (renamed to avoid conflicts)
-class StaffPhoneFrame extends StatelessWidget {
+class ModeratorPhoneFrame extends StatelessWidget {
   final Widget child;
 
-  const StaffPhoneFrame({super.key, required this.child});
+  const ModeratorPhoneFrame({super.key, required this.child});
 
   @override
   Widget build(BuildContext context) {
@@ -127,7 +127,7 @@ class StaffPhoneFrame extends StatelessWidget {
             borderRadius: BorderRadius.circular(40),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withOpacity(0.3),
+                color: Colors.black.withAlpha(76),
                 blurRadius: 20,
                 spreadRadius: 5,
               ),

@@ -1,3 +1,4 @@
+// ignore_for_file: use_build_context_synchronously
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -59,7 +60,7 @@ class _AccountSettingsPageState extends State<AccountSettingsPage> {
 
   void _onItemTapped(BuildContext context, int index) {
     if (index == 0) {
-      Navigator.pushReplacementNamed(context, '/admin-dashboard');
+      Navigator.pushReplacementNamed(context, '/admin-home');
     } else if (index == 1) {
       Navigator.pushReplacementNamed(context, '/emergency-hotline');
     } else if (index == 2) {
@@ -69,179 +70,8 @@ class _AccountSettingsPageState extends State<AccountSettingsPage> {
     }
   }
 
-  void _showAddStaffDialog() {
-    final emailController = TextEditingController();
-    final passwordController = TextEditingController();
-    final nameController = TextEditingController();
-    bool isLoading = false;
-
-    showDialog(
-      context: context,
-      barrierDismissible: false, // Prevent closing while loading
-      builder: (context) => StatefulBuilder(
-        builder: (context, setDialogState) => AlertDialog(
-          title: const Text('Add Staff Account'),
-          content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                TextField(
-                  controller: nameController,
-                  enabled: !isLoading,
-                  style: const TextStyle(color: Colors.black),
-                  decoration: const InputDecoration(
-                    labelText: 'Staff Name',
-                    hintText: 'e.g., John Doe',
-                    border: OutlineInputBorder(),
-                  ),
-                ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: emailController,
-                  enabled: !isLoading,
-                  style: const TextStyle(color: Colors.black),
-                  decoration: const InputDecoration(
-                    labelText: 'Email',
-                    hintText: 'e.g., staff@barangay.com',
-                    border: OutlineInputBorder(),
-                  ),
-                  keyboardType: TextInputType.emailAddress,
-                ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: passwordController,
-                  enabled: !isLoading,
-                  style: const TextStyle(color: Colors.black),
-                  decoration: const InputDecoration(
-                    labelText: 'Password',
-                    hintText: 'At least 6 characters',
-                    border: OutlineInputBorder(),
-                  ),
-                  obscureText: true,
-                ),
-                if (isLoading) ...[
-                  const SizedBox(height: 16),
-                  const CircularProgressIndicator(),
-                  const SizedBox(height: 8),
-                  const Text(
-                    'Creating account...',
-                    style: TextStyle(fontSize: 12),
-                  ),
-                ],
-              ],
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: isLoading ? null : () => Navigator.of(context).pop(),
-              child: const Text('Cancel'),
-            ),
-            ElevatedButton(
-              onPressed: isLoading
-                  ? null
-                  : () async {
-                      final email = emailController.text.trim();
-                      final password = passwordController.text.trim();
-                      final name = nameController.text.trim();
-
-                      if (email.isEmpty || password.isEmpty || name.isEmpty) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text('Please fill all fields'),
-                          ),
-                        );
-                        return;
-                      }
-
-                      if (password.length < 6) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text(
-                              'Password must be at least 6 characters',
-                            ),
-                          ),
-                        );
-                        return;
-                      }
-
-                      setDialogState(() => isLoading = true);
-
-                      try {
-                        // Create a new user account
-                        final userCredential = await FirebaseAuth.instance
-                            .createUserWithEmailAndPassword(
-                              email: email,
-                              password: password,
-                            );
-
-                        final uid = userCredential.user?.uid;
-                        if (uid == null) {
-                          throw Exception('Failed to get user ID');
-                        }
-
-                        // Update the display name
-                        await userCredential.user?.updateDisplayName(name);
-
-                        // Create Firestore document for the new staff user
-                        await FirebaseFirestore.instance
-                            .collection('users')
-                            .doc(uid)
-                            .set({
-                              'role': 'staff',
-                              'email': email,
-                              'name': name,
-                              'createdAt': FieldValue.serverTimestamp(),
-                            });
-
-                        if (mounted) {
-                          Navigator.of(context).pop();
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: Text('Staff account created: $email'),
-                              duration: const Duration(seconds: 2),
-                            ),
-                          );
-                        }
-                      } on FirebaseAuthException catch (e) {
-                        setDialogState(() => isLoading = false);
-                        if (mounted) {
-                          String errorMsg = 'Error creating account';
-                          if (e.code == 'weak-password') {
-                            errorMsg = 'Password is too weak';
-                          } else if (e.code == 'email-already-in-use') {
-                            errorMsg = 'Email is already in use';
-                          } else if (e.code == 'invalid-email') {
-                            errorMsg = 'Email format is invalid';
-                          }
-                          ScaffoldMessenger.of(
-                            context,
-                          ).showSnackBar(SnackBar(content: Text(errorMsg)));
-                        }
-                      } catch (e) {
-                        setDialogState(() => isLoading = false);
-                        if (mounted) {
-                          String errorMsg = 'Error: $e';
-
-                          // Provide helpful message for permission errors
-                          if (e.toString().contains('PERMISSION_DENIED') ||
-                              e.toString().contains('PERMISSION-DENIED')) {
-                            errorMsg =
-                                'Permission denied. Make sure Firestore rules are deployed. See FIRESTORE_RULES_SETUP.md';
-                          }
-
-                          ScaffoldMessenger.of(
-                            context,
-                          ).showSnackBar(SnackBar(content: Text(errorMsg)));
-                        }
-                      }
-                    },
-              child: const Text('Create Account'),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
+  // Removed unused helper: _showAddStaffDialog
+  // The application currently navigates to a dedicated `AddStaffAccountPage` instead.
 
   Widget _buildProfileSection() {
     return Container(
@@ -363,7 +193,7 @@ class _AccountSettingsPageState extends State<AccountSettingsPage> {
                 },
               ),
               _buildSettingsButton(
-                title: 'Add Account for Staff',
+                title: 'Add Account for Moderator',
                 icon: Icons.person_add,
                 onTap: () {
                   Navigator.push(
@@ -423,8 +253,9 @@ class _AccountSettingsPageState extends State<AccountSettingsPage> {
                 iconColor: Colors.red,
                 onTap: () async {
                   // Confirm logout with the user before signing out
+                  final parentContext = context;
                   final shouldLogout = await showDialog<bool>(
-                    context: context,
+                    context: parentContext,
                     builder: (context) => AlertDialog(
                       backgroundColor: Colors.white,
                       title: const Text(
@@ -454,18 +285,19 @@ class _AccountSettingsPageState extends State<AccountSettingsPage> {
                     ),
                   );
 
+                  if (!mounted) return;
                   if (shouldLogout == true) {
                     // Sign out from Firebase Auth (if signed in) and navigate to login
                     try {
                       await FirebaseAuth.instance.signOut();
                     } catch (e) {
-                      // ignore: avoid_print
-                      print('Sign out error: $e');
+                      debugPrint('Sign out error: $e');
                     }
 
+                    if (!mounted) return;
                     // Remove all routes and go to login
                     Navigator.pushAndRemoveUntil(
-                      context,
+                      parentContext,
                       MaterialPageRoute(builder: (_) => const SplashScreen()),
                       (r) => false,
                     );

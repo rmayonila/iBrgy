@@ -1,13 +1,21 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
-class EmergencyHotlinePage extends StatelessWidget {
+class EmergencyHotlinePage extends StatefulWidget {
   const EmergencyHotlinePage({super.key});
+
+  @override
+  State<EmergencyHotlinePage> createState() => _EmergencyHotlinePageState();
+}
+
+class _EmergencyHotlinePageState extends State<EmergencyHotlinePage> {
+  int _selectedIndex = 1;
+  final FirebaseFirestore _db = FirebaseFirestore.instance;
+  List<Map<String, String>> _hotlines = [];
 
   void _onItemTapped(BuildContext context, int index) {
     if (index == 0) {
-      Navigator.pushReplacementNamed(context, '/admin-dashboard');
+      Navigator.pushReplacementNamed(context, '/admin-home');
     } else if (index == 2) {
       Navigator.pushReplacementNamed(context, '/announcement');
     } else if (index == 3) {
@@ -18,11 +26,40 @@ class EmergencyHotlinePage extends StatelessWidget {
   }
 
   @override
+  void initState() {
+    super.initState();
+    _loadHotlines();
+  }
+
+  Future<void> _loadHotlines() async {
+    try {
+      final snap = await _db
+          .collection('hotlines')
+          .orderBy('createdAt', descending: true)
+          .get();
+      final items = snap.docs.map((d) {
+        final data = d.data();
+        return {
+          'id': d.id,
+          'name': (data['name'] ?? '').toString(),
+          'number': (data['number'] ?? '').toString(),
+        };
+      }).toList();
+      if (!mounted) return;
+      setState(() {
+        _hotlines = items;
+      });
+    } catch (e) {
+      // ignore
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.white,
       bottomNavigationBar: BottomNavigationBar(
-        currentIndex: 1, // Phone icon selected
+        currentIndex: _selectedIndex, // Phone icon selected
         type: BottomNavigationBarType.fixed,
         selectedItemColor: Colors.blue,
         unselectedItemColor: Colors.grey,
@@ -73,214 +110,127 @@ class EmergencyHotlinePage extends StatelessWidget {
           elevation: 0,
         ),
       ),
-
-      body: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Header with iBrgy logo (match AdminDashboard sizing)
-          Padding(
-            padding: const EdgeInsets.all(16.0),
-            child: Align(
-              alignment: Alignment.topLeft,
-              child: Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 5,
-                ),
-
-                child: RichText(
-                  text: TextSpan(
-                    children: [
-                      TextSpan(
-                        text: 'iB',
-                        style: TextStyle(
-                          fontSize: 25,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.blue,
-                        ),
-                      ),
-                      TextSpan(
-                        text: 'rgy',
-                        style: TextStyle(
-                          fontSize: 25,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.blue.shade700,
-                        ),
-                      ),
-                    ],
+      body: SizedBox.expand(
+        child: Stack(
+          children: [
+            // Full-body centered placeholder
+            if (_hotlines.isEmpty)
+              const Positioned.fill(
+                child: Center(
+                  child: Text(
+                    'NO EMERGENCY HOTLINES POSTED',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.black54,
+                    ),
                   ),
                 ),
               ),
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16.0),
-            child: Row(
-              children: const [
-                Icon(Icons.phone, color: Colors.red),
-                SizedBox(width: 8),
-                Text(
-                  'EMERGENCY HOTLINES',
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.black,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 12),
-          Expanded(
-            child: SingleChildScrollView(
-              child: Padding(
-                padding: const EdgeInsets.all(16.0),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text(
-                      'Barangay Emergency Response',
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.black87,
-                      ),
-                    ),
-                    const SizedBox(height: 24),
-                    StreamBuilder<DocumentSnapshot>(
-                      stream: FirebaseFirestore.instance
-                          .collection('settings')
-                          .doc('hotlines')
-                          .snapshots(),
-                      builder: (context, snapshot) {
-                        final numbers = <String>[];
-                        if (snapshot.hasData && snapshot.data!.exists) {
-                          final data =
-                              snapshot.data!.data() as Map<String, dynamic>?;
-                          if (data != null && data['numbers'] is List) {
-                            for (var v in data['numbers']) {
-                              numbers.add(v?.toString() ?? '');
-                            }
-                          }
-                        }
 
-                        return Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
+            // Header and content on top
+            Padding(
+              padding: const EdgeInsets.fromLTRB(12.0, 8.0, 12.0, 12.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Header
+                  Padding(
+                    padding: const EdgeInsets.only(
+                      left: 4.0,
+                      right: 12.0,
+                      top: 6.0,
+                      bottom: 4.0,
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Row(
                           children: [
-                            _buildEmergencyField(
-                              'Local Police Station:',
-                              numbers.isNotEmpty ? numbers[0] : '',
+                            const SizedBox(width: 4),
+                            Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                RichText(
+                                  text: TextSpan(
+                                    children: [
+                                      TextSpan(
+                                        text: 'iB',
+                                        style: TextStyle(
+                                          fontSize: 25,
+                                          fontWeight: FontWeight.bold,
+                                          color: Colors.blue,
+                                        ),
+                                      ),
+                                      TextSpan(
+                                        text: 'rgy',
+                                        style: TextStyle(
+                                          fontSize: 25,
+                                          fontWeight: FontWeight.bold,
+                                          color: Colors.blue.shade700,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                const SizedBox(height: 12),
+                                Text(
+                                  'BARANGAY EMERGENCY HOTLINE',
+                                  style: TextStyle(
+                                    fontSize: 15,
+                                    fontWeight: FontWeight.w600,
+                                    color: Colors.grey[700],
+                                    letterSpacing: 0.6,
+                                  ),
+                                ),
+                              ],
                             ),
-                            const SizedBox(height: 16),
-                            _buildEmergencyField(
-                              'Local Fire Department (BFP):',
-                              numbers.length > 1 ? numbers[1] : '',
-                            ),
-                            const SizedBox(height: 16),
-                            _buildEmergencyField(
-                              'Local Hospital/Ambulance Service:',
-                              numbers.length > 2 ? numbers[2] : '',
+                            const SizedBox(width: 12),
+                            Image.asset(
+                              'assets/images/ibrgy_logo.png',
+                              width: 100,
+                              height: 36,
+                              fit: BoxFit.contain,
+                              errorBuilder: (context, error, stack) =>
+                                  const SizedBox.shrink(),
                             ),
                           ],
-                        );
-                      },
+                        ),
+                      ],
                     ),
-                  ],
-                ),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
+                  ),
 
-  Widget _buildEmergencyField(String label, String value) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          label,
-          style: const TextStyle(
-            fontSize: 15,
-            fontWeight: FontWeight.w600,
-            color: Colors.black,
-          ),
-        ),
-        const SizedBox(height: 8),
-        Material(
-          elevation: 2,
-          borderRadius: BorderRadius.circular(12),
-          child: Container(
-            width: double.infinity,
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: Colors.grey.shade200),
-            ),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      value.isEmpty ? '' : value,
-                      style: TextStyle(
-                        fontSize: 17,
-                        fontWeight: value.isEmpty
-                            ? FontWeight.w400
-                            : FontWeight.w500,
-                        color: value.isEmpty
-                            ? Colors.grey.shade400
-                            : Colors.black,
-                        letterSpacing: 0.5,
+                  const SizedBox(height: 8),
+
+                  // List of hotlines
+                  if (_hotlines.isNotEmpty)
+                    Expanded(
+                      child: ListView.separated(
+                        itemCount: _hotlines.length,
+                        separatorBuilder: (_, __) => const Divider(),
+                        itemBuilder: (ctx, i) {
+                          final h = _hotlines[i];
+                          return ListTile(
+                            leading: const Icon(
+                              Icons.phone,
+                              color: Colors.blue,
+                            ),
+                            title: Text(h['name'] ?? ''),
+                            subtitle: Text(h['number'] ?? ''),
+                            onTap: () {},
+                          );
+                        },
                       ),
-                    ),
-                  ),
-                  Builder(
-                    builder: (context) => InkWell(
-                      borderRadius: BorderRadius.circular(8),
-                      onTap: value.isNotEmpty
-                          ? () {
-                              Clipboard.setData(ClipboardData(text: value));
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(
-                                  content: Text('Number copied to clipboard'),
-                                  duration: const Duration(seconds: 1),
-                                ),
-                              );
-                            }
-                          : null,
-                      child: Container(
-                        padding: EdgeInsets.all(8),
-                        decoration: BoxDecoration(
-                          color: value.isNotEmpty
-                              ? Colors.blue.shade50
-                              : Colors.grey.shade100,
-                          borderRadius: BorderRadius.circular(8),
-                          border: Border.all(
-                            color: value.isNotEmpty
-                                ? Colors.blue
-                                : Colors.grey.shade300,
-                            width: 2,
-                          ),
-                        ),
-                        child: Icon(
-                          Icons.copy_outlined,
-                          size: 20,
-                          color: value.isNotEmpty
-                              ? Colors.blue.shade700
-                              : Colors.grey.shade400,
-                        ),
-                      ),
-                    ),
-                  ),
+                    )
+                  else
+                    const SizedBox(height: 0),
                 ],
               ),
             ),
-          ),
+          ],
         ),
-      ],
+      ),
     );
   }
 }

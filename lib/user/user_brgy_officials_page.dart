@@ -1,7 +1,18 @@
 import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
-class UserBrgyOfficialsPage extends StatelessWidget {
+class UserBrgyOfficialsPage extends StatefulWidget {
   const UserBrgyOfficialsPage({super.key});
+
+  @override
+  State<UserBrgyOfficialsPage> createState() => _UserBrgyOfficialsPageState();
+}
+
+class _UserBrgyOfficialsPageState extends State<UserBrgyOfficialsPage> {
+  int _selectedIndex = 3;
+  final FirebaseFirestore _db = FirebaseFirestore.instance;
+  Map<String, List<Map<String, String>>> _officials = {};
+  Map<String, Map<String, String>> _contacts = {};
 
   void _onItemTapped(BuildContext context, int index) {
     if (index == 0) {
@@ -13,238 +24,277 @@ class UserBrgyOfficialsPage extends StatelessWidget {
     }
   }
 
-  Widget _buildOfficialField(String title, String name) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          title,
-          style: const TextStyle(
-            fontSize: 14,
-            fontWeight: FontWeight.w500,
-            color: Colors.black,
-            fontFamily: 'Roboto',
-          ),
-        ),
-        const SizedBox(height: 8),
-        Container(
-          width: double.infinity,
-          decoration: BoxDecoration(
-            border: Border.all(color: Colors.grey.shade300),
-            borderRadius: BorderRadius.circular(8),
-          ),
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-          child: Text(
-            name,
-            style: const TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.w500,
-              color: Colors.black,
-              fontFamily: 'Roboto',
-            ),
-          ),
-        ),
-        const SizedBox(height: 16),
-      ],
-    );
+  @override
+  void initState() {
+    super.initState();
+    _loadOfficialsAndContacts();
+  }
+
+  Future<void> _loadOfficialsAndContacts() async {
+    try {
+      final snap = await _db
+          .collection('officials')
+          .orderBy('createdAt', descending: true)
+          .get();
+      final Map<String, List<Map<String, String>>> loaded = {};
+      for (var d in snap.docs) {
+        final data = d.data();
+        final category = (data['category'] ?? 'Uncategorized').toString();
+        final title = (data['title'] ?? '').toString();
+        final name = (data['name'] ?? '').toString();
+        if (!loaded.containsKey(category)) loaded[category] = [];
+        loaded[category]!.add({'id': d.id, 'title': title, 'name': name});
+      }
+
+      final contactsSnap = await _db.collection('official_contacts').get();
+      final Map<String, Map<String, String>> contacts = {};
+      for (var d in contactsSnap.docs) {
+        final data = d.data();
+        contacts[d.id] = {
+          'address': (data['address'] ?? '').toString(),
+          'hours': (data['hours'] ?? '').toString(),
+          'contacts': (data['contacts'] ?? '').toString(),
+        };
+      }
+
+      if (!mounted) return;
+      setState(() {
+        _officials = loaded;
+        _contacts = contacts;
+      });
+    } catch (e) {
+      // ignore
+    }
+  }
+
+  bool _hasContactInfo(String category) {
+    final c = _contacts[category];
+    if (c == null) return false;
+    return (c['address']?.trim().isNotEmpty ?? false) ||
+        (c['hours']?.trim().isNotEmpty ?? false) ||
+        (c['contacts']?.trim().isNotEmpty ?? false);
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.white,
-      appBar: PreferredSize(
-        preferredSize: const Size.fromHeight(0),
-        child: AppBar(
-          automaticallyImplyLeading: false,
-          backgroundColor: Colors.white,
-          elevation: 0,
-        ),
-      ),
-      body: SingleChildScrollView(
-        child: Padding(
-          padding: const EdgeInsets.all(16.0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Header with iBrgy logo and ADD OFFICIAL button
-              Padding(
-                padding: const EdgeInsets.only(bottom: 8.0),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 6,
-                      ),
+      body: SizedBox.expand(
+        child: Stack(
+          children: [
+            if (_officials.isEmpty)
+              const Positioned.fill(
+                child: Center(
+                  child: Text(
+                    'NO BARANGAY OFFICIALS POSTED',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.black54,
+                    ),
+                  ),
+                ),
+              ),
 
-                      child: RichText(
-                        text: TextSpan(
+            Padding(
+              padding: const EdgeInsets.fromLTRB(12.0, 8.0, 12.0, 12.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.only(
+                      left: 4.0,
+                      right: 12.0,
+                      top: 6.0,
+                      bottom: 4.0,
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Row(
                           children: [
-                            TextSpan(
-                              text: 'iB',
-                              style: TextStyle(
-                                fontSize: 23,
-                                fontWeight: FontWeight.w600,
-                                color: Colors.blue,
-                              ),
+                            const SizedBox(width: 4),
+                            Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                RichText(
+                                  text: TextSpan(
+                                    children: [
+                                      TextSpan(
+                                        text: 'iB',
+                                        style: TextStyle(
+                                          fontSize: 25,
+                                          fontWeight: FontWeight.bold,
+                                          color: Colors.lightBlue,
+                                        ),
+                                      ),
+                                      TextSpan(
+                                        text: 'rgy',
+                                        style: TextStyle(
+                                          fontSize: 25,
+                                          fontWeight: FontWeight.bold,
+                                          color: const Color.fromARGB(
+                                            255,
+                                            5,
+                                            81,
+                                            143,
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                const SizedBox(height: 8),
+                                Text(
+                                  'BARANGAY OFFICIALS',
+                                  style: TextStyle(
+                                    fontSize: 15,
+                                    fontWeight: FontWeight.w600,
+                                    color: Colors.grey[700],
+                                    letterSpacing: 0.6,
+                                  ),
+                                ),
+                              ],
                             ),
-                            TextSpan(
-                              text: 'rgy',
-                              style: TextStyle(
-                                fontSize: 23,
-                                fontWeight: FontWeight.w600,
-                                color: Colors.blue.shade700,
-                              ),
+                            const SizedBox(width: 12),
+                            Image.asset(
+                              'assets/images/ibrgy_logo.png',
+                              width: 100,
+                              height: 36,
+                              fit: BoxFit.contain,
+                              errorBuilder: (context, error, stack) =>
+                                  const SizedBox.shrink(),
                             ),
                           ],
                         ),
-                      ),
+                      ],
                     ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 8),
-              const Text(
-                'EXECUTIVE OFFICERS',
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.w500,
-                  color: Colors.blue,
-                ),
-              ),
-              const SizedBox(height: 16),
-              _buildOfficialField('BRGY CAPTAIN', ''),
-              _buildOfficialField('BRGY SECRETARY', ''),
-              _buildOfficialField('BRGY TREASURER', ''),
-
-              const SizedBox(height: 24),
-              const Text(
-                'KAGAWAD (COUNCILORS)',
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.w500,
-                  color: Colors.blue,
-                ),
-              ),
-              const SizedBox(height: 16),
-              _buildOfficialField('Committee on Peace & Order', ''),
-              _buildOfficialField('Committee on Health & Sanitation', ''),
-              _buildOfficialField('Committee on Education', ''),
-              _buildOfficialField('Committee on Infrastructure', ''),
-              _buildOfficialField('Committee on Youth & Sports', ''),
-              _buildOfficialField('Committee on Environment', ''),
-              _buildOfficialField('Committee on Budget & Finance', ''),
-
-              const SizedBox(height: 24),
-              const Text(
-                'MANDATORY POSITIONS',
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.w500,
-                  color: Colors.blue,
-                ),
-              ),
-              const SizedBox(height: 16),
-              _buildOfficialField('SK CHAIRMAN', ''),
-              _buildOfficialField('BRGY CLERK', ''),
-
-              const SizedBox(height: 24),
-              const Text(
-                'CONTACT INFORMATION',
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.w500,
-                  color: Colors.blue,
-                ),
-              ),
-              const SizedBox(height: 16),
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  border: Border.all(
-                    color: const Color.fromARGB(255, 132, 128, 128),
                   ),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Row(
-                      children: [
-                        Icon(Icons.location_on, color: Colors.blue),
-                        SizedBox(width: 8),
-                        Text(
-                          'Office Address',
-                          style: TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w500,
-                            color: Color.fromARGB(255, 33, 32, 32),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      '',
-                      style: const TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w500,
-                        color: Colors.black,
-                        fontFamily: 'Roboto',
+
+                  const SizedBox(height: 8),
+
+                  Expanded(
+                    child: SingleChildScrollView(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          for (var entry in _officials.entries) ...[
+                            Text(
+                              entry.key,
+                              style: const TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.blue,
+                              ),
+                            ),
+                            const SizedBox(height: 12),
+                            for (var o in entry.value)
+                              Padding(
+                                padding: const EdgeInsets.only(bottom: 8.0),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      o['title'] ?? '',
+                                      style: const TextStyle(
+                                        fontSize: 14,
+                                        fontWeight: FontWeight.w500,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 4),
+                                    Text(
+                                      o['name'] ?? '',
+                                      style: const TextStyle(
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 12),
+                                  ],
+                                ),
+                              ),
+
+                            if (_hasContactInfo(entry.key))
+                              Container(
+                                width: double.infinity,
+                                padding: const EdgeInsets.all(12),
+                                decoration: BoxDecoration(
+                                  border: Border.all(
+                                    color: Colors.grey.shade300,
+                                  ),
+                                  borderRadius: BorderRadius.circular(8),
+                                  color: Colors.white,
+                                ),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    if ((_contacts[entry.key]?['address'] ?? '')
+                                        .isNotEmpty) ...[
+                                      const Text(
+                                        'Office Address',
+                                        style: TextStyle(
+                                          fontSize: 14,
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 6),
+                                      Text(
+                                        _contacts[entry.key]!['address'] ?? '',
+                                        style: const TextStyle(fontSize: 14),
+                                      ),
+                                      const SizedBox(height: 8),
+                                    ],
+                                    if ((_contacts[entry.key]?['hours'] ?? '')
+                                        .isNotEmpty) ...[
+                                      const Text(
+                                        'Office Hours',
+                                        style: TextStyle(
+                                          fontSize: 14,
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 6),
+                                      Text(
+                                        _contacts[entry.key]!['hours'] ?? '',
+                                        style: const TextStyle(fontSize: 14),
+                                      ),
+                                      const SizedBox(height: 8),
+                                    ],
+                                    if ((_contacts[entry.key]?['contacts'] ??
+                                            '')
+                                        .isNotEmpty) ...[
+                                      const Text(
+                                        'Office Telephone Number',
+                                        style: TextStyle(
+                                          fontSize: 14,
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 6),
+                                      Text(
+                                        _contacts[entry.key]!['contacts'] ?? '',
+                                        style: const TextStyle(fontSize: 14),
+                                      ),
+                                    ],
+                                  ],
+                                ),
+                              ),
+
+                            const SizedBox(height: 18),
+                          ],
+                        ],
                       ),
                     ),
-                    const SizedBox(height: 16),
-                    const Row(
-                      children: [
-                        Icon(Icons.access_time, color: Colors.blue),
-                        SizedBox(width: 8),
-                        Text(
-                          'Office Hours',
-                          style: TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w500,
-                            color: Color.fromARGB(255, 33, 32, 32),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      '',
-                      style: TextStyle(fontSize: 14, color: Colors.grey[800]),
-                    ),
-                    const SizedBox(height: 16),
-                    const Row(
-                      children: [
-                        Icon(Icons.phone, color: Colors.blue),
-                        SizedBox(width: 8),
-                        Text(
-                          'Contact Numbers',
-                          style: TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w500,
-                            color: Color.fromARGB(255, 33, 32, 32),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      '',
-                      style: TextStyle(fontSize: 14, color: Colors.grey[800]),
-                    ),
-                  ],
-                ),
+                  ),
+                ],
               ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
       bottomNavigationBar: BottomNavigationBar(
-        currentIndex: 3, // People icon selected
+        currentIndex: _selectedIndex, // People icon selected
         type: BottomNavigationBarType.fixed,
         selectedItemColor: Colors.blue,
         unselectedItemColor: Colors.grey,

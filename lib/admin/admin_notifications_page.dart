@@ -124,7 +124,7 @@ class PhoneFrame extends StatelessWidget {
             borderRadius: BorderRadius.circular(40),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withOpacity(0.3),
+                color: Colors.black.withAlpha(76),
                 blurRadius: 20,
                 spreadRadius: 5,
               ),

@@ -52,12 +52,11 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
       );
       await user.reauthenticateWithCredential(cred);
       await user.updatePassword(newPassword);
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Password changed successfully!')),
-        );
-        Navigator.pop(context);
-      }
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Password changed successfully!')),
+      );
+      Navigator.pop(context);
     } on FirebaseAuthException catch (e) {
       String msg = 'Failed to change password.';
       if (e.code == 'wrong-password') msg = 'Current password is incorrect.';

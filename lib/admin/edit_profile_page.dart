@@ -157,7 +157,7 @@ class PhoneFrame extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.grey[300],
+      backgroundColor: Colors.white,
       body: Center(
         child: Container(
           width: 375, // iPhone-like width
@@ -167,7 +167,7 @@ class PhoneFrame extends StatelessWidget {
             borderRadius: BorderRadius.circular(40),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withOpacity(0.3),
+                color: Colors.black.withAlpha(76),
                 blurRadius: 20,
                 spreadRadius: 5,
               ),

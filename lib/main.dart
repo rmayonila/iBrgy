@@ -1,19 +1,19 @@
 import 'package:flutter/material.dart';
 import 'splash_screen.dart';
 import 'login_page.dart';
-import 'admin/admin_home.dart';
+import 'admin/admin_home.dart' as admin;
 import 'admin/emergency_hotline_page.dart';
 import 'admin/announcement_page.dart';
 import 'admin/brgy_officials_page.dart';
 import 'admin/account_settings_page.dart';
-import 'staff/staff_home_page.dart';
-import 'staff/staff_emergency_hotline_page.dart' as staff;
-import 'staff/staff_announcement_page.dart';
-import 'staff/staff_notifications_page.dart';
-import 'staff/staff_brgy_officials_page.dart' as staff;
-import 'staff/staff_account_settings_page.dart';
+import 'Moderator/moderator_home_page.dart' as mod_home;
+import 'Moderator/moderator_emergency_hotline_page.dart' as mod_emergency;
+import 'Moderator/moderator_announcement_page.dart' as mod_announcement;
+import 'Moderator/moderator_notifications_page.dart' as mod_notifications;
+import 'Moderator/moderator_brgy_officials_page.dart' as mod_brgy;
+import 'Moderator/moderator_account_settings_page.dart' as mod_account;
 import 'firebase_options.dart';
-import 'user/user_home_page.dart';
+import 'user/user_home_page.dart' as user;
 import 'user/user_emergency_hotline_page.dart';
 import 'user/user_announcement_page.dart';
 import 'user/user_brgy_officials_page.dart';
@@ -27,7 +27,7 @@ Future<void> main() async {
 class MyApp extends StatefulWidget {
   const MyApp({super.key});
 
-  static _MyAppState? of(BuildContext context) =>
+  static State<MyApp>? of(BuildContext context) =>
       context.findAncestorStateOfType<_MyAppState>();
 
   @override
@@ -82,25 +82,26 @@ class _MyAppState extends State<MyApp> {
       home: const PhoneFrame(child: SplashScreen()),
       routes: {
         '/login': (context) => PhoneFrame(child: LoginPage()),
-        '/staff-home': (context) => PhoneFrame(child: StaffHomePage()),
-        '/user-home': (context) => PhoneFrame(child: UserHomePage()),
+        '/moderator-home': (context) =>
+            PhoneFrame(child: mod_home.ModeratorHomePage()),
+        '/user-home': (context) => PhoneFrame(child: user.UserHomePage()),
         '/user-emergency-hotline': (context) =>
             PhoneFrame(child: UserEmergencyHotlinePage()),
         '/user-announcement': (context) =>
             PhoneFrame(child: UserAnnouncementPage()),
         '/user-brgy-officials': (context) =>
             PhoneFrame(child: UserBrgyOfficialsPage()),
-        '/staff-emergency-hotline': (context) =>
-            PhoneFrame(child: staff.StaffEmergencyHotlinePage()),
-        '/staff-notifications': (context) =>
-            PhoneFrame(child: StaffNotificationsPage()),
-        '/staff-announcement': (context) =>
-            PhoneFrame(child: StaffAnnouncementPage()),
-        '/staff-brgy-officials': (context) =>
-            PhoneFrame(child: staff.StaffBrgyOfficialsPage()),
-        '/staff-account-settings': (context) =>
-            PhoneFrame(child: StaffAccountSettingsPage()),
-        '/admin-dashboard': (context) => PhoneFrame(child: AdminHomePage()),
+        '/moderator-emergency-hotline': (context) =>
+            PhoneFrame(child: mod_emergency.ModeratorEmergencyHotlinePage()),
+        '/moderator-notifications': (context) =>
+            PhoneFrame(child: mod_notifications.ModeratorNotificationsPage()),
+        '/moderator-announcement': (context) =>
+            PhoneFrame(child: mod_announcement.StaffAnnouncementPage()),
+        '/moderator-brgy-officials': (context) =>
+            PhoneFrame(child: mod_brgy.ModeratorBrgyOfficialsPage()),
+        '/moderator-account-settings': (context) =>
+            PhoneFrame(child: mod_account.ModeratorAccountSettingsPage()),
+        '/admin-home': (context) => PhoneFrame(child: admin.AdminHomePage()),
         '/emergency-hotline': (context) =>
             PhoneFrame(child: EmergencyHotlinePage()),
         '/announcement': (context) => PhoneFrame(child: AnnouncementPage()),
@@ -121,7 +122,7 @@ class PhoneFrame extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.grey[300],
+      backgroundColor: Colors.white,
       body: Center(
         child: Container(
           width: 375, // iPhone-like width
@@ -131,7 +132,7 @@ class PhoneFrame extends StatelessWidget {
             borderRadius: BorderRadius.circular(40),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withOpacity(0.3),
+                color: Colors.black.withAlpha(76),
                 blurRadius: 20,
                 spreadRadius: 5,
               ),

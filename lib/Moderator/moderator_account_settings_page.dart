@@ -1,32 +1,29 @@
+// ignore_for_file: use_build_context_synchronously
 import 'package:flutter/material.dart';
-// Notifications page will be opened via named route '/staff-notifications'
 import 'package:firebase_auth/firebase_auth.dart';
-import 'staff_notifications_page.dart';
+import 'moderator_notifications_page.dart';
+import 'moderator_nav.dart';
 import '../splash_screen.dart';
 
-class StaffAccountSettingsPage extends StatefulWidget {
-  const StaffAccountSettingsPage({super.key});
+class ModeratorAccountSettingsPage extends StatefulWidget {
+  const ModeratorAccountSettingsPage({super.key});
 
   @override
-  State<StaffAccountSettingsPage> createState() =>
+  State<ModeratorAccountSettingsPage> createState() =>
       _StaffAccountSettingsPageState();
 }
 
-class _StaffAccountSettingsPageState extends State<StaffAccountSettingsPage> {
+class _StaffAccountSettingsPageState
+    extends State<ModeratorAccountSettingsPage> {
   int _selectedIndex = 4; // Profile tab
 
   void _onItemTapped(int index) {
-    if (index == 0) {
-      Navigator.pushReplacementNamed(context, '/staff-home');
-    } else if (index == 1) {
-      Navigator.pushReplacementNamed(context, '/staff-emergency-hotline');
-    } else if (index == 2) {
-      Navigator.pushReplacementNamed(context, '/staff-announcement');
-    } else if (index == 3) {
-      Navigator.pushReplacementNamed(context, '/staff-brgy-officials');
-    } else {
-      setState(() => _selectedIndex = index);
-    }
+    navigateModeratorIndex(
+      context,
+      index,
+      currentIndex: _selectedIndex,
+      onSamePage: (i) => setState(() => _selectedIndex = i),
+    );
   }
 
   Widget _buildProfileSection() {
@@ -53,7 +50,7 @@ class _StaffAccountSettingsPageState extends State<StaffAccountSettingsPage> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'STAFF',
+                  'MODERATOR',
                   style: TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.bold,
@@ -139,11 +136,10 @@ class _StaffAccountSettingsPageState extends State<StaffAccountSettingsPage> {
                   title: 'Notifications',
                   icon: Icons.notifications_outlined,
                   onTap: () {
-                    // Use direct push to the notifications page to avoid
-                    // extra named-route lookup lag and ensure smooth navigation.
+                    // Navigate to the notifications page.
                     Navigator.of(context).push(
                       MaterialPageRoute(
-                        builder: (ctx) => const StaffNotificationsPage(),
+                        builder: (ctx) => const ModeratorNotificationsPage(),
                       ),
                     );
                   },
@@ -187,8 +183,9 @@ class _StaffAccountSettingsPageState extends State<StaffAccountSettingsPage> {
                   icon: Icons.logout,
                   iconColor: Colors.red,
                   onTap: () async {
+                    final parentContext = context;
                     final shouldLogout = await showDialog<bool>(
-                      context: context,
+                      context: parentContext,
                       builder: (context) => AlertDialog(
                         backgroundColor: Colors.white,
                         title: const Text(
@@ -218,14 +215,16 @@ class _StaffAccountSettingsPageState extends State<StaffAccountSettingsPage> {
                       ),
                     );
 
+                    if (!mounted) return;
                     if (shouldLogout == true) {
                       try {
                         await FirebaseAuth.instance.signOut();
                       } catch (e) {
-                        print('Sign out error: $e');
+                        debugPrint('Sign out error: $e');
                       }
+                      if (!mounted) return;
                       Navigator.pushAndRemoveUntil(
-                        context,
+                        parentContext,
                         MaterialPageRoute(builder: (_) => const SplashScreen()),
                         (r) => false,
                       );

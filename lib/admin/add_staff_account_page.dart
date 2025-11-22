@@ -44,18 +44,6 @@ class _AddStaffAccountPageState extends State<AddStaffAccountPage> {
 
     setState(() => isLoading = true);
 
-    // show modal progress indicator so user clearly sees loading state
-    if (mounted) {
-      showDialog(
-        context: context,
-        barrierDismissible: false,
-        builder: (context) => WillPopScope(
-          onWillPop: () async => false,
-          child: const Center(child: CircularProgressIndicator()),
-        ),
-      );
-    }
-
     try {
       final userCredential = await FirebaseAuth.instance
           .createUserWithEmailAndPassword(email: email, password: password);
@@ -66,7 +54,7 @@ class _AddStaffAccountPageState extends State<AddStaffAccountPage> {
       await userCredential.user?.updateDisplayName(name);
 
       await FirebaseFirestore.instance.collection('users').doc(uid).set({
-        'role': 'staff',
+        'role': 'moderator',
         'email': email,
         'name': name,
         'createdAt': FieldValue.serverTimestamp(),
@@ -74,7 +62,7 @@ class _AddStaffAccountPageState extends State<AddStaffAccountPage> {
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Staff account created: $email')),
+          SnackBar(content: Text('Moderator account created: $email')),
         );
         Navigator.pop(context);
       }
@@ -105,13 +93,7 @@ class _AddStaffAccountPageState extends State<AddStaffAccountPage> {
         ).showSnackBar(SnackBar(content: Text(errorMsg)));
       }
     } finally {
-      // dismiss modal dialog if shown
-      if (mounted) {
-        try {
-          Navigator.of(context, rootNavigator: true).pop();
-        } catch (_) {}
-        setState(() => isLoading = false);
-      }
+      if (mounted) setState(() => isLoading = false);
     }
   }
 
@@ -121,7 +103,7 @@ class _AddStaffAccountPageState extends State<AddStaffAccountPage> {
       child: Scaffold(
         backgroundColor: Colors.white,
         appBar: AppBar(
-          title: const Text('Add Staff Account'),
+          title: const Text('Add Moderator Account'),
           backgroundColor: Colors.blue,
           foregroundColor: Colors.white,
         ),
@@ -148,7 +130,7 @@ class _AddStaffAccountPageState extends State<AddStaffAccountPage> {
                   style: const TextStyle(color: Colors.black),
                   cursorColor: Colors.black,
                   decoration: InputDecoration(
-                    labelText: 'Staff Name',
+                    labelText: 'Moderator Name',
                     labelStyle: const TextStyle(color: Colors.black54),
                     prefixIcon: const Icon(Icons.person),
                     border: OutlineInputBorder(
@@ -243,7 +225,7 @@ class PhoneFrame extends StatelessWidget {
             borderRadius: BorderRadius.circular(40),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withOpacity(0.3),
+                color: Colors.black.withAlpha(76),
                 blurRadius: 20,
                 spreadRadius: 5,
               ),

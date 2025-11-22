@@ -9,7 +9,7 @@ class PhoneFrame extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.grey[300],
+      backgroundColor: Colors.white,
       body: Center(
         child: Container(
           width: 375, // iPhone-like width
@@ -19,12 +19,7 @@ class PhoneFrame extends StatelessWidget {
             borderRadius: BorderRadius.circular(40),
             boxShadow: [
               BoxShadow(
-                color: const Color.fromARGB(
-                  255,
-                  149,
-                  191,
-                  218,
-                ).withOpacity(0.3),
+                color: const Color.fromARGB(76, 149, 191, 218),
                 blurRadius: 20,
                 spreadRadius: 5,
               ),
@@ -92,7 +87,7 @@ class _SplashScreenState extends State<SplashScreen>
                     colors: [
                       Colors.blue.shade50,
                       Colors.white,
-                      Colors.blue.shade100.withOpacity(0.3),
+                      Colors.blue.shade100.withAlpha(76),
                     ],
                   ),
                 ),
@@ -106,7 +101,7 @@ class _SplashScreenState extends State<SplashScreen>
                   height: 250,
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
-                    color: Colors.blue.shade200.withOpacity(0.1),
+                    color: Colors.blue.shade200.withAlpha(26),
                   ),
                 ),
               ),
@@ -119,7 +114,7 @@ class _SplashScreenState extends State<SplashScreen>
                   height: 280,
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
-                    color: Colors.blue.shade300.withOpacity(0.08),
+                    color: Colors.blue.shade300.withAlpha(20),
                   ),
                 ),
               ),
@@ -133,7 +128,7 @@ class _SplashScreenState extends State<SplashScreen>
                     color: Colors.blue.shade50,
                     boxShadow: [
                       BoxShadow(
-                        color: Colors.blue.withOpacity(0.15),
+                        color: Colors.blue.withAlpha(38),
                         blurRadius: 10,
                         spreadRadius: 2,
                       ),
@@ -164,7 +159,7 @@ class _SplashScreenState extends State<SplashScreen>
                           shape: BoxShape.circle,
                           boxShadow: [
                             BoxShadow(
-                              color: Colors.blue.withOpacity(0.2),
+                              color: Colors.blue.withAlpha(51),
                               blurRadius: 30,
                               spreadRadius: 10,
                             ),
@@ -174,7 +169,7 @@ class _SplashScreenState extends State<SplashScreen>
                           child: Container(
                             width: 230,
                             height: 230,
-                            color: Colors.white.withOpacity(0.8),
+                            color: Colors.white.withAlpha(204),
                             child: Image.asset(
                               'assets/images/ibrgy_logo.jpg',
                               width: 230,

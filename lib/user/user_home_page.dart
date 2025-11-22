@@ -24,30 +24,8 @@ class UserHomePage extends StatefulWidget {
 
 // 3. Renamed state class
 class _UserHomePageState extends State<UserHomePage> {
-  // Sample info items (replace with Firestore data later)
-  List<Map<String, String>> infoItems = [
-    {
-      'title': 'Health & Welfare',
-      'category': 'Health & Welfare',
-      'description':
-          'Schedules for the Brgy Health Center (BHC), available services (immunization, check-ups), contact information, and health guidelines.',
-      'lastUpdated': '2 days ago',
-    },
-    {
-      'title': 'Brgy Clearance/Permit Process',
-      'category': 'Brgy Clearance/Permit Process',
-      'description':
-          'Step-by-step guide on how to secure a Brgy Clearance (requirements, fees, processing time, and online application status).',
-      'lastUpdated': '1 week ago',
-    },
-    {
-      'title': 'Brgy Hall Schedule',
-      'category': 'Brgy Hall Schedule',
-      'description':
-          'Operating hours of the Brgy Hall and specific department schedules (e.g., Treasurer\'s office hours, Mayor\'s receiving days).',
-      'lastUpdated': 'Today',
-    },
-  ];
+  // Start with no seeded items — show placeholder for empty state
+  List<Map<String, String>> infoItems = [];
 
   int _selectedIndex = 0;
 
@@ -86,7 +64,7 @@ class _UserHomePageState extends State<UserHomePage> {
                 ),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withOpacity(0.05),
+                    color: Colors.black.withAlpha(13),
                     blurRadius: 10,
                     offset: const Offset(0, 5),
                   ),
@@ -130,7 +108,10 @@ class _UserHomePageState extends State<UserHomePage> {
                   ),
                   // Right side: Back icon moved here
                   IconButton(
-                    icon: Icon(Icons.arrow_forward_ios, color: Colors.blue),
+                    icon: const Text(
+                      '➜]',
+                      style: TextStyle(fontSize: 20, color: Colors.blue),
+                    ),
                     onPressed: () {
                       Navigator.pushReplacementNamed(context, '/');
                     },
@@ -163,10 +144,25 @@ class _UserHomePageState extends State<UserHomePage> {
                     ),
                     const SizedBox(height: 16),
 
-                    // Info cards
-                    for (int i = 0; i < infoItems.length; i++)
-                      // 6. Modified card builder to remove index/staff functions
-                      _buildEnhancedInfoCard(context, infoItems[i]),
+                    // Info cards / Empty placeholder
+                    if (infoItems.isEmpty)
+                      SizedBox(
+                        height: MediaQuery.of(context).size.height * 0.55,
+                        child: const Center(
+                          child: Text(
+                            'NO BARANGAY SERVICES POSTED',
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.black54,
+                            ),
+                          ),
+                        ),
+                      )
+                    else
+                      for (int i = 0; i < infoItems.length; i++)
+                        // 6. Modified card builder to remove index/staff functions
+                        _buildEnhancedInfoCard(context, infoItems[i]),
                     const SizedBox(height: 20),
                   ],
                 ),
@@ -215,7 +211,7 @@ class _UserHomePageState extends State<UserHomePage> {
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.08),
+            color: Colors.black.withAlpha(20),
             blurRadius: 8,
             offset: const Offset(0, 2),
           ),
@@ -228,7 +224,7 @@ class _UserHomePageState extends State<UserHomePage> {
           Container(
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
-              color: (config['color'] as Color).withOpacity(0.1),
+              color: (config['color'] as Color).withAlpha(26),
               borderRadius: const BorderRadius.only(
                 topLeft: Radius.circular(16),
                 topRight: Radius.circular(16),
@@ -240,7 +236,7 @@ class _UserHomePageState extends State<UserHomePage> {
             child: Row(
               children: [
                 CircleAvatar(
-                  backgroundColor: (config['color'] as Color).withOpacity(0.3),
+                  backgroundColor: (config['color'] as Color).withAlpha(76),
                   child: Icon(
                     config['icon'] as IconData,
                     color: config['color'] as Color,
