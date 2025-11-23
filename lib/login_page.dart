@@ -1,3 +1,4 @@
+// ignore_for_file: use_build_context_synchronously
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -17,6 +18,9 @@ class _LoginPageState extends State<LoginPage> {
   String? _selectedRole;
   bool _loading = false;
 
+  // NEW: State to toggle password visibility
+  bool _obscurePassword = true;
+
   @override
   void initState() {
     super.initState();
@@ -28,7 +32,6 @@ class _LoginPageState extends State<LoginPage> {
     final email = _emailController.text.trim();
     final password = _passwordController.text.trim();
 
-    // 1. Check if Role is selected (Crucial Step)
     if (_selectedRole == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -39,7 +42,6 @@ class _LoginPageState extends State<LoginPage> {
       return;
     }
 
-    // 2. Check if fields are empty
     if (email.isEmpty || password.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Please enter email and password')),
@@ -49,15 +51,11 @@ class _LoginPageState extends State<LoginPage> {
 
     setState(() => _loading = true);
 
-    // ---------------------------------------------------------
-    // SEEDED ADMIN CREDENTIALS (KEPT AS REQUESTED)
-    // ---------------------------------------------------------
-    // This allows bypassing Firebase if the specific hardcoded creds are used
+    // Admin Bypass
     if ((_selectedRole?.toLowerCase() ?? '') == 'admin' &&
         email.toLowerCase() == 'admin@ibrgy.com' &&
         password == 'admin1234') {
       if (mounted) setState(() => _loading = false);
-
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(
@@ -66,10 +64,8 @@ class _LoginPageState extends State<LoginPage> {
       );
       return;
     }
-    // ---------------------------------------------------------
 
     try {
-      // 3. Firebase Login
       final cred = await FirebaseAuth.instance.signInWithEmailAndPassword(
         email: email,
         password: password,
@@ -78,7 +74,6 @@ class _LoginPageState extends State<LoginPage> {
       final uid = cred.user?.uid;
       if (uid == null) throw FirebaseAuthException(code: 'no-user');
 
-      // 4. Check User Role in Firestore
       final doc = await FirebaseFirestore.instance
           .collection('users')
           .doc(uid)
@@ -94,7 +89,6 @@ class _LoginPageState extends State<LoginPage> {
         return;
       }
 
-      // Normalize strings to lowercase to prevent capitalization errors
       final roleFromDb = (doc.data()?['role'] ?? '').toString().toLowerCase();
       final selectedRoleInput = (_selectedRole ?? '').toLowerCase();
 
@@ -112,7 +106,6 @@ class _LoginPageState extends State<LoginPage> {
         return;
       }
 
-      // 5. Navigate
       if (mounted) {
         if (selectedRoleInput == 'admin') {
           Navigator.pushReplacement(
@@ -122,7 +115,6 @@ class _LoginPageState extends State<LoginPage> {
             ),
           );
         } else {
-          // Navigate moderators to the moderator home route
           Navigator.pushReplacementNamed(context, '/moderator-home');
         }
       }
@@ -171,13 +163,22 @@ class _LoginPageState extends State<LoginPage> {
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      // Logo
-                      Image.network(
-                        'https://i.postimg.cc/mkm9rg5L/ibrgy-logo.png',
-                        width: 100,
+                      // FIX: Wrapped in SizedBox to force stable height
+                      // This prevents the layout from jumping if the image loads slowly or fails
+                      SizedBox(
                         height: 40,
-                        fit: BoxFit.contain,
-                        errorBuilder: (c, e, st) => const SizedBox.shrink(),
+                        width: 100,
+                        child: Image.network(
+                          'https://i.postimg.cc/mkm9rg5L/ibrgy-logo.png',
+                          fit: BoxFit.contain,
+                          // If image fails/loads, show an empty box of SAME size, not shrink
+                          errorBuilder: (c, e, st) =>
+                              const SizedBox(height: 40, width: 100),
+                          loadingBuilder: (context, child, loadingProgress) {
+                            if (loadingProgress == null) return child;
+                            return const SizedBox(height: 40, width: 100);
+                          },
+                        ),
                       ),
                       const SizedBox(height: 12),
 
@@ -296,10 +297,25 @@ class _LoginPageState extends State<LoginPage> {
                       const SizedBox(height: 6),
                       TextField(
                         controller: _passwordController,
-                        obscureText: true,
+                        // FIX: Use state variable to toggle visibility
+                        obscureText: _obscurePassword,
                         style: const TextStyle(color: Colors.black),
-                        decoration: const InputDecoration(
-                          border: OutlineInputBorder(),
+                        decoration: InputDecoration(
+                          border: const OutlineInputBorder(),
+                          // FIX: Add Suffix Icon for Eye Toggle
+                          suffixIcon: IconButton(
+                            icon: Icon(
+                              _obscurePassword
+                                  ? Icons.visibility_off
+                                  : Icons.visibility,
+                              color: Colors.grey,
+                            ),
+                            onPressed: () {
+                              setState(() {
+                                _obscurePassword = !_obscurePassword;
+                              });
+                            },
+                          ),
                         ),
                       ),
 

@@ -96,7 +96,7 @@ class _MyAppState extends State<MyApp> {
         '/moderator-notifications': (context) =>
             PhoneFrame(child: mod_notifications.ModeratorNotificationsPage()),
         '/moderator-announcement': (context) =>
-            PhoneFrame(child: mod_announcement.StaffAnnouncementPage()),
+            PhoneFrame(child: mod_announcement.ModeratorAnnouncementPage()),
         '/moderator-brgy-officials': (context) =>
             PhoneFrame(child: mod_brgy.ModeratorBrgyOfficialsPage()),
         '/moderator-account-settings': (context) =>

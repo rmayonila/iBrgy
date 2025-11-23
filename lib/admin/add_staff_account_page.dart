@@ -1,5 +1,8 @@
+// ignore_for_file: use_build_context_synchronously
+import 'package:flutter/foundation.dart'; // For kIsWeb check
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_core/firebase_core.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 class AddStaffAccountPage extends StatefulWidget {
@@ -10,224 +13,241 @@ class AddStaffAccountPage extends StatefulWidget {
 }
 
 class _AddStaffAccountPageState extends State<AddStaffAccountPage> {
-  final emailController = TextEditingController();
-  final passwordController = TextEditingController();
-  final nameController = TextEditingController();
-  bool isLoading = false;
+  final _nameController = TextEditingController();
+  final _emailController = TextEditingController();
+  final _passwordController = TextEditingController();
+  bool _isLoading = false;
+  final _formKey = GlobalKey<FormState>();
 
-  @override
-  void dispose() {
-    emailController.dispose();
-    passwordController.dispose();
-    nameController.dispose();
-    super.dispose();
-  }
+  Future<void> _createStaffAccount() async {
+    if (!_formKey.currentState!.validate()) return;
 
-  void _createAccount() async {
-    final email = emailController.text.trim();
-    final password = passwordController.text;
-    final name = nameController.text.trim();
+    setState(() => _isLoading = true);
 
-    if (email.isEmpty || password.isEmpty || name.isEmpty) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('Please fill all fields')));
-      return;
-    }
+    String name = _nameController.text.trim();
+    String email = _emailController.text.trim();
+    String password = _passwordController.text.trim();
 
-    if (password.length < 6) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Password must be at least 6 characters')),
-      );
-      return;
-    }
-
-    setState(() => isLoading = true);
+    FirebaseApp? tempApp;
 
     try {
-      final userCredential = await FirebaseAuth.instance
+      // 1. Create a unique name for the temp app to avoid conflicts
+      String appName = 'tempRegister_${DateTime.now().millisecondsSinceEpoch}';
+
+      // 2. Initialize the temporary app
+      tempApp = await Firebase.initializeApp(
+        name: appName,
+        options: Firebase.app().options,
+      );
+
+      // 3. Get the Auth instance for this temp app
+      FirebaseAuth tempAuth = FirebaseAuth.instanceFor(app: tempApp);
+
+      // ---------------------------------------------------------
+      // THE FIX FOR WEB: DISABLE PERSISTENCE
+      // ---------------------------------------------------------
+      // This tells Firebase: "Don't save this login to the browser."
+      // This prevents it from overwriting your Admin session.
+      if (kIsWeb) {
+        await tempAuth.setPersistence(Persistence.NONE);
+      }
+
+      // 4. Create the user using the TEMP auth instance
+      UserCredential userCredential = await tempAuth
           .createUserWithEmailAndPassword(email: email, password: password);
 
-      final uid = userCredential.user?.uid;
-      if (uid == null) throw Exception('Failed to get user ID');
+      // 5. Save details to Firestore using the MAIN instance (Admin permissions)
+      await FirebaseFirestore.instance
+          .collection('users')
+          .doc(userCredential.user!.uid)
+          .set({
+            'uid': userCredential.user!.uid,
+            'name': name,
+            'email': email,
+            'role': 'staff',
+            'createdAt': FieldValue.serverTimestamp(),
+          });
 
-      await userCredential.user?.updateDisplayName(name);
+      // 6. Cleanup
+      await tempApp.delete();
 
-      await FirebaseFirestore.instance.collection('users').doc(uid).set({
-        'role': 'moderator',
-        'email': email,
-        'name': name,
-        'createdAt': FieldValue.serverTimestamp(),
-      });
+      if (!mounted) return;
 
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Moderator account created: $email')),
-        );
-        Navigator.pop(context);
-      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Staff account created successfully!')),
+      );
+      Navigator.pop(context);
     } on FirebaseAuthException catch (e) {
-      String errorMsg = 'Error creating account';
-      if (e.code == 'weak-password') {
-        errorMsg = 'Password is too weak';
-      } else if (e.code == 'email-already-in-use') {
-        errorMsg = 'Email is already in use';
-      } else if (e.code == 'invalid-email') {
-        errorMsg = 'Email format is invalid';
+      String message = 'An error occurred';
+      if (e.code == 'email-already-in-use') {
+        message = 'The email address is already in use.';
+      } else if (e.code == 'weak-password') {
+        message = 'The password is too weak.';
       }
-      if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text(errorMsg)));
-      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(message), backgroundColor: Colors.red),
+      );
     } catch (e) {
-      String errorMsg = 'Error: $e';
-      if (e.toString().contains('PERMISSION_DENIED') ||
-          e.toString().contains('PERMISSION-DENIED')) {
-        errorMsg =
-            'Permission denied. Make sure Firestore rules are deployed. See FIRESTORE_RULES_SETUP.md';
-      }
-      if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text(errorMsg)));
-      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
+      );
     } finally {
-      if (mounted) setState(() => isLoading = false);
+      // Ensure temp app is deleted even if error occurs
+      try {
+        if (tempApp != null) {
+          await tempApp.delete();
+        }
+      } catch (_) {}
+
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    return PhoneFrame(
-      child: Scaffold(
-        backgroundColor: Colors.white,
-        appBar: AppBar(
-          title: const Text('Add Moderator Account'),
-          backgroundColor: Colors.blue,
-          foregroundColor: Colors.white,
+    // 1. Define Mobile UI
+    Widget mobileContent = Scaffold(
+      backgroundColor: Colors.white,
+      appBar: AppBar(
+        title: const Text(
+          "Add New Staff",
+          style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold),
         ),
-        body: SingleChildScrollView(
-          child: Padding(
-            padding: const EdgeInsets.all(24.0),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                const SizedBox(height: 32),
-                CircleAvatar(
-                  radius: 40,
-                  backgroundColor: Colors.blue[100],
-                  child: const Icon(
-                    Icons.person_add,
-                    size: 48,
-                    color: Colors.blue,
+        backgroundColor: Colors.white,
+        elevation: 0,
+        centerTitle: true,
+        iconTheme: const IconThemeData(color: Colors.black),
+        bottom: PreferredSize(
+          preferredSize: const Size.fromHeight(1.0),
+          child: Container(color: Colors.grey.shade200, height: 1.0),
+        ),
+      ),
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.all(24.0),
+        child: Form(
+          key: _formKey,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                "Staff Details",
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 8),
+              const Text(
+                "Create an account for a moderator. They will use these credentials to log in.",
+                style: TextStyle(color: Colors.grey),
+              ),
+              const SizedBox(height: 24),
+
+              TextFormField(
+                controller: _nameController,
+                decoration: InputDecoration(
+                  labelText: "Full Name",
+                  prefixIcon: const Icon(Icons.person_outline),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
                   ),
                 ),
-                const SizedBox(height: 24),
-                TextField(
-                  controller: nameController,
-                  enabled: !isLoading,
-                  style: const TextStyle(color: Colors.black),
-                  cursorColor: Colors.black,
-                  decoration: InputDecoration(
-                    labelText: 'Moderator Name',
-                    labelStyle: const TextStyle(color: Colors.black54),
-                    prefixIcon: const Icon(Icons.person),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(16),
-                    ),
+                validator: (v) => v!.isEmpty ? "Name is required" : null,
+              ),
+              const SizedBox(height: 16),
+
+              TextFormField(
+                controller: _emailController,
+                keyboardType: TextInputType.emailAddress,
+                decoration: InputDecoration(
+                  labelText: "Email Address",
+                  prefixIcon: const Icon(Icons.email_outlined),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
                   ),
                 ),
-                const SizedBox(height: 16),
-                TextField(
-                  controller: emailController,
-                  enabled: !isLoading,
-                  style: const TextStyle(color: Colors.black),
-                  cursorColor: Colors.black,
-                  decoration: InputDecoration(
-                    labelText: 'Email',
-                    labelStyle: const TextStyle(color: Colors.black54),
-                    prefixIcon: const Icon(Icons.email),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(16),
-                    ),
+                validator: (v) =>
+                    v!.contains('@') ? null : "Enter a valid email",
+              ),
+              const SizedBox(height: 16),
+
+              TextFormField(
+                controller: _passwordController,
+                obscureText: true,
+                decoration: InputDecoration(
+                  labelText: "Password",
+                  prefixIcon: const Icon(Icons.lock_outline),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
                   ),
-                  keyboardType: TextInputType.emailAddress,
                 ),
-                const SizedBox(height: 16),
-                TextField(
-                  controller: passwordController,
-                  enabled: !isLoading,
-                  style: const TextStyle(color: Colors.black),
-                  cursorColor: Colors.black,
-                  decoration: InputDecoration(
-                    labelText: 'Password',
-                    labelStyle: const TextStyle(color: Colors.black54),
-                    prefixIcon: const Icon(Icons.lock),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(16),
-                    ),
-                  ),
-                  obscureText: true,
-                ),
-                const SizedBox(height: 32),
-                ElevatedButton.icon(
-                  onPressed: isLoading ? null : _createAccount,
-                  icon: isLoading
-                      ? const SizedBox(
-                          width: 20,
-                          height: 20,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            color: Colors.white,
-                          ),
-                        )
-                      : const Icon(Icons.check),
-                  label: Text(isLoading ? 'Creating...' : 'Create Account'),
+                validator: (v) =>
+                    v!.length < 6 ? "Password must be at least 6 chars" : null,
+              ),
+              const SizedBox(height: 32),
+
+              SizedBox(
+                width: double.infinity,
+                height: 50,
+                child: ElevatedButton(
+                  onPressed: _isLoading ? null : _createStaffAccount,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.blue,
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(vertical: 16),
                     shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(16),
+                      borderRadius: BorderRadius.circular(12),
                     ),
-                    textStyle: const TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                    ),
+                    elevation: 2,
                   ),
+                  child: _isLoading
+                      ? const SizedBox(
+                          height: 24,
+                          width: 24,
+                          child: CircularProgressIndicator(color: Colors.white),
+                        )
+                      : const Text(
+                          "Create Account",
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.white,
+                          ),
+                        ),
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
         ),
       ),
     );
+
+    if (kIsWeb) {
+      return PhoneFrame(child: mobileContent);
+    }
+    return mobileContent;
   }
 }
 
-// Local PhoneFrame copied from main.dart to avoid importing main.dart
+// Phone Frame Design
 class PhoneFrame extends StatelessWidget {
   final Widget child;
-
   const PhoneFrame({super.key, required this.child});
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.grey[300],
+      backgroundColor: const Color(0xFFF2F2F7),
       body: Center(
         child: Container(
-          width: 375, // iPhone-like width
-          height: 812, // iPhone-like height
+          width: 375,
+          height: 812,
           decoration: BoxDecoration(
             color: Colors.white,
             borderRadius: BorderRadius.circular(40),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withAlpha(76),
-                blurRadius: 20,
+                color: Colors.black.withOpacity(0.1),
+                blurRadius: 30,
                 spreadRadius: 5,
+                offset: const Offset(0, 10),
               ),
             ],
           ),

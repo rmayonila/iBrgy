@@ -2,6 +2,8 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'moderator_notifications_page.dart';
+// 1. Import the new edit page
+import 'moderator_edit_profile_page.dart';
 import 'moderator_nav.dart';
 import '../splash_screen.dart';
 
@@ -27,6 +29,11 @@ class _StaffAccountSettingsPageState
   }
 
   Widget _buildProfileSection() {
+    final user = FirebaseAuth.instance.currentUser;
+    // Display actual name if available, otherwise 'MODERATOR'
+    final displayName = user?.displayName ?? 'MODERATOR';
+    final email = user?.email ?? '';
+
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -45,18 +52,23 @@ class _StaffAccountSettingsPageState
             child: const Icon(Icons.person, size: 40, color: Colors.white),
           ),
           const SizedBox(width: 16),
-          const Expanded(
+          Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'MODERATOR',
-                  style: TextStyle(
+                  displayName.toUpperCase(),
+                  style: const TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.bold,
                     color: Colors.black87,
                   ),
                 ),
+                if (email.isNotEmpty)
+                  Text(
+                    email,
+                    style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+                  ),
               ],
             ),
           ),
@@ -88,8 +100,6 @@ class _StaffAccountSettingsPageState
               children: [
                 Icon(icon, color: iconColor ?? Colors.grey),
                 const SizedBox(width: 12),
-
-                // This EXPANDED makes sure text is fully visible
                 Expanded(
                   child: Text(
                     title,
@@ -102,7 +112,6 @@ class _StaffAccountSettingsPageState
                     softWrap: true,
                   ),
                 ),
-
                 Icon(Icons.chevron_right, color: Colors.grey.shade400),
               ],
             ),
@@ -126,17 +135,24 @@ class _StaffAccountSettingsPageState
                 _buildProfileSection(),
                 const SizedBox(height: 24),
 
+                // 2. Updated Action for Edit Profile
                 _buildSettingsButton(
                   title: 'Edit Profile',
                   icon: Icons.edit,
-                  onTap: () {},
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const ModeratorEditProfilePage(),
+                      ),
+                    );
+                  },
                 ),
 
                 _buildSettingsButton(
                   title: 'Notifications',
                   icon: Icons.notifications_outlined,
                   onTap: () {
-                    // Navigate to the notifications page.
                     Navigator.of(context).push(
                       MaterialPageRoute(
                         builder: (ctx) => const ModeratorNotificationsPage(),
@@ -236,7 +252,6 @@ class _StaffAccountSettingsPageState
           ),
         ),
       ),
-
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: _selectedIndex,
         type: BottomNavigationBarType.fixed,

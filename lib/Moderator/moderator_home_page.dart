@@ -147,8 +147,6 @@ class _ModeratorHomePageState extends State<ModeratorHomePage> {
                       ),
                     ],
                   ),
-
-                  // Right side: Profile Icon (optional for staff)
                 ],
               ),
             ),

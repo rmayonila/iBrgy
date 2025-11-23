@@ -3,14 +3,15 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'moderator_nav.dart';
 
-class StaffAnnouncementPage extends StatefulWidget {
-  const StaffAnnouncementPage({super.key});
+class ModeratorAnnouncementPage extends StatefulWidget {
+  const ModeratorAnnouncementPage({super.key});
 
   @override
-  State<StaffAnnouncementPage> createState() => _StaffAnnouncementPageState();
+  State<ModeratorAnnouncementPage> createState() =>
+      _ModeratorAnnouncementPageState();
 }
 
-class _StaffAnnouncementPageState extends State<StaffAnnouncementPage> {
+class _ModeratorAnnouncementPageState extends State<ModeratorAnnouncementPage> {
   int _selectedIndex = 2;
 
   void _onItemTapped(int index) {
@@ -82,143 +83,7 @@ class _StaffAnnouncementPageState extends State<StaffAnnouncementPage> {
     }
   }
 
-  // (Optional: This modal method is kept if you need it elsewhere,
-  // but the inline composer below is the one currently active).
-  // ignore: unused_element
-  void _showPostUpdateModal() {
-    _postController.clear();
-    showModalBottomSheet<void>(
-      context: context,
-      isScrollControlled: true,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(12)),
-      ),
-      builder: (context) {
-        return Padding(
-          padding: EdgeInsets.only(
-            bottom: MediaQuery.of(context).viewInsets.bottom,
-          ),
-          child: Container(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    CircleAvatar(
-                      backgroundColor: Colors.blue,
-                      child: const Icon(Icons.business, color: Colors.white),
-                    ),
-                    const SizedBox(width: 12),
-                    const Expanded(
-                      child: Text(
-                        'Create post',
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ),
-                    TextButton(
-                      onPressed: () => Navigator.of(context).pop(),
-                      child: const Text('Cancel'),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: _postController,
-                  maxLines: 6,
-                  style: const TextStyle(color: Colors.black),
-                  cursorColor: Colors.black,
-                  decoration: InputDecoration(
-                    hintText: 'What\'s happening in your barangay?',
-                    hintStyle: TextStyle(color: Colors.black45),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 12),
-                Row(
-                  children: [
-                    IconButton(
-                      onPressed: () {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text('Attach photo not implemented'),
-                          ),
-                        );
-                      },
-                      icon: const Icon(Icons.image, color: Colors.grey),
-                    ),
-                    // Location icon removed here as requested
-                    const Spacer(),
-                    ElevatedButton(
-                      onPressed: () async {
-                        final text = _postController.text.trim();
-                        if (text.isEmpty) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text('Please write something'),
-                            ),
-                          );
-                          return;
-                        }
-                        final navigator = Navigator.of(context);
-                        final scaffold = ScaffoldMessenger.of(context);
-                        try {
-                          await _ensureSignedIn();
-                          final docRef = await _db
-                              .collection('announcements')
-                              .add({
-                                'author': 'Barangay Office',
-                                'content': text,
-                                'createdAt': FieldValue.serverTimestamp(),
-                              });
-                          if (!mounted) return;
-                          setState(() {
-                            _posts.insert(0, {
-                              'id': docRef.id,
-                              'author': 'Barangay Office',
-                              'time': 'Just now',
-                              'content': text,
-                            });
-                          });
-                          navigator.pop();
-                          scaffold.showSnackBar(
-                            const SnackBar(content: Text('Posted')),
-                          );
-                        } catch (e) {
-                          if (!mounted) return;
-                          scaffold.showSnackBar(
-                            SnackBar(content: Text('Failed: $e')),
-                          );
-                        }
-                      },
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.blue,
-                      ),
-                      child: const Text(
-                        'Post',
-                        style: TextStyle(
-                          color: Color.fromARGB(255, 248, 250, 251),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-        );
-      },
-    );
-  }
-
   // New: show a centered fixed-position modal dialog for creating posts.
-  // The dialog will remain centered even when the keyboard opens.
   void _showCenteredCreatePostDialog() {
     _postController.clear();
 
@@ -226,8 +91,6 @@ class _StaffAnnouncementPageState extends State<StaffAnnouncementPage> {
       context: context,
       barrierDismissible: false,
       builder: (context) {
-        // Prevent the dialog from shifting when the keyboard opens by
-        // removing viewInsets from MediaQuery for this subtree.
         return MediaQuery(
           data: MediaQuery.of(context).copyWith(viewInsets: EdgeInsets.zero),
           child: Center(
@@ -273,8 +136,6 @@ class _StaffAnnouncementPageState extends State<StaffAnnouncementPage> {
                         ],
                       ),
                       const SizedBox(height: 12),
-                      // Use a fixed-height multiline TextField and ensure
-                      // the hint and typed text start at the top-left.
                       SizedBox(
                         height: 140,
                         child: TextField(
@@ -377,7 +238,6 @@ class _StaffAnnouncementPageState extends State<StaffAnnouncementPage> {
     setState(() {
       _isComposing = false;
     });
-    // unfocus
     _composerFocusNode.unfocus();
   }
 
@@ -458,7 +318,6 @@ class _StaffAnnouncementPageState extends State<StaffAnnouncementPage> {
               ),
             ),
             const SizedBox(height: 8),
-            // Image placeholder (optional)
             Container(
               width: double.infinity,
               height: 140,
@@ -522,7 +381,6 @@ class _StaffAnnouncementPageState extends State<StaffAnnouncementPage> {
                                 ),
                               ),
                             ),
-                            // --- UPDATED CANCEL BUTTON ---
                             TextButton(
                               onPressed: () => _closeInlineComposer(),
                               style: TextButton.styleFrom(
@@ -531,7 +389,7 @@ class _StaffAnnouncementPageState extends State<StaffAnnouncementPage> {
                                   232,
                                   74,
                                   74,
-                                ), // Dark text
+                                ),
                               ),
                               child: const Text(
                                 'Cancel',
@@ -571,10 +429,7 @@ class _StaffAnnouncementPageState extends State<StaffAnnouncementPage> {
                               icon: const Icon(Icons.image, color: Colors.grey),
                             ),
                             const SizedBox(width: 8),
-
-                            // --- LOCATION ICON REMOVED FROM HERE ---
                             const Spacer(),
-                            // --- UPDATED POST BUTTON ---
                             ElevatedButton(
                               onPressed: () async {
                                 final text = _postController.text.trim();
@@ -619,7 +474,7 @@ class _StaffAnnouncementPageState extends State<StaffAnnouncementPage> {
                               },
                               style: ElevatedButton.styleFrom(
                                 backgroundColor: Colors.blue,
-                                foregroundColor: Colors.white, // White text
+                                foregroundColor: Colors.white,
                                 padding: const EdgeInsets.symmetric(
                                   horizontal: 20,
                                   vertical: 12,
@@ -647,105 +502,133 @@ class _StaffAnnouncementPageState extends State<StaffAnnouncementPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
-      body: Stack(
-        children: [
-          SingleChildScrollView(
-            child: Padding(
-              padding: const EdgeInsets.all(16.0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Header with iBrgy logo and POST UPDATES button
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: 8.0),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      backgroundColor: Colors.grey[50], // Matched moderator page background
+      body: SafeArea(
+        child: Stack(
+          children: [
+            Column(
+              children: [
+                // --- HEADER: iBrgy style (Edge to Edge) ---
+                Container(
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: const BorderRadius.only(
+                      bottomLeft: Radius.circular(20),
+                      bottomRight: Radius.circular(20),
+                    ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withAlpha(13),
+                        blurRadius: 10,
+                        offset: const Offset(0, 5),
+                      ),
+                    ],
+                  ),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 20.0,
+                    vertical: 16.0,
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      // Left side: Home Icon + iBrgy Text
+                      Row(
+                        children: [
+                          Icon(
+                            Icons.home,
+                            color: Colors.blue.shade700,
+                            size: 30,
+                          ),
+                          const SizedBox(width: 8),
+                          RichText(
+                            text: TextSpan(
+                              children: [
+                                TextSpan(
+                                  text: 'iB',
+                                  style: TextStyle(
+                                    fontSize: 22,
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.blue,
+                                  ),
+                                ),
+                                TextSpan(
+                                  text: 'rgy',
+                                  style: TextStyle(
+                                    fontSize: 22,
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.blue.shade700,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                      // Removed the Add button from here to match Moderator Page
+                    ],
+                  ),
+                ),
+
+                // --- SCROLLABLE BODY ---
+                Expanded(
+                  child: SingleChildScrollView(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 12,
-                            vertical: 5,
-                          ),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              RichText(
-                                text: TextSpan(
-                                  children: [
-                                    TextSpan(
-                                      text: 'iB',
-                                      style: TextStyle(
-                                        fontSize: 25,
-                                        fontWeight: FontWeight.bold,
-                                        color: Colors.blue,
-                                      ),
-                                    ),
-                                    TextSpan(
-                                      text: 'rgy',
-                                      style: TextStyle(
-                                        fontSize: 25,
-                                        fontWeight: FontWeight.bold,
-                                        color: Colors.blue.shade700,
-                                      ),
-                                    ),
-                                  ],
-                                ),
+                        // --- SECTION HEADER: Text + Add Button ---
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            const Text(
+                              'Announcements',
+                              style: TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.black87,
                               ),
-                              const SizedBox(height: 12),
-                              Text(
-                                'BARANGAY ANNOUNCEMENT',
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w600,
-                                  color: Colors.grey[700],
-                                  letterSpacing: 0.6,
-                                ),
+                            ),
+                            // Button moved here to match Community Info style
+                            IconButton(
+                              onPressed: _showCenteredCreatePostDialog,
+                              icon: const Icon(Icons.add, size: 28),
+                              color: Colors.blue,
+                              tooltip: 'Post Update',
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 16),
+
+                        // --- POSTS LIST ---
+                        if (_posts.isEmpty)
+                          Container(
+                            height: 300,
+                            alignment: Alignment.center,
+                            child: const Text(
+                              'NO ANNOUNCEMENTS POSTED',
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.black54,
                               ),
-                            ],
-                          ),
-                        ),
-                        IconButton(
-                          tooltip: 'Post Updates',
-                          onPressed: _showCenteredCreatePostDialog,
-                          icon: const Icon(Icons.add, color: Colors.blue),
-                        ),
+                            ),
+                          )
+                        else
+                          for (var post in _posts) _buildPost(post),
+
+                        const SizedBox(height: 24),
                       ],
                     ),
                   ),
-
-                  const SizedBox(height: 4),
-
-                  // Posts — show immediately below the subtitle so announcements sit under the brand
-                  // If no posts, show centered placeholder (matches staff style)
-                  if (_posts.isEmpty)
-                    SizedBox(
-                      height: MediaQuery.of(context).size.height * 0.55,
-                      child: const Center(
-                        child: Text(
-                          'NO ANNOUNCEMENTS POSTED',
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.black54,
-                          ),
-                        ),
-                      ),
-                    )
-                  else
-                    for (var post in _posts) _buildPost(post),
-
-                  const SizedBox(height: 24),
-                ],
-              ),
+                ),
+              ],
             ),
-          ),
-          // inline composer overlay inside the phone frame
-          _buildInlineComposer(context),
-        ],
+
+            // Inline composer overlay remains on top
+            _buildInlineComposer(context),
+          ],
+        ),
       ),
-      floatingActionButton: null,
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: _selectedIndex,
         type: BottomNavigationBarType.fixed,
@@ -756,36 +639,14 @@ class _StaffAnnouncementPageState extends State<StaffAnnouncementPage> {
         elevation: 8,
         onTap: _onItemTapped,
         items: const [
-          BottomNavigationBarItem(
-            icon: Icon(Icons.home),
-            label: 'Home',
-            tooltip: '',
-            backgroundColor: Colors.white,
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.phone),
-            label: 'Emergency',
-            tooltip: '',
-            backgroundColor: Colors.white,
-          ),
+          BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Home'),
+          BottomNavigationBarItem(icon: Icon(Icons.phone), label: 'Emergency'),
           BottomNavigationBarItem(
             icon: Icon(Icons.announcement, size: 30),
             label: 'Updates',
-            tooltip: '',
-            backgroundColor: Colors.white,
           ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.people),
-            label: 'People',
-            tooltip: '',
-            backgroundColor: Colors.white,
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.person),
-            label: 'Profile',
-            tooltip: '',
-            backgroundColor: Colors.white,
-          ),
+          BottomNavigationBarItem(icon: Icon(Icons.people), label: 'People'),
+          BottomNavigationBarItem(icon: Icon(Icons.person), label: 'Profile'),
         ],
       ),
     );

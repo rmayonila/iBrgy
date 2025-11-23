@@ -239,100 +239,59 @@ class _ModeratorEmergencyHotlinePageState
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
-      appBar: PreferredSize(
-        preferredSize: const Size.fromHeight(0),
-        child: AppBar(
-          automaticallyImplyLeading: false,
-          backgroundColor: Colors.white,
-          elevation: 0,
-        ),
-      ),
+      backgroundColor: Colors.grey[50],
       body: SafeArea(
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Header
-            Padding(
-              padding: const EdgeInsets.fromLTRB(12.0, 8.0, 12.0, 8.0),
+            // --- HEADER: iBrgy style (Same as ModeratorHomePage) ---
+            Container(
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: const BorderRadius.only(
+                  bottomLeft: Radius.circular(20),
+                  bottomRight: Radius.circular(20),
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withAlpha(13),
+                    blurRadius: 10,
+                    offset: const Offset(0, 5),
+                  ),
+                ],
+              ),
+              padding: const EdgeInsets.symmetric(
+                horizontal: 20.0,
+                vertical: 16.0,
+              ),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
+                  // Left side: Home Icon + iBrgy Text
                   Row(
                     children: [
-                      const SizedBox(width: 4),
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Row(
-                            mainAxisSize: MainAxisSize.min,
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              RichText(
-                                text: TextSpan(
-                                  children: [
-                                    TextSpan(
-                                      text: 'iB',
-                                      style: TextStyle(
-                                        fontSize: 25,
-                                        fontWeight: FontWeight.bold,
-                                        color: Colors.blue,
-                                      ),
-                                    ),
-                                    TextSpan(
-                                      text: 'rgy',
-                                      style: TextStyle(
-                                        fontSize: 25,
-                                        fontWeight: FontWeight.bold,
-                                        color: Colors.blue.shade700,
-                                      ),
-                                    ),
-                                  ],
-                                ),
+                      Icon(Icons.home, color: Colors.blue.shade700, size: 30),
+                      const SizedBox(width: 8),
+                      RichText(
+                        text: TextSpan(
+                          children: [
+                            TextSpan(
+                              text: 'iB',
+                              style: TextStyle(
+                                fontSize: 22,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.blue,
                               ),
-                              const SizedBox(width: 6),
-                              Transform.translate(
-                                offset: const Offset(6, -6),
-                                child: IconButton(
-                                  tooltip: 'Add Number',
-                                  onPressed: _showAddHotlineDialog,
-                                  icon: Container(
-                                    width: 36,
-                                    height: 36,
-                                    decoration: BoxDecoration(
-                                      color: Colors.transparent,
-                                      borderRadius: BorderRadius.circular(8),
-                                    ),
-                                    child: const Icon(
-                                      Icons.add,
-                                      color: Colors.blue,
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 12),
-                          Text(
-                            'BARANGAY EMERGENCY HOTLINE',
-                            style: TextStyle(
-                              fontSize: 15,
-                              fontWeight: FontWeight.w600,
-                              color: Colors.grey[700],
-                              letterSpacing: 0.6,
                             ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(width: 12),
-                      Image.asset(
-                        'assets/images/ibrgy_logo.png',
-                        width: 100,
-                        height: 36,
-                        fit: BoxFit.contain,
-                        errorBuilder: (context, error, stack) =>
-                            const SizedBox.shrink(),
+                            TextSpan(
+                              text: 'rgy',
+                              style: TextStyle(
+                                fontSize: 22,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.blue.shade700,
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
                     ],
                   ),
@@ -340,169 +299,219 @@ class _ModeratorEmergencyHotlinePageState
               ),
             ),
 
-            // Content
+            // --- BODY CONTENT ---
             Expanded(
-              child: _hotlines.isEmpty
-                  ? const Center(
-                      child: Text(
-                        'NO EMERGENCY HOTLINES POSTED',
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.black54,
-                        ),
-                      ),
-                    )
-                  : ListView.separated(
-                      padding: const EdgeInsets.all(12),
-                      itemCount: _hotlines.length,
-                      separatorBuilder: (_, __) => const SizedBox(height: 12),
-                      itemBuilder: (context, index) {
-                        final item = _hotlines[index];
-                        final controller = _numberControllers[index];
-                        return Container(
-                          padding: const EdgeInsets.all(12),
-                          decoration: BoxDecoration(
-                            color: Colors.white,
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(color: Colors.grey.shade200),
-                            boxShadow: [
-                              BoxShadow(
-                                color: Colors.black.withAlpha(8),
-                                blurRadius: 6,
-                                offset: const Offset(0, 2),
-                              ),
-                            ],
+              child: Column(
+                children: [
+                  // Section Title & Add Button
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 20, 16, 10),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Text(
+                          'Emergency Hotlines',
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.black87,
                           ),
-                          child: Stack(
-                            children: [
-                              // Positioned menu at the top-center of the card
-                              Positioned(
-                                top: 2,
-                                left: 0,
-                                right: 0,
-                                child: Align(
-                                  alignment: Alignment.topCenter,
-                                  child: PopupMenuButton<int>(
-                                    icon: const Icon(
-                                      Icons.more_horiz,
-                                      color: Colors.black,
-                                    ),
-                                    itemBuilder: (_) => const [
-                                      PopupMenuItem(
-                                        value: 0,
-                                        child: Text('Edit'),
-                                      ),
-                                      PopupMenuItem(
-                                        value: 1,
-                                        child: Text('Delete'),
-                                      ),
-                                    ],
-                                    onSelected: (v) async {
-                                      if (v == 1) {
-                                        final id = _hotlines[index]['id'];
-                                        final scaffold = ScaffoldMessenger.of(
-                                          context,
-                                        );
-                                        if (id != null) {
-                                          try {
-                                            await _db
-                                                .collection('hotlines')
-                                                .doc(id)
-                                                .delete();
-                                          } catch (e) {
-                                            scaffold.showSnackBar(
-                                              SnackBar(
-                                                content: Text(
-                                                  'Failed to delete remote: $e',
-                                                ),
-                                              ),
-                                            );
-                                          }
-                                        }
-                                        setState(() {
-                                          _hotlines.removeAt(index);
-                                          _numberControllers
-                                              .removeAt(index)
-                                              .dispose();
-                                        });
-                                      } else if (v == 0) {
-                                        _showEditHotlineDialog(index);
-                                      }
-                                    },
-                                  ),
-                                ),
-                              ),
+                        ),
+                        IconButton(
+                          onPressed: _showAddHotlineDialog,
+                          icon: const Icon(Icons.add, size: 28),
+                          color: Colors.blue,
+                          tooltip: 'Add Number',
+                        ),
+                      ],
+                    ),
+                  ),
 
-                              // Main content shifted down to avoid overlap with the menu
-                              Padding(
-                                padding: const EdgeInsets.only(top: 26.0),
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    // Name (centered less the menu)
-                                    Text(
-                                      item['name'] ?? '',
-                                      style: const TextStyle(
-                                        fontWeight: FontWeight.bold,
-                                        fontSize: 14,
-                                        color: Color.fromARGB(255, 33, 33, 33),
-                                      ),
-                                    ),
-                                    if ((item['subtitle'] ?? '').isNotEmpty)
-                                      Padding(
-                                        padding: const EdgeInsets.only(
-                                          top: 6.0,
-                                        ),
-                                        child: Text(
-                                          item['subtitle'] ?? '',
-                                          style: TextStyle(
-                                            color: Colors.grey[600],
-                                            fontSize: 12,
-                                          ),
-                                        ),
-                                      ),
-                                    const SizedBox(height: 12),
-                                    TextField(
-                                      controller: controller,
-                                      style: const TextStyle(
-                                        color: Color.fromARGB(255, 33, 33, 33),
-                                      ),
-                                      cursorColor: Colors.black87,
-                                      decoration: InputDecoration(
-                                        hintText: 'Enter number',
-                                        hintStyle: TextStyle(
-                                          color: Colors.grey[400],
-                                        ),
-                                        filled: true,
-                                        fillColor: Colors.white,
-                                        contentPadding:
-                                            const EdgeInsets.symmetric(
-                                              horizontal: 12,
-                                              vertical: 14,
-                                            ),
-                                        border: OutlineInputBorder(
-                                          borderRadius: BorderRadius.circular(
-                                            12,
-                                          ),
-                                          borderSide: BorderSide(
-                                            color: Colors.grey.shade300,
-                                          ),
-                                        ),
-                                      ),
-                                      keyboardType: TextInputType.phone,
-                                      onChanged: (v) {
-                                        _hotlines[index]['number'] = v;
-                                      },
+                  // List of Hotlines
+                  Expanded(
+                    child: _hotlines.isEmpty
+                        ? const Center(
+                            child: Text(
+                              'NO EMERGENCY HOTLINES POSTED',
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.black54,
+                              ),
+                            ),
+                          )
+                        : ListView.separated(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 8,
+                            ),
+                            itemCount: _hotlines.length,
+                            separatorBuilder: (_, __) =>
+                                const SizedBox(height: 12),
+                            itemBuilder: (context, index) {
+                              final item = _hotlines[index];
+                              final controller = _numberControllers[index];
+                              return Container(
+                                padding: const EdgeInsets.all(12),
+                                decoration: BoxDecoration(
+                                  color: Colors.white,
+                                  borderRadius: BorderRadius.circular(12),
+                                  border: Border.all(
+                                    color: Colors.grey.shade200,
+                                  ),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: Colors.black.withAlpha(15),
+                                      blurRadius: 8,
+                                      offset: const Offset(0, 2),
                                     ),
                                   ],
                                 ),
-                              ),
-                            ],
+                                child: Stack(
+                                  children: [
+                                    // Menu Button (Top Right)
+                                    Positioned(
+                                      top: 0,
+                                      right: 0,
+                                      child: PopupMenuButton<int>(
+                                        padding: EdgeInsets.zero,
+                                        constraints: const BoxConstraints(),
+                                        icon: const Icon(
+                                          Icons.more_horiz,
+                                          color: Colors.grey,
+                                        ),
+                                        itemBuilder: (_) => const [
+                                          PopupMenuItem(
+                                            value: 0,
+                                            child: Text('Edit'),
+                                          ),
+                                          PopupMenuItem(
+                                            value: 1,
+                                            child: Text('Delete'),
+                                          ),
+                                        ],
+                                        onSelected: (v) async {
+                                          if (v == 1) {
+                                            final id = _hotlines[index]['id'];
+                                            final scaffold =
+                                                ScaffoldMessenger.of(context);
+                                            if (id != null) {
+                                              try {
+                                                await _db
+                                                    .collection('hotlines')
+                                                    .doc(id)
+                                                    .delete();
+                                              } catch (e) {
+                                                scaffold.showSnackBar(
+                                                  SnackBar(
+                                                    content: Text(
+                                                      'Failed to delete: $e',
+                                                    ),
+                                                  ),
+                                                );
+                                              }
+                                            }
+                                            setState(() {
+                                              _hotlines.removeAt(index);
+                                              _numberControllers
+                                                  .removeAt(index)
+                                                  .dispose();
+                                            });
+                                          } else if (v == 0) {
+                                            _showEditHotlineDialog(index);
+                                          }
+                                        },
+                                      ),
+                                    ),
+
+                                    // Card Content
+                                    Padding(
+                                      padding: const EdgeInsets.only(
+                                        right: 30.0,
+                                        top: 8,
+                                        bottom: 8,
+                                        left: 8,
+                                      ),
+                                      child: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          // Service Name
+                                          Text(
+                                            item['name'] ?? '',
+                                            style: const TextStyle(
+                                              fontWeight: FontWeight.bold,
+                                              fontSize: 16,
+                                              color: Colors.black87,
+                                            ),
+                                          ),
+                                          if ((item['subtitle'] ?? '')
+                                              .isNotEmpty)
+                                            Padding(
+                                              padding: const EdgeInsets.only(
+                                                top: 4.0,
+                                              ),
+                                              child: Text(
+                                                item['subtitle'] ?? '',
+                                                style: TextStyle(
+                                                  color: Colors.grey[600],
+                                                  fontSize: 12,
+                                                ),
+                                              ),
+                                            ),
+                                          const SizedBox(height: 12),
+                                          // Number Display/Edit field
+                                          TextField(
+                                            controller: controller,
+                                            style: const TextStyle(
+                                              color: Colors.black87,
+                                              fontWeight: FontWeight.w500,
+                                              fontSize: 15,
+                                            ),
+                                            decoration: InputDecoration(
+                                              hintText: 'Enter number',
+                                              hintStyle: TextStyle(
+                                                color: Colors.grey[400],
+                                              ),
+                                              filled: true,
+                                              fillColor: Colors.grey[50],
+                                              contentPadding:
+                                                  const EdgeInsets.symmetric(
+                                                    horizontal: 12,
+                                                    vertical: 12,
+                                                  ),
+                                              border: OutlineInputBorder(
+                                                borderRadius:
+                                                    BorderRadius.circular(8),
+                                                borderSide: BorderSide(
+                                                  color: Colors.grey.shade300,
+                                                ),
+                                              ),
+                                              enabledBorder: OutlineInputBorder(
+                                                borderRadius:
+                                                    BorderRadius.circular(8),
+                                                borderSide: BorderSide(
+                                                  color: Colors.grey.shade300,
+                                                ),
+                                              ),
+                                            ),
+                                            keyboardType: TextInputType.phone,
+                                            // Live update local state
+                                            onChanged: (v) {
+                                              _hotlines[index]['number'] = v;
+                                            },
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              );
+                            },
                           ),
-                        );
-                      },
-                    ),
+                  ),
+                ],
+              ),
             ),
           ],
         ),

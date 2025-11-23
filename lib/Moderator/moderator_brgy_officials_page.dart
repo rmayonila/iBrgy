@@ -18,14 +18,15 @@ class _ModeratorBrgyOfficialsPageState
   final Map<String, List<TextEditingController>> _nameControllers = {};
   final Map<String, List<bool>> _isEditing = {};
   final Map<String, List<FocusNode>> _focusNodes = {};
-  Map<String, dynamic>? _lastDeleted; // holds last deleted item's info for undo
+
   // Per-category contact controllers (address / hours / contacts)
   final Map<String, Map<String, TextEditingController>>
   _contactControllersPerCategory = {};
   final FirebaseFirestore _db = FirebaseFirestore.instance;
 
-  // Officials data (start empty — add entries via the + button)
+  // Officials data
   Map<String, List<Map<String, String>>> officials = {};
+
   void _onItemTapped(int index) {
     navigateModeratorIndex(
       context,
@@ -33,6 +34,74 @@ class _ModeratorBrgyOfficialsPageState
       currentIndex: _selectedIndex,
       onSamePage: (i) => setState(() => _selectedIndex = i),
     );
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _loadOfficialsAndContacts();
+  }
+
+  Future<void> _loadOfficialsAndContacts() async {
+    try {
+      // load officials
+      final snap = await _db
+          .collection('officials')
+          .orderBy('createdAt', descending: true)
+          .get();
+      final Map<String, List<Map<String, String>>> loaded = {};
+      for (var d in snap.docs) {
+        final data = d.data();
+        final category = (data['category'] ?? 'Uncategorized').toString();
+        final title = (data['title'] ?? '').toString();
+        final name = (data['name'] ?? '').toString();
+        if (!loaded.containsKey(category)) loaded[category] = [];
+        loaded[category]!.add({'id': d.id, 'title': title, 'name': name});
+      }
+
+      // load contact docs
+      final contactsSnap = await _db.collection('official_contacts').get();
+      final Map<String, Map<String, String>> contacts = {};
+      for (var d in contactsSnap.docs) {
+        final data = d.data();
+        contacts[d.id] = {
+          'address': (data['address'] ?? '').toString(),
+          'hours': (data['hours'] ?? '').toString(),
+          'contacts': (data['contacts'] ?? '').toString(),
+        };
+      }
+
+      if (!mounted) return;
+      setState(() {
+        officials = loaded;
+        // initialize controllers from loaded officials
+        for (var entry in officials.entries) {
+          _nameControllers[entry.key] = entry.value
+              .map((e) => TextEditingController(text: e['name']))
+              .toList();
+          _isEditing[entry.key] = List.generate(
+            entry.value.length,
+            (_) => false,
+          );
+          _focusNodes[entry.key] = List.generate(
+            entry.value.length,
+            (_) => FocusNode(),
+          );
+        }
+
+        // initialize contact controllers
+        _contactControllersPerCategory.clear();
+        for (var e in contacts.entries) {
+          _contactControllersPerCategory[e.key] = {
+            'address': TextEditingController(text: e.value['address']),
+            'hours': TextEditingController(text: e.value['hours']),
+            'contacts': TextEditingController(text: e.value['contacts']),
+          };
+        }
+      });
+    } catch (e) {
+      // ignore load errors
+    }
   }
 
   void _showAddOfficialDialog() {
@@ -362,7 +431,7 @@ class _ModeratorBrgyOfficialsPageState
                         );
                       }
                     } else {
-                      // contact mode: save contact info into per-category controllers
+                      // contact mode
                       final a = addressController.text.trim();
                       final h = hoursController.text.trim();
                       final p = phoneController.text.trim();
@@ -371,7 +440,6 @@ class _ModeratorBrgyOfficialsPageState
                           officials[category] = [];
                         }
 
-                        // Only create or update controllers if at least one field is non-empty
                         if (a.isNotEmpty || h.isNotEmpty || p.isNotEmpty) {
                           if (!_contactControllersPerCategory.containsKey(
                             category,
@@ -393,8 +461,6 @@ class _ModeratorBrgyOfficialsPageState
 
                       final navigator = Navigator.of(ctx);
                       try {
-                        // persist contact info keyed by category so it can be
-                        // updated later via the same doc id (category as doc)
                         await _db
                             .collection('official_contacts')
                             .doc(category)
@@ -501,7 +567,6 @@ class _ModeratorBrgyOfficialsPageState
           'updatedAt': FieldValue.serverTimestamp(),
         });
       } catch (e) {
-        // If update fails (e.g., doc doesn't exist), attempt to set it.
         await _db.collection('official_contacts').doc(category).set({
           fieldKey: result,
           'updatedAt': FieldValue.serverTimestamp(),
@@ -570,7 +635,7 @@ class _ModeratorBrgyOfficialsPageState
                       officials[category]![index]['name'] = newName;
                       _isEditing[category]![index] = false;
                     });
-                    // update Firestore if this official has an id
+                    // update Firestore
                     final id = officials[category]![index]['id'];
                     if (id != null) {
                       try {
@@ -631,60 +696,38 @@ class _ModeratorBrgyOfficialsPageState
                     ),
                   );
                   if (confirm == true) {
-                    final previousName = controller.text;
-                    _lastDeleted = {
-                      'category': category,
-                      'index': index,
-                      'previousName': previousName,
-                    };
-                    setState(() {
-                      controller.clear();
-                      officials[category]![index]['name'] = '';
-                      if (_isEditing.containsKey(category) &&
-                          _isEditing[category]!.length > index) {
-                        _isEditing[category]![index] = false;
-                      }
-                    });
-
-                    // Update Firestore if this official has an id
                     final id = officials[category]![index]['id'];
-                    if (id != null) {
-                      try {
-                        await _db.collection('officials').doc(id).update({
-                          'name': '',
-                        });
-                      } catch (e) {
-                        // ignore failures for now but show feedback
-                        _scaffoldMessengerKey.currentState?.showSnackBar(
-                          SnackBar(
-                            content: Text('Failed to update remote: $e'),
-                          ),
-                        );
+
+                    // 1. Delete from DB
+                    try {
+                      if (id != null) {
+                        await _db.collection('officials').doc(id).delete();
                       }
+                    } catch (e) {
+                      if (!mounted) return;
+                      _scaffoldMessengerKey.currentState?.showSnackBar(
+                        SnackBar(content: Text('Failed to delete remote: $e')),
+                      );
+                      return; // Stop execution if DB delete fails
                     }
 
+                    if (!mounted) return;
+
+                    // 2. Update Local UI (Remove item entirely)
+                    setState(() {
+                      // Clean up controllers first
+                      _nameControllers[category]![index].dispose();
+                      _focusNodes[category]![index].dispose();
+
+                      // Remove from all state lists
+                      officials[category]!.removeAt(index);
+                      _nameControllers[category]!.removeAt(index);
+                      _isEditing[category]!.removeAt(index);
+                      _focusNodes[category]!.removeAt(index);
+                    });
+
                     _scaffoldMessengerKey.currentState?.showSnackBar(
-                      SnackBar(
-                        content: const Text('Name cleared'),
-                        action: SnackBarAction(
-                          label: 'Undo',
-                          onPressed: () {
-                            final info = _lastDeleted;
-                            if (info == null) return;
-                            final cat = info['category'] as String;
-                            final idx = info['index'] as int;
-                            final prev = info['previousName'] as String;
-                            setState(() {
-                              if (officials.containsKey(cat) &&
-                                  officials[cat]!.length > idx) {
-                                officials[cat]![idx]['name'] = prev;
-                                _nameControllers[cat]![idx].text = prev;
-                              }
-                            });
-                            _lastDeleted = null;
-                          },
-                        ),
-                      ),
+                      const SnackBar(content: Text('Official deleted')),
                     );
                   }
                 }
@@ -745,74 +788,6 @@ class _ModeratorBrgyOfficialsPageState
   }
 
   @override
-  void initState() {
-    super.initState();
-    _loadOfficialsAndContacts();
-  }
-
-  Future<void> _loadOfficialsAndContacts() async {
-    try {
-      // load officials
-      final snap = await _db
-          .collection('officials')
-          .orderBy('createdAt', descending: true)
-          .get();
-      final Map<String, List<Map<String, String>>> loaded = {};
-      for (var d in snap.docs) {
-        final data = d.data();
-        final category = (data['category'] ?? 'Uncategorized').toString();
-        final title = (data['title'] ?? '').toString();
-        final name = (data['name'] ?? '').toString();
-        if (!loaded.containsKey(category)) loaded[category] = [];
-        loaded[category]!.add({'id': d.id, 'title': title, 'name': name});
-      }
-
-      // load contact docs
-      final contactsSnap = await _db.collection('official_contacts').get();
-      final Map<String, Map<String, String>> contacts = {};
-      for (var d in contactsSnap.docs) {
-        final data = d.data();
-        contacts[d.id] = {
-          'address': (data['address'] ?? '').toString(),
-          'hours': (data['hours'] ?? '').toString(),
-          'contacts': (data['contacts'] ?? '').toString(),
-        };
-      }
-
-      if (!mounted) return;
-      setState(() {
-        officials = loaded;
-        // initialize controllers from loaded officials
-        for (var entry in officials.entries) {
-          _nameControllers[entry.key] = entry.value
-              .map((e) => TextEditingController(text: e['name']))
-              .toList();
-          _isEditing[entry.key] = List.generate(
-            entry.value.length,
-            (_) => false,
-          );
-          _focusNodes[entry.key] = List.generate(
-            entry.value.length,
-            (_) => FocusNode(),
-          );
-        }
-
-        // initialize contact controllers
-        _contactControllersPerCategory.clear();
-        for (var e in contacts.entries) {
-          _contactControllersPerCategory[e.key] = {
-            'address': TextEditingController(text: e.value['address']),
-            'hours': TextEditingController(text: e.value['hours']),
-            'contacts': TextEditingController(text: e.value['contacts']),
-          };
-        }
-      });
-    } catch (e) {
-      // ignore load errors
-    }
-  }
-
-  @override
   void dispose() {
     for (var list in _nameControllers.values) {
       for (var c in list) {
@@ -830,7 +805,6 @@ class _ModeratorBrgyOfficialsPageState
         c.dispose();
       }
     }
-    // Contact controllers removed (contact section deleted)
     super.dispose();
   }
 
@@ -847,69 +821,94 @@ class _ModeratorBrgyOfficialsPageState
     return ScaffoldMessenger(
       key: _scaffoldMessengerKey,
       child: Scaffold(
-        backgroundColor: Colors.white,
+        backgroundColor: Colors.grey[50],
         body: SafeArea(
           child: Column(
             children: [
-              // Header with iBrgy logo and ADD BRGY OFFICIALS button
-              Padding(
-                padding: const EdgeInsets.all(16.0),
+              // --- HEADER: iBrgy style ---
+              Container(
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: const BorderRadius.only(
+                    bottomLeft: Radius.circular(20),
+                    bottomRight: Radius.circular(20),
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withAlpha(13),
+                      blurRadius: 10,
+                      offset: const Offset(0, 5),
+                    ),
+                  ],
+                ),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 20.0,
+                  vertical: 16.0,
+                ),
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 5,
-                      ),
-
-                      child: RichText(
-                        text: TextSpan(
-                          children: [
-                            TextSpan(
-                              text: 'iB',
-                              style: TextStyle(
-                                fontSize: 25,
-                                fontWeight: FontWeight.bold,
-                                color: Colors.blue,
+                    Row(
+                      children: [
+                        Icon(Icons.home, color: Colors.blue.shade700, size: 30),
+                        const SizedBox(width: 8),
+                        RichText(
+                          text: TextSpan(
+                            children: [
+                              TextSpan(
+                                text: 'iB',
+                                style: TextStyle(
+                                  fontSize: 22,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.blue,
+                                ),
                               ),
-                            ),
-                            TextSpan(
-                              text: 'rgy',
-                              style: TextStyle(
-                                fontSize: 25,
-                                fontWeight: FontWeight.bold,
-                                color: Colors.blue.shade700,
+                              TextSpan(
+                                text: 'rgy',
+                                style: TextStyle(
+                                  fontSize: 22,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.blue.shade700,
+                                ),
                               ),
-                            ),
-                          ],
+                            ],
+                          ),
                         ),
-                      ),
-                    ),
-                    IconButton(
-                      tooltip: 'Add',
-                      onPressed: _showAddOfficialDialog,
-                      icon: Container(
-                        width: 36,
-                        height: 36,
-                        decoration: BoxDecoration(
-                          color: Colors.transparent,
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: const Icon(Icons.add, color: Colors.blue),
-                      ),
+                      ],
                     ),
                   ],
                 ),
               ),
 
-              // Content
+              // --- BODY CONTENT ---
               Expanded(
                 child: SingleChildScrollView(
-                  padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                  padding: const EdgeInsets.all(16.0),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
+                      // --- SECTION TITLE: Text + Add Button ---
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          const Text(
+                            'Barangay Officials',
+                            style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.black87,
+                            ),
+                          ),
+                          IconButton(
+                            onPressed: _showAddOfficialDialog,
+                            tooltip: 'Add Official',
+                            icon: const Icon(Icons.add, size: 28),
+                            color: Colors.blue,
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 16),
+
                       // Build sections dynamically
                       for (var entry in officials.entries)
                         Column(
@@ -927,7 +926,7 @@ class _ModeratorBrgyOfficialsPageState
                             for (int i = 0; i < entry.value.length; i++)
                               _buildOfficialFieldEditable(entry.key, i),
 
-                            // Per-category Contact Information card (matches requested UI)
+                            // Per-category Contact Information card
                             if (_hasContactInfo(entry.key))
                               Padding(
                                 padding: const EdgeInsets.only(top: 8.0),
@@ -945,13 +944,6 @@ class _ModeratorBrgyOfficialsPageState
                                     crossAxisAlignment:
                                         CrossAxisAlignment.start,
                                     children: [
-                                      const Padding(
-                                        padding: EdgeInsets.only(
-                                          left: 4.0,
-                                          bottom: 8.0,
-                                        ),
-                                      ),
-                                      const SizedBox(height: 4),
                                       Builder(
                                         builder: (ctx) {
                                           final ctrls =
@@ -959,7 +951,7 @@ class _ModeratorBrgyOfficialsPageState
                                                   .key]!;
                                           return Column(
                                             children: [
-                                              // Office Address (label above value)
+                                              // Office Address
                                               Row(
                                                 crossAxisAlignment:
                                                     CrossAxisAlignment.start,
