@@ -1,23 +1,66 @@
-// ignore_for_file: use_build_context_synchronously
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'moderator_notifications_page.dart';
-// 1. Import the new edit page
-import 'moderator_edit_profile_page.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'moderator_nav.dart';
 import '../splash_screen.dart';
+import 'moderator_help_support_page.dart';
+import 'moderator_activity_report_page.dart';
+import 'moderator_my_post_page.dart';
+import 'moderator_schedule_content_page.dart';
 
 class ModeratorAccountSettingsPage extends StatefulWidget {
   const ModeratorAccountSettingsPage({super.key});
 
   @override
   State<ModeratorAccountSettingsPage> createState() =>
-      _StaffAccountSettingsPageState();
+      _ModeratorAccountSettingsPageState();
 }
 
-class _StaffAccountSettingsPageState
+class _ModeratorAccountSettingsPageState
     extends State<ModeratorAccountSettingsPage> {
   int _selectedIndex = 4; // Profile tab
+  String moderatorName = 'MODERATOR';
+  String moderatorEmail = 'Loading...';
+  String moderatorRole = 'Content Moderator';
+
+  @override
+  void initState() {
+    super.initState();
+    _loadModeratorProfile();
+  }
+
+  Future<void> _loadModeratorProfile() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) {
+      setState(() {
+        moderatorName = 'Moderator';
+        moderatorEmail = 'moderator@ibrgy.com';
+      });
+      return;
+    }
+
+    try {
+      final doc = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(user.uid)
+          .get();
+      if (doc.exists) {
+        final data = doc.data();
+        setState(() {
+          moderatorName =
+              (data?['name'] as String?) ?? user.displayName ?? 'Moderator';
+          moderatorEmail = (data?['email'] as String?) ?? user.email ?? '';
+          moderatorRole = (data?['role'] as String?) ?? 'Content Moderator';
+        });
+        return;
+      }
+    } catch (_) {}
+
+    setState(() {
+      moderatorName = user.displayName ?? 'Moderator';
+      moderatorEmail = user.email ?? '';
+    });
+  }
 
   void _onItemTapped(int index) {
     navigateModeratorIndex(
@@ -28,28 +71,36 @@ class _StaffAccountSettingsPageState
     );
   }
 
-  Widget _buildProfileSection() {
-    final user = FirebaseAuth.instance.currentUser;
-    // Display actual name if available, otherwise 'MODERATOR'
-    final displayName = user?.displayName ?? 'MODERATOR';
-    final email = user?.email ?? '';
+  // --- WIDGET BUILDERS ---
 
+  Widget _buildHeader() {
     return Container(
-      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        border: Border.all(color: Colors.grey.shade300),
-        borderRadius: BorderRadius.circular(12),
+        color: Colors.white,
+        borderRadius: const BorderRadius.only(
+          bottomLeft: Radius.circular(24),
+          bottomRight: Radius.circular(24),
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 15,
+            offset: const Offset(0, 5),
+          ),
+        ],
       ),
+      padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 30.0),
       child: Row(
         children: [
-          Container(
-            width: 60,
-            height: 60,
-            decoration: const BoxDecoration(
-              color: Colors.grey,
-              shape: BoxShape.circle,
+          CircleAvatar(
+            radius: 28,
+            backgroundColor:
+                Colors.green.shade50, // Different color for moderator
+            child: const Icon(
+              Icons.verified_user,
+              color: Colors.green,
+              size: 32,
             ),
-            child: const Icon(Icons.person, size: 40, color: Colors.white),
           ),
           const SizedBox(width: 16),
           Expanded(
@@ -57,18 +108,37 @@ class _StaffAccountSettingsPageState
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  displayName.toUpperCase(),
+                  moderatorName,
                   style: const TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
                     color: Colors.black87,
+                    fontSize: 20,
+                    fontWeight: FontWeight.w800,
                   ),
                 ),
-                if (email.isNotEmpty)
-                  Text(
-                    email,
-                    style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+                const SizedBox(height: 2),
+                Text(
+                  moderatorEmail,
+                  style: TextStyle(color: Colors.grey.shade600, fontSize: 14),
+                ),
+                const SizedBox(height: 4),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 2,
                   ),
+                  decoration: BoxDecoration(
+                    color: Colors.green.shade50,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Text(
+                    moderatorRole,
+                    style: TextStyle(
+                      color: Colors.green.shade800,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
               ],
             ),
           ),
@@ -77,46 +147,132 @@ class _StaffAccountSettingsPageState
     );
   }
 
-  Widget _buildSettingsButton({
-    required String title,
-    required IconData icon,
-    required VoidCallback onTap,
-    Color? iconColor,
-  }) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      decoration: BoxDecoration(
-        border: Border.all(color: Colors.grey.shade300),
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          onTap: onTap,
-          borderRadius: BorderRadius.circular(12),
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Row(
-              children: [
-                Icon(icon, color: iconColor ?? Colors.grey),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Text(
-                    title,
-                    style: const TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w500,
-                      color: Color.fromARGB(255, 33, 32, 32),
-                    ),
-                    overflow: TextOverflow.visible,
-                    softWrap: true,
-                  ),
-                ),
-                Icon(Icons.chevron_right, color: Colors.grey.shade400),
-              ],
+  Widget _buildSectionHeader(String title, String subtitle) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12.0, left: 4),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            title,
+            style: const TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+              color: Colors.black87,
             ),
           ),
+          const SizedBox(height: 4),
+          Text(
+            subtitle,
+            style: TextStyle(fontSize: 13, color: Colors.grey[600]),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildGroupContainer(List<Widget> children) {
+    return Container(
+      decoration: BoxDecoration(
+        color: const Color(0xFFF8F9FA),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.grey.shade200),
+      ),
+      child: Column(children: children),
+    );
+  }
+
+  Widget _buildListTile({
+    required IconData icon,
+    required String title,
+    required VoidCallback onTap,
+    Color? textColor,
+    Color? iconColor,
+    bool showDivider = true,
+  }) {
+    return Column(
+      children: [
+        ListTile(
+          onTap: onTap,
+          leading: Icon(icon, color: iconColor ?? Colors.black87),
+          title: Text(
+            title,
+            style: TextStyle(
+              fontWeight: FontWeight.w500,
+              fontSize: 15,
+              color: textColor ?? Colors.black87,
+            ),
+          ),
+          trailing: const Icon(Icons.chevron_right, color: Colors.grey),
+          contentPadding: const EdgeInsets.symmetric(
+            horizontal: 20,
+            vertical: 4,
+          ),
         ),
+        if (showDivider)
+          Divider(
+            height: 1,
+            thickness: 0.5,
+            color: Colors.grey.shade300,
+            indent: 60,
+          ),
+      ],
+    );
+  }
+
+  // --- ENHANCED NAVBAR BUILDER ---
+  Widget _buildBottomNavBar() {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 10,
+            offset: const Offset(0, -5),
+          ),
+        ],
+      ),
+      child: BottomNavigationBar(
+        currentIndex: _selectedIndex,
+        type: BottomNavigationBarType.fixed,
+        selectedItemColor: Colors.green, // Different color for moderator
+        unselectedItemColor: Colors.grey.shade400,
+        backgroundColor: Colors.white,
+        showSelectedLabels: true,
+        showUnselectedLabels: true,
+        selectedLabelStyle: const TextStyle(
+          fontWeight: FontWeight.w600,
+          fontSize: 12,
+        ),
+        unselectedLabelStyle: const TextStyle(
+          fontWeight: FontWeight.w500,
+          fontSize: 12,
+        ),
+        elevation: 0,
+        onTap: _onItemTapped,
+        items: const [
+          BottomNavigationBarItem(
+            icon: Icon(Icons.home_rounded),
+            label: 'Home',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.phone_rounded),
+            label: 'Emergency',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.campaign_rounded),
+            label: 'Updates',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.people_alt_rounded),
+            label: 'People',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.person_rounded),
+            label: 'Profile',
+          ),
+        ],
       ),
     );
   }
@@ -126,151 +282,169 @@ class _StaffAccountSettingsPageState
     return Scaffold(
       backgroundColor: Colors.white,
       body: SafeArea(
-        child: SingleChildScrollView(
-          child: Padding(
-            padding: const EdgeInsets.all(16.0),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                _buildProfileSection(),
-                const SizedBox(height: 24),
+        child: Column(
+          children: [
+            // 1. Custom Header
+            _buildHeader(),
 
-                // 2. Updated Action for Edit Profile
-                _buildSettingsButton(
-                  title: 'Edit Profile',
-                  icon: Icons.edit,
-                  onTap: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => const ModeratorEditProfilePage(),
-                      ),
-                    );
-                  },
-                ),
-
-                _buildSettingsButton(
-                  title: 'Notifications',
-                  icon: Icons.notifications_outlined,
-                  onTap: () {
-                    Navigator.of(context).push(
-                      MaterialPageRoute(
-                        builder: (ctx) => const ModeratorNotificationsPage(),
-                      ),
-                    );
-                  },
-                ),
-
-                _buildSettingsButton(
-                  title: 'Help & Support',
-                  icon: Icons.help_outline,
-                  onTap: () {
-                    showDialog(
-                      context: context,
-                      builder: (context) => AlertDialog(
-                        backgroundColor: Colors.white,
-                        title: const Text(
-                          'Help & Support',
-                          style: TextStyle(color: Colors.black),
-                        ),
-                        content: const Text(
-                          'For assistance, please contact our support team at:\n\n'
-                          'Email: support@ibrgy.com\n'
-                          'Phone: (123) 456-7890\n\n'
-                          'Or visit our website for FAQs and more help.',
-                          style: TextStyle(color: Colors.black),
-                        ),
-                        actions: [
-                          TextButton(
-                            onPressed: () => Navigator.of(context).pop(),
-                            child: const Text(
-                              'Close',
-                              style: TextStyle(color: Colors.blue),
+            // 2. Scrollable Content
+            Expanded(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.all(20.0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // --- SECTION 1: PROFILE & CONTENT MANAGEMENT ---
+                    _buildSectionHeader(
+                      "Profile & Content",
+                      "Manage your profile and content responsibilities",
+                    ),
+                    _buildGroupContainer([
+                      _buildListTile(
+                        icon: Icons.analytics_outlined,
+                        title: 'My Activity Report',
+                        showDivider: false,
+                        onTap: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) =>
+                                  const ModeratorActivityReportPage(),
                             ),
-                          ),
-                        ],
+                          );
+                        },
                       ),
-                    );
-                  },
-                ),
+                    ]),
 
-                _buildSettingsButton(
-                  title: 'Log Out',
-                  icon: Icons.logout,
-                  iconColor: Colors.red,
-                  onTap: () async {
-                    final parentContext = context;
-                    final shouldLogout = await showDialog<bool>(
-                      context: parentContext,
-                      builder: (context) => AlertDialog(
-                        backgroundColor: Colors.white,
-                        title: const Text(
-                          'Log out',
-                          style: TextStyle(color: Colors.black),
-                        ),
-                        content: const Text(
-                          'Are you sure you want to log out?',
-                          style: TextStyle(color: Colors.black),
-                        ),
-                        actions: [
-                          TextButton(
-                            onPressed: () => Navigator.of(context).pop(false),
-                            child: const Text(
-                              'Cancel',
-                              style: TextStyle(color: Colors.blue),
+                    const SizedBox(height: 30),
+
+                    // --- SECTION 2: CONTENT MANAGEMENT TOOLS ---
+                    _buildSectionHeader(
+                      "Content Tools",
+                      "Tools for managing announcements and posts",
+                    ),
+                    // In the Content Tools section:
+                    _buildGroupContainer([
+                      _buildListTile(
+                        icon: Icons.post_add,
+                        title: 'My Posts & Announcements',
+                        onTap: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => const ModeratorMyPostPage(),
                             ),
-                          ),
-                          TextButton(
-                            onPressed: () => Navigator.of(context).pop(true),
-                            child: const Text(
-                              'Log out',
-                              style: TextStyle(color: Colors.blue),
-                            ),
-                          ),
-                        ],
+                          );
+                        },
                       ),
-                    );
+                      _buildListTile(
+                        icon: Icons.schedule,
+                        title: 'Scheduled Content',
+                        onTap: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) =>
+                                  const ModeratorScheduledContentPage(),
+                            ),
+                          );
+                        },
+                      ),
+                    ]),
+                    const SizedBox(height: 30),
 
-                    if (!mounted) return;
-                    if (shouldLogout == true) {
-                      try {
-                        await FirebaseAuth.instance.signOut();
-                      } catch (e) {
-                        debugPrint('Sign out error: $e');
-                      }
-                      if (!mounted) return;
-                      Navigator.pushAndRemoveUntil(
-                        parentContext,
-                        MaterialPageRoute(builder: (_) => const SplashScreen()),
-                        (r) => false,
-                      );
-                    }
-                  },
+                    // --- SECTION 3: ACCOUNT & SUPPORT ---
+                    _buildSectionHeader(
+                      "Account & Support",
+                      "Manage your account and get help",
+                    ),
+                    _buildGroupContainer([
+                      _buildListTile(
+                        icon: Icons.help_outline,
+                        title: 'Help & Support',
+                        onTap: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) =>
+                                  const ModeratorHelpSupportPage(),
+                            ),
+                          );
+                        },
+                      ),
+
+                      _buildListTile(
+                        icon: Icons.logout,
+                        title: 'Log Out',
+                        textColor: Colors.red,
+                        iconColor: Colors.red,
+                        showDivider: false,
+                        onTap: () => _handleLogout(),
+                      ),
+                    ]),
+                  ],
                 ),
-              ],
+              ),
             ),
-          ),
+          ],
         ),
       ),
-      bottomNavigationBar: BottomNavigationBar(
-        currentIndex: _selectedIndex,
-        type: BottomNavigationBarType.fixed,
-        selectedItemColor: Colors.blue,
-        unselectedItemColor: Colors.grey,
+      bottomNavigationBar: _buildBottomNavBar(),
+    );
+  }
+
+  Future<void> _handleLogout() async {
+    final shouldLogout = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
         backgroundColor: Colors.white,
-        elevation: 8,
-        onTap: _onItemTapped,
-        items: const [
-          BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Home'),
-          BottomNavigationBarItem(icon: Icon(Icons.phone), label: 'Emergency'),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.announcement, size: 30),
-            label: 'Updates',
+        title: const Text(
+          'Log out',
+          style: TextStyle(
+            color: Colors.black87,
+            fontWeight: FontWeight.bold,
+            fontSize: 20,
           ),
-          BottomNavigationBarItem(icon: Icon(Icons.people), label: 'People'),
-          BottomNavigationBarItem(icon: Icon(Icons.person), label: 'Profile'),
+        ),
+        content: const Text(
+          'Are you sure you want to log out?',
+          style: TextStyle(color: Colors.black87, fontSize: 16),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text(
+              'Cancel',
+              style: TextStyle(
+                color: Colors.blue,
+                fontSize: 16,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text(
+              'Log out',
+              style: TextStyle(
+                color: Colors.red,
+                fontSize: 16,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
         ],
       ),
     );
+
+    if (shouldLogout == true) {
+      await FirebaseAuth.instance.signOut();
+      if (!mounted) return;
+      Navigator.pushAndRemoveUntil(
+        context,
+        MaterialPageRoute(builder: (_) => const SplashScreen()),
+        (r) => false,
+      );
+    }
   }
 }

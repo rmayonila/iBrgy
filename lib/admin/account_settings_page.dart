@@ -7,6 +7,8 @@ import '../splash_screen.dart';
 import 'admin_notifications_page.dart';
 import 'edit_profile_page.dart';
 import 'manage_moderators_page.dart';
+import 'change_password_page.dart'; // Import the separated file
+import 'help_support_page.dart'; // Import the separated file
 
 class AccountSettingsPage extends StatefulWidget {
   const AccountSettingsPage({super.key});
@@ -66,117 +68,6 @@ class _AccountSettingsPageState extends State<AccountSettingsPage> {
     } else if (index == 3) {
       Navigator.pushReplacementNamed(context, '/brgy-officials');
     }
-  }
-
-  // --- PASSWORD CHANGE DIALOG ---
-  void _showChangePasswordDialog() {
-    final newPassController = TextEditingController();
-    final confirmPassController = TextEditingController();
-    final formKey = GlobalKey<FormState>();
-    bool isLoading = false;
-
-    showDialog(
-      context: context,
-      builder: (context) {
-        return StatefulBuilder(
-          builder: (context, setState) {
-            return AlertDialog(
-              backgroundColor: Colors.white,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(16),
-              ),
-              title: const Text("Change Password"),
-              content: Form(
-                key: formKey,
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    TextFormField(
-                      controller: newPassController,
-                      obscureText: true,
-                      decoration: const InputDecoration(
-                        labelText: "New Password",
-                        border: OutlineInputBorder(),
-                        prefixIcon: Icon(Icons.lock_outline),
-                      ),
-                      validator: (value) {
-                        if (value == null || value.length < 6) {
-                          return 'Password must be at least 6 characters';
-                        }
-                        return null;
-                      },
-                    ),
-                    const SizedBox(height: 16),
-                    TextFormField(
-                      controller: confirmPassController,
-                      obscureText: true,
-                      decoration: const InputDecoration(
-                        labelText: "Confirm Password",
-                        border: OutlineInputBorder(),
-                        prefixIcon: Icon(Icons.check_circle_outline),
-                      ),
-                      validator: (value) {
-                        if (value != newPassController.text) {
-                          return 'Passwords do not match';
-                        }
-                        return null;
-                      },
-                    ),
-                    if (isLoading)
-                      const Padding(
-                        padding: EdgeInsets.only(top: 16.0),
-                        child: CircularProgressIndicator(),
-                      ),
-                  ],
-                ),
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.pop(context),
-                  child: const Text("Cancel"),
-                ),
-                ElevatedButton(
-                  onPressed: isLoading
-                      ? null
-                      : () async {
-                          if (formKey.currentState!.validate()) {
-                            setState(() => isLoading = true);
-                            try {
-                              await FirebaseAuth.instance.currentUser
-                                  ?.updatePassword(
-                                    newPassController.text.trim(),
-                                  );
-                              Navigator.pop(context);
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(
-                                  content: Text(
-                                    "Password changed successfully!",
-                                  ),
-                                ),
-                              );
-                            } on FirebaseAuthException catch (e) {
-                              setState(() => isLoading = false);
-                              String errorMsg = "An error occurred";
-                              if (e.code == 'requires-recent-login') {
-                                errorMsg =
-                                    "For security, please log out and log in again to change your password.";
-                              } else {
-                                errorMsg = e.message ?? errorMsg;
-                              }
-                              ScaffoldMessenger.of(
-                                context,
-                              ).showSnackBar(SnackBar(content: Text(errorMsg)));
-                            }
-                          }
-                        },
-                  child: const Text("Update"),
-                ),
-              ],
-            );
-          },
-        );
-      },
-    );
   }
 
   // --- WIDGET BUILDERS ---
@@ -344,7 +235,6 @@ class _AccountSettingsPageState extends State<AccountSettingsPage> {
             icon: Icon(Icons.phone_rounded),
             label: 'Emergency',
           ),
-          // FIXED: Uses standard Icon so it stays Grey when not selected
           BottomNavigationBarItem(
             icon: Icon(Icons.campaign_rounded),
             label: 'Updates',
@@ -415,7 +305,7 @@ class _AccountSettingsPageState extends State<AccountSettingsPage> {
                       ),
                       _buildListTile(
                         icon: Icons.supervisor_account_outlined,
-                        title: 'Manage Staff / Moderators',
+                        title: 'Manage Moderators',
                         showDivider: false, // Last item in group
                         onTap: () {
                           Navigator.push(
@@ -440,12 +330,26 @@ class _AccountSettingsPageState extends State<AccountSettingsPage> {
                       _buildListTile(
                         icon: Icons.help_outline,
                         title: 'Help & Support',
-                        onTap: () => _showHelpDialog(),
+                        onTap: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => const HelpSupportPage(),
+                            ),
+                          );
+                        },
                       ),
                       _buildListTile(
                         icon: Icons.lock_outline,
                         title: 'Change Password',
-                        onTap: () => _showChangePasswordDialog(),
+                        onTap: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => const ChangePasswordPage(),
+                            ),
+                          );
+                        },
                       ),
                       _buildListTile(
                         icon: Icons.logout,
@@ -474,38 +378,45 @@ class _AccountSettingsPageState extends State<AccountSettingsPage> {
     return mobileContent;
   }
 
-  void _showHelpDialog() {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: Colors.white,
-        title: const Text('Help & Support'),
-        content: const Text('Contact us at support@ibrgy.com'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Close'),
-          ),
-        ],
-      ),
-    );
-  }
-
   Future<void> _handleLogout() async {
     final shouldLogout = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
         backgroundColor: Colors.white,
-        title: const Text('Log out'),
-        content: const Text('Are you sure you want to log out?'),
+        title: const Text(
+          'Log out',
+          style: TextStyle(
+            color: Colors.black87,
+            fontWeight: FontWeight.bold,
+            fontSize: 20,
+          ),
+        ),
+        content: const Text(
+          'Are you sure you want to log out?',
+          style: TextStyle(color: Colors.black87, fontSize: 16),
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancel'),
+            child: const Text(
+              'Cancel',
+              style: TextStyle(
+                color: Colors.blue,
+                fontSize: 16,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
           ),
           TextButton(
             onPressed: () => Navigator.pop(context, true),
-            child: const Text('Log out', style: TextStyle(color: Colors.red)),
+            child: const Text(
+              'Log out',
+              style: TextStyle(
+                color: Colors.red,
+                fontSize: 16,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
           ),
         ],
       ),

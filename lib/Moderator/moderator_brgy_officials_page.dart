@@ -13,19 +13,50 @@ class ModeratorBrgyOfficialsPage extends StatefulWidget {
 class _ModeratorBrgyOfficialsPageState
     extends State<ModeratorBrgyOfficialsPage> {
   int _selectedIndex = 3; // People tab
-  final GlobalKey<ScaffoldMessengerState> _scaffoldMessengerKey =
-      GlobalKey<ScaffoldMessengerState>();
+  final FirebaseFirestore _db = FirebaseFirestore.instance;
+
+  // Data State
+  Map<String, List<Map<String, String>>> _allOfficials = {};
+  Map<String, List<Map<String, String>>> _filteredOfficials = {};
+  Map<String, Map<String, String>> _contacts = {};
+
+  // Search State
+  final TextEditingController _searchController = TextEditingController();
+
+  // Editing State
   final Map<String, List<TextEditingController>> _nameControllers = {};
   final Map<String, List<bool>> _isEditing = {};
   final Map<String, List<FocusNode>> _focusNodes = {};
-
-  // Per-category contact controllers (address / hours / contacts)
   final Map<String, Map<String, TextEditingController>>
   _contactControllersPerCategory = {};
-  final FirebaseFirestore _db = FirebaseFirestore.instance;
 
-  // Officials data
-  Map<String, List<Map<String, String>>> officials = {};
+  @override
+  void initState() {
+    super.initState();
+    _loadOfficialsAndContacts();
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    // Dispose all editing controllers
+    for (var list in _nameControllers.values) {
+      for (var controller in list) {
+        controller.dispose();
+      }
+    }
+    for (var list in _focusNodes.values) {
+      for (var focusNode in list) {
+        focusNode.dispose();
+      }
+    }
+    for (var map in _contactControllersPerCategory.values) {
+      for (var controller in map.values) {
+        controller.dispose();
+      }
+    }
+    super.dispose();
+  }
 
   void _onItemTapped(int index) {
     navigateModeratorIndex(
@@ -36,15 +67,9 @@ class _ModeratorBrgyOfficialsPageState
     );
   }
 
-  @override
-  void initState() {
-    super.initState();
-    _loadOfficialsAndContacts();
-  }
-
   Future<void> _loadOfficialsAndContacts() async {
     try {
-      // load officials
+      // Load officials
       final snap = await _db
           .collection('officials')
           .orderBy('createdAt', descending: true)
@@ -59,7 +84,7 @@ class _ModeratorBrgyOfficialsPageState
         loaded[category]!.add({'id': d.id, 'title': title, 'name': name});
       }
 
-      // load contact docs
+      // Load contact docs
       final contactsSnap = await _db.collection('official_contacts').get();
       final Map<String, Map<String, String>> contacts = {};
       for (var d in contactsSnap.docs) {
@@ -73,826 +98,810 @@ class _ModeratorBrgyOfficialsPageState
 
       if (!mounted) return;
       setState(() {
-        officials = loaded;
-        // initialize controllers from loaded officials
-        for (var entry in officials.entries) {
-          _nameControllers[entry.key] = entry.value
-              .map((e) => TextEditingController(text: e['name']))
-              .toList();
-          _isEditing[entry.key] = List.generate(
-            entry.value.length,
-            (_) => false,
-          );
-          _focusNodes[entry.key] = List.generate(
-            entry.value.length,
-            (_) => FocusNode(),
-          );
-        }
+        _allOfficials = loaded;
+        _filteredOfficials = loaded;
+        _contacts = contacts;
 
-        // initialize contact controllers
-        _contactControllersPerCategory.clear();
-        for (var e in contacts.entries) {
-          _contactControllersPerCategory[e.key] = {
-            'address': TextEditingController(text: e.value['address']),
-            'hours': TextEditingController(text: e.value['hours']),
-            'contacts': TextEditingController(text: e.value['contacts']),
-          };
-        }
+        // Initialize editing controllers
+        _initializeEditingControllers();
       });
     } catch (e) {
       // ignore load errors
     }
   }
 
-  void _showAddOfficialDialog() {
-    final titleController = TextEditingController();
-    final nameController = TextEditingController();
-    final categoryController = TextEditingController();
-    // controllers for contact-info mode
-    final addressController = TextEditingController();
-    final hoursController = TextEditingController();
-    final phoneController = TextEditingController();
+  void _initializeEditingControllers() {
+    _nameControllers.clear();
+    _isEditing.clear();
+    _focusNodes.clear();
+    _contactControllersPerCategory.clear();
 
-    // Reusable decoration for consistent look
-    InputDecoration buildInputDecoration({
-      required String label,
-      required String hint,
-      required IconData icon,
-    }) {
-      return InputDecoration(
-        labelText: label,
-        hintText: hint,
-        filled: true,
-        fillColor: Colors.grey.shade50,
-        prefixIcon: Icon(icon, color: Colors.blue.shade700),
-        labelStyle: TextStyle(color: Colors.grey.shade700),
-        hintStyle: TextStyle(color: Colors.grey.shade400),
-        contentPadding: const EdgeInsets.symmetric(
-          vertical: 16,
-          horizontal: 20,
-        ),
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide(color: Colors.grey.shade300),
-        ),
-        enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide(color: Colors.grey.shade200),
-        ),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide(color: Colors.blue.shade700, width: 2),
-        ),
+    for (var entry in _allOfficials.entries) {
+      _nameControllers[entry.key] = entry.value
+          .map((e) => TextEditingController(text: e['name']))
+          .toList();
+      _isEditing[entry.key] = List.generate(entry.value.length, (_) => false);
+      _focusNodes[entry.key] = List.generate(
+        entry.value.length,
+        (_) => FocusNode(),
       );
     }
 
-    showDialog(
+    for (var entry in _contacts.entries) {
+      _contactControllersPerCategory[entry.key] = {
+        'address': TextEditingController(text: entry.value['address']),
+        'hours': TextEditingController(text: entry.value['hours']),
+        'contacts': TextEditingController(text: entry.value['contacts']),
+      };
+    }
+  }
+
+  void _filterOfficials(String query) {
+    if (query.isEmpty) {
+      setState(() {
+        _filteredOfficials = Map.from(_allOfficials);
+      });
+      return;
+    }
+
+    final lowerQuery = query.toLowerCase();
+    final Map<String, List<Map<String, String>>> temp = {};
+
+    _allOfficials.forEach((category, officialsList) {
+      final filteredList = officialsList.where((o) {
+        final title = (o['title'] ?? '').toLowerCase();
+        final name = (o['name'] ?? '').toLowerCase();
+        return title.contains(lowerQuery) || name.contains(lowerQuery);
+      }).toList();
+
+      if (filteredList.isNotEmpty) {
+        temp[category] = filteredList;
+      }
+    });
+
+    setState(() {
+      _filteredOfficials = temp;
+    });
+  }
+
+  bool _hasContactInfo(String category) {
+    final c = _contacts[category];
+    if (c == null) return false;
+    return (c['address']?.trim().isNotEmpty ?? false) ||
+        (c['hours']?.trim().isNotEmpty ?? false) ||
+        (c['contacts']?.trim().isNotEmpty ?? false);
+  }
+
+  // --- CRUD OPERATIONS ---
+
+  // ADD Official Dialog
+  Future<void> _showAddOfficialDialog() async {
+    final titleController = TextEditingController();
+    final nameController = TextEditingController();
+    final categoryController = TextEditingController();
+
+    final entered = await showDialog<Map<String, String>>(
       context: context,
-      builder: (context) {
-        var isContactMode = false;
-        return StatefulBuilder(
-          builder: (ctx, setStateDialog) {
-            return AlertDialog(
-              backgroundColor: Colors.white,
-              surfaceTintColor: Colors.white,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(20),
-              ),
-              titlePadding: const EdgeInsets.fromLTRB(24, 24, 24, 0),
-              contentPadding: const EdgeInsets.fromLTRB(24, 20, 24, 24),
-              actionsPadding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
-              title: Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      color: Colors.blue.shade50,
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Icon(
-                      Icons.person_add_alt_1_rounded,
-                      color: Colors.blue.shade700,
-                      size: 28,
-                    ),
-                  ),
-                  const SizedBox(width: 16),
-                  const Expanded(
-                    child: Text(
-                      'Add Official',
-                      style: TextStyle(
-                        color: Colors.black87,
-                        fontSize: 22,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-              content: SingleChildScrollView(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    TextField(
-                      controller: categoryController,
-                      style: const TextStyle(color: Colors.black87),
-                      decoration:
-                          buildInputDecoration(
-                            label: 'Category',
-                            hint: 'e.g., EXECUTIVE OFFICERS',
-                            icon: Icons.category_outlined,
-                          ).copyWith(
-                            // Use suffixIcon so the toggle is vertically centered
-                            suffixIcon: GestureDetector(
-                              onTap: () => setStateDialog(
-                                () => isContactMode = !isContactMode,
-                              ),
-                              child: AnimatedContainer(
-                                duration: const Duration(milliseconds: 200),
-                                width: 46,
-                                height: 26,
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 4,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: isContactMode
-                                      ? const Color(0xFF2F3438)
-                                      : Colors.grey.shade300,
-                                  borderRadius: BorderRadius.circular(16),
-                                  border: Border.all(
-                                    color: isContactMode
-                                        ? Colors.grey.shade600
-                                        : Colors.grey.shade500,
-                                  ),
-                                ),
-                                child: Stack(
-                                  children: [
-                                    AnimatedAlign(
-                                      duration: const Duration(
-                                        milliseconds: 200,
-                                      ),
-                                      alignment: isContactMode
-                                          ? Alignment.centerRight
-                                          : Alignment.centerLeft,
-                                      curve: Curves.easeInOut,
-                                      child: Container(
-                                        width: 18,
-                                        height: 18,
-                                        decoration: BoxDecoration(
-                                          color: isContactMode
-                                              ? const Color(0xFFBFC6CC)
-                                              : Colors.white,
-                                          shape: BoxShape.circle,
-                                        ),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ),
-                            suffixIconConstraints: const BoxConstraints(
-                              minWidth: 45,
-                              minHeight: 26,
-                            ),
-                          ),
-                    ),
-                    const SizedBox(height: 12),
-                    if (!isContactMode) ...[
-                      TextField(
-                        controller: titleController,
-                        style: const TextStyle(color: Colors.black87),
-                        decoration: buildInputDecoration(
-                          label: 'Position Title',
-                          hint: 'e.g., BRGY CAPTAIN',
-                          icon: Icons.work_outline_rounded,
-                        ),
-                      ),
-                      const SizedBox(height: 12),
-                      TextField(
-                        controller: nameController,
-                        style: const TextStyle(color: Colors.black87),
-                        decoration: buildInputDecoration(
-                          label: 'Full Name',
-                          hint: 'e.g., JUAN DELA CRUZ',
-                          icon: Icons.person_outline_rounded,
-                        ),
-                      ),
-                    ] else ...[
-                      TextField(
-                        controller: addressController,
-                        style: const TextStyle(color: Colors.black87),
-                        decoration: buildInputDecoration(
-                          label: 'Office Address',
-                          hint: 'e.g., 123 Barangay St.',
-                          icon: Icons.location_on_outlined,
-                        ),
-                      ),
-                      const SizedBox(height: 12),
-                      TextField(
-                        controller: hoursController,
-                        style: const TextStyle(color: Colors.black87),
-                        decoration: buildInputDecoration(
-                          label: 'Office Hours',
-                          hint: 'e.g., 8:00 AM - 5:00 PM',
-                          icon: Icons.access_time_outlined,
-                        ),
-                      ),
-                      const SizedBox(height: 12),
-                      TextField(
-                        controller: phoneController,
-                        style: const TextStyle(color: Colors.black87),
-                        decoration: buildInputDecoration(
-                          label: 'Office Phone Number',
-                          hint: 'e.g., (02) 1234-5678',
-                          icon: Icons.phone_outlined,
-                        ),
-                        keyboardType: TextInputType.phone,
-                      ),
-                    ],
-                  ],
-                ),
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () {
-                    // dispose temporary controllers
-                    titleController.dispose();
-                    nameController.dispose();
-                    categoryController.dispose();
-                    addressController.dispose();
-                    hoursController.dispose();
-                    phoneController.dispose();
-                    Navigator.of(ctx).pop();
-                  },
-                  style: TextButton.styleFrom(
-                    foregroundColor: Colors.grey.shade700,
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 12,
-                    ),
-                  ),
-                  child: const Text(
-                    'Cancel',
-                    style: TextStyle(fontWeight: FontWeight.w600),
+      builder: (ctx) => AlertDialog(
+        title: const Text('Add Barangay Official'),
+        content: SingleChildScrollView(
+          child: Padding(
+            padding: EdgeInsets.only(
+              bottom: MediaQuery.of(ctx).viewInsets.bottom,
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(
+                  controller: categoryController,
+                  decoration: const InputDecoration(
+                    labelText: 'Category',
+                    hintText: 'e.g., Punong Barangay',
                   ),
                 ),
-                ElevatedButton.icon(
-                  onPressed: () async {
-                    final category = categoryController.text.trim();
-
-                    if (category.isEmpty) {
-                      _scaffoldMessengerKey.currentState?.showSnackBar(
-                        const SnackBar(
-                          content: Text('Please enter a category'),
-                          backgroundColor: Colors.redAccent,
-                          behavior: SnackBarBehavior.floating,
-                        ),
-                      );
-                      return;
-                    }
-
-                    if (!isContactMode) {
-                      final title = titleController.text.trim();
-                      final name = nameController.text.trim();
-                      if (title.isEmpty || name.isEmpty) {
-                        _scaffoldMessengerKey.currentState?.showSnackBar(
-                          const SnackBar(
-                            content: Text('Please fill all fields'),
-                            backgroundColor: Colors.redAccent,
-                            behavior: SnackBarBehavior.floating,
-                          ),
-                        );
-                        return;
-                      }
-
-                      try {
-                        final navigator = Navigator.of(ctx);
-                        final docRef = await _db.collection('officials').add({
-                          'category': category,
-                          'title': title,
-                          'name': name,
-                          'createdAt': FieldValue.serverTimestamp(),
-                        });
-                        if (!mounted) return;
-                        setState(() {
-                          if (!officials.containsKey(category)) {
-                            officials[category] = [];
-                          }
-                          officials[category]!.add({
-                            'id': docRef.id,
-                            'title': title,
-                            'name': name,
-                          });
-
-                          // Keep controller list in sync
-                          if (!_nameControllers.containsKey(category)) {
-                            _nameControllers[category] = [
-                              TextEditingController(text: name),
-                            ];
-                            _isEditing[category] = [false];
-                            _focusNodes[category] = [FocusNode()];
-                          } else {
-                            _nameControllers[category]!.add(
-                              TextEditingController(text: name),
-                            );
-                            _isEditing[category]!.add(false);
-
-                            if (!_focusNodes.containsKey(category)) {
-                              _focusNodes[category] = [];
-                            }
-                            while (_focusNodes[category]!.length <
-                                _nameControllers[category]!.length - 1) {
-                              _focusNodes[category]!.add(FocusNode());
-                            }
-                            _focusNodes[category]!.add(FocusNode());
-                          }
-                        });
-
-                        navigator.pop();
-
-                        // dispose temp controllers
-                        titleController.dispose();
-                        nameController.dispose();
-                        categoryController.dispose();
-                        addressController.dispose();
-                        hoursController.dispose();
-                        phoneController.dispose();
-
-                        _scaffoldMessengerKey.currentState?.showSnackBar(
-                          SnackBar(
-                            content: const Text('Official added successfully'),
-                            backgroundColor: Colors.green.shade600,
-                            behavior: SnackBarBehavior.floating,
-                          ),
-                        );
-                      } catch (e) {
-                        _scaffoldMessengerKey.currentState?.showSnackBar(
-                          SnackBar(content: Text('Failed to add official: $e')),
-                        );
-                      }
-                    } else {
-                      // contact mode
-                      final a = addressController.text.trim();
-                      final h = hoursController.text.trim();
-                      final p = phoneController.text.trim();
-                      setState(() {
-                        if (!officials.containsKey(category)) {
-                          officials[category] = [];
-                        }
-
-                        if (a.isNotEmpty || h.isNotEmpty || p.isNotEmpty) {
-                          if (!_contactControllersPerCategory.containsKey(
-                            category,
-                          )) {
-                            _contactControllersPerCategory[category] = {
-                              'address': TextEditingController(text: a),
-                              'hours': TextEditingController(text: h),
-                              'contacts': TextEditingController(text: p),
-                            };
-                          } else {
-                            final ctrls =
-                                _contactControllersPerCategory[category]!;
-                            ctrls['address']!.text = a;
-                            ctrls['hours']!.text = h;
-                            ctrls['contacts']!.text = p;
-                          }
-                        }
-                      });
-
-                      final navigator = Navigator.of(ctx);
-                      try {
-                        await _db
-                            .collection('official_contacts')
-                            .doc(category)
-                            .set({
-                              'address': a,
-                              'hours': h,
-                              'contacts': p,
-                              'updatedAt': FieldValue.serverTimestamp(),
-                            });
-                      } catch (e) {
-                        _scaffoldMessengerKey.currentState?.showSnackBar(
-                          SnackBar(
-                            content: Text('Failed to save contacts: $e'),
-                          ),
-                        );
-                      }
-
-                      navigator.pop();
-
-                      // dispose temp controllers
-                      titleController.dispose();
-                      nameController.dispose();
-                      categoryController.dispose();
-                      addressController.dispose();
-                      hoursController.dispose();
-                      phoneController.dispose();
-
-                      _scaffoldMessengerKey.currentState?.showSnackBar(
-                        SnackBar(
-                          content: const Text('Contact information saved'),
-                          backgroundColor: Colors.green.shade600,
-                          behavior: SnackBarBehavior.floating,
-                        ),
-                      );
-                    }
-                  },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.blue.shade700,
-                    foregroundColor: Colors.white,
-                    elevation: 2,
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 24,
-                      vertical: 12,
-                    ),
-                    shape: const StadiumBorder(),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: titleController,
+                  decoration: const InputDecoration(
+                    labelText: 'Position Title',
+                    hintText: 'e.g., Barangay Captain',
                   ),
-                  icon: const Icon(Icons.check_rounded, size: 20),
-                  label: const Text(
-                    'Add',
-                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: nameController,
+                  decoration: const InputDecoration(
+                    labelText: 'Full Name',
+                    hintText: 'e.g., Juan Dela Cruz',
                   ),
                 ),
               ],
-            );
-          },
-        );
-      },
+            ),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(null),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.of(ctx).pop({
+                'category': categoryController.text.trim(),
+                'title': titleController.text.trim(),
+                'name': nameController.text.trim(),
+              });
+            },
+            child: const Text('Save'),
+          ),
+        ],
+      ),
     );
+
+    titleController.dispose();
+    nameController.dispose();
+    categoryController.dispose();
+
+    if (entered != null) {
+      final scaffold = ScaffoldMessenger.of(context);
+      final category = entered['category'] ?? '';
+      final title = entered['title'] ?? '';
+      final name = entered['name'] ?? '';
+
+      if (category.isEmpty || title.isEmpty || name.isEmpty) {
+        scaffold.showSnackBar(
+          const SnackBar(content: Text('Please fill all fields')),
+        );
+        return;
+      }
+
+      try {
+        final docRef = await _db.collection('officials').add({
+          'category': category,
+          'title': title,
+          'name': name,
+          'createdAt': FieldValue.serverTimestamp(),
+        });
+
+        if (!mounted) return;
+        setState(() {
+          if (!_allOfficials.containsKey(category)) {
+            _allOfficials[category] = [];
+          }
+          _allOfficials[category]!.add({
+            'id': docRef.id,
+            'title': title,
+            'name': name,
+          });
+          _filteredOfficials = Map.from(_allOfficials);
+          _initializeEditingControllers();
+        });
+
+        scaffold.showSnackBar(const SnackBar(content: Text('Official added')));
+      } catch (e) {
+        scaffold.showSnackBar(
+          SnackBar(content: Text('Failed to add official: $e')),
+        );
+      }
+    }
   }
 
-  Future<void> _showEditCategoryFieldDialog(
+  // EDIT Official
+  Future<void> _editOfficial(String category, int index) async {
+    final official = _allOfficials[category]![index];
+    final controller = _nameControllers[category]![index];
+
+    if (_isEditing[category]![index]) {
+      // Save changes
+      final newName = controller.text.trim();
+      if (newName.isEmpty) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('Name cannot be empty')));
+        return;
+      }
+
+      try {
+        final id = official['id'];
+        if (id != null) {
+          await _db.collection('officials').doc(id).update({
+            'name': newName,
+            'updatedAt': FieldValue.serverTimestamp(),
+          });
+        }
+
+        setState(() {
+          _allOfficials[category]![index]['name'] = newName;
+          _isEditing[category]![index] = false;
+          _filteredOfficials = Map.from(_allOfficials);
+        });
+
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('Official updated')));
+      } catch (e) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Failed to update: $e')));
+      }
+    } else {
+      // Start editing
+      setState(() {
+        _isEditing[category]![index] = true;
+      });
+      Future.delayed(const Duration(milliseconds: 100), () {
+        _focusNodes[category]![index].requestFocus();
+      });
+    }
+  }
+
+  // DELETE Official
+  Future<void> _deleteOfficial(String category, int index) async {
+    final official = _allOfficials[category]![index];
+    final scaffold = ScaffoldMessenger.of(context);
+
+    final confirmDelete = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Confirm Deletion'),
+        content: Text(
+          'Are you sure you want to delete "${official['title']}"?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text('Delete', style: TextStyle(color: Colors.red)),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmDelete == true) {
+      final id = official['id'];
+      if (id != null) {
+        try {
+          await _db.collection('officials').doc(id).delete();
+        } catch (e) {
+          scaffold.showSnackBar(
+            SnackBar(content: Text('Failed to delete: $e')),
+          );
+          return;
+        }
+      }
+
+      if (!mounted) return;
+      setState(() {
+        // Clean up controllers
+        _nameControllers[category]![index].dispose();
+        _focusNodes[category]![index].dispose();
+
+        // Remove from lists
+        _allOfficials[category]!.removeAt(index);
+        _nameControllers[category]!.removeAt(index);
+        _isEditing[category]!.removeAt(index);
+        _focusNodes[category]!.removeAt(index);
+
+        _filteredOfficials = Map.from(_allOfficials);
+      });
+
+      scaffold.showSnackBar(const SnackBar(content: Text('Official deleted')));
+    }
+  }
+
+  // EDIT Contact Info
+  Future<void> _editContactInfo(
     String category,
-    String fieldKey,
-    String fieldLabel,
+    String field,
+    String label,
   ) async {
     final controllers = _contactControllersPerCategory[category];
     if (controllers == null) return;
-    final currentController = controllers[fieldKey]!;
 
+    final currentController = controllers[field]!;
     final inputController = TextEditingController(text: currentController.text);
 
     final result = await showDialog<String>(
       context: context,
-      builder: (ctx) {
-        return AlertDialog(
-          title: Text('Edit $fieldLabel'),
-          content: TextField(
-            controller: inputController,
-            decoration: InputDecoration(hintText: 'Enter $fieldLabel'),
-            autofocus: true,
+      builder: (ctx) => AlertDialog(
+        title: Text('Edit $label'),
+        content: TextField(
+          controller: inputController,
+          decoration: InputDecoration(hintText: 'Enter $label'),
+          autofocus: true,
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(null),
+            child: const Text('Cancel'),
           ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(ctx).pop(null),
-              child: const Text('Cancel'),
-            ),
-            TextButton(
-              onPressed: () =>
-                  Navigator.of(ctx).pop(inputController.text.trim()),
-              child: const Text('Save'),
-            ),
-          ],
-        );
-      },
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(inputController.text.trim()),
+            child: const Text('Save'),
+          ),
+        ],
+      ),
     );
 
+    inputController.dispose();
+
     if (result != null) {
-      setState(() {
-        currentController.text = result;
-      });
+      final scaffold = ScaffoldMessenger.of(context);
       try {
-        await _db.collection('official_contacts').doc(category).update({
-          fieldKey: result,
-          'updatedAt': FieldValue.serverTimestamp(),
-        });
-      } catch (e) {
         await _db.collection('official_contacts').doc(category).set({
-          fieldKey: result,
+          field: result,
           'updatedAt': FieldValue.serverTimestamp(),
         }, SetOptions(merge: true));
+
+        setState(() {
+          currentController.text = result;
+          _contacts[category] ??= {};
+          _contacts[category]![field] = result;
+        });
+
+        scaffold.showSnackBar(
+          const SnackBar(content: Text('Contact info updated')),
+        );
+      } catch (e) {
+        scaffold.showSnackBar(
+          SnackBar(content: Text('Failed to update contact info: $e')),
+        );
       }
-      _scaffoldMessengerKey.currentState?.showSnackBar(
-        const SnackBar(content: Text('Saved')),
-      );
     }
   }
 
-  Widget _buildOfficialFieldEditable(String category, int index) {
-    final official = officials[category]![index];
-    // ensure controller exists
-    if (!_nameControllers.containsKey(category)) {
-      _nameControllers[category] = officials[category]!
-          .map((e) => TextEditingController(text: e['name']))
-          .toList();
-    }
-    if (!_isEditing.containsKey(category)) {
-      _isEditing[category] = List.generate(
-        officials[category]!.length,
-        (_) => false,
-      );
-    }
-    final controller = _nameControllers[category]![index];
-    final isEditing = _isEditing[category]![index];
-    final focusNode = _focusNodes[category]![index];
+  // --- WIDGET BUILDERS ---
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          crossAxisAlignment: CrossAxisAlignment.center,
-          children: [
-            Expanded(
-              child: Text(
-                official['title'] ?? '',
-                style: const TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w500,
-                  color: Color.fromARGB(221, 5, 5, 5),
-                ),
-              ),
+  Widget _buildHeader() {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: const BorderRadius.only(
+          bottomLeft: Radius.circular(24),
+          bottomRight: Radius.circular(24),
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 15,
+            offset: const Offset(0, 5),
+          ),
+        ],
+      ),
+      padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 20.0),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: Colors.blue.shade50,
+              shape: BoxShape.circle,
             ),
-            PopupMenuButton<String>(
-              padding: EdgeInsets.zero,
-              color: Colors.white,
-              child: Container(
-                width: 36,
-                height: 36,
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: const Icon(
-                  Icons.more_horiz,
-                  color: Color.fromARGB(255, 132, 129, 129),
-                ),
-              ),
-              onSelected: (value) async {
-                if (value == 'edit') {
-                  if (isEditing) {
-                    final newName = controller.text.trim();
-                    setState(() {
-                      officials[category]![index]['name'] = newName;
-                      _isEditing[category]![index] = false;
-                    });
-                    // update Firestore
-                    final id = officials[category]![index]['id'];
-                    if (id != null) {
-                      try {
-                        await _db.collection('officials').doc(id).update({
-                          'name': newName,
-                        });
-                      } catch (e) {
-                        _scaffoldMessengerKey.currentState?.showSnackBar(
-                          SnackBar(content: Text('Failed to update: $e')),
-                        );
-                      }
-                    }
-                    _scaffoldMessengerKey.currentState?.showSnackBar(
-                      const SnackBar(content: Text('Saved')),
-                    );
-                  } else {
-                    setState(() {
-                      _isEditing[category]![index] = true;
-                    });
-                    Future.delayed(const Duration(milliseconds: 80), () {
-                      focusNode.requestFocus();
-                    });
-                  }
-                } else if (value == 'delete') {
-                  final confirm = await showDialog<bool>(
-                    context: context,
-                    builder: (c) => AlertDialog(
-                      backgroundColor: Colors.white,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      title: const Text(
-                        'Delete Official',
-                        style: TextStyle(color: Colors.black),
-                      ),
-                      content: const Text(
-                        'Are you sure you want to delete this official?',
-                        style: TextStyle(color: Colors.black),
-                      ),
-                      actions: [
-                        TextButton(
-                          onPressed: () => Navigator.of(c).pop(false),
-                          child: const Text(
-                            'Cancel',
-                            style: TextStyle(
-                              color: Color.fromARGB(255, 54, 168, 244),
-                            ),
-                          ),
-                        ),
-                        TextButton(
-                          onPressed: () => Navigator.of(c).pop(true),
-                          child: const Text(
-                            'Delete',
-                            style: TextStyle(color: Colors.red),
-                          ),
-                        ),
-                      ],
-                    ),
-                  );
-                  if (confirm == true) {
-                    final id = officials[category]![index]['id'];
-
-                    // 1. Delete from DB
-                    try {
-                      if (id != null) {
-                        await _db.collection('officials').doc(id).delete();
-                      }
-                    } catch (e) {
-                      if (!mounted) return;
-                      _scaffoldMessengerKey.currentState?.showSnackBar(
-                        SnackBar(content: Text('Failed to delete remote: $e')),
-                      );
-                      return; // Stop execution if DB delete fails
-                    }
-
-                    if (!mounted) return;
-
-                    // 2. Update Local UI (Remove item entirely)
-                    setState(() {
-                      // Clean up controllers first
-                      _nameControllers[category]![index].dispose();
-                      _focusNodes[category]![index].dispose();
-
-                      // Remove from all state lists
-                      officials[category]!.removeAt(index);
-                      _nameControllers[category]!.removeAt(index);
-                      _isEditing[category]!.removeAt(index);
-                      _focusNodes[category]!.removeAt(index);
-                    });
-
-                    _scaffoldMessengerKey.currentState?.showSnackBar(
-                      const SnackBar(content: Text('Official deleted')),
-                    );
-                  }
-                }
-              },
-              itemBuilder: (context) => [
-                PopupMenuItem(
-                  value: 'edit',
-                  child: Text(
-                    isEditing ? 'Save' : 'Edit',
-                    style: const TextStyle(color: Colors.black),
+            child: const Icon(
+              Icons.people_alt_rounded,
+              color: Colors.blue,
+              size: 24,
+            ),
+          ),
+          const SizedBox(width: 12),
+          RichText(
+            text: TextSpan(
+              children: [
+                const TextSpan(
+                  text: 'iB',
+                  style: TextStyle(
+                    fontSize: 24,
+                    fontWeight: FontWeight.w800,
+                    color: Colors.blue,
+                    letterSpacing: -0.5,
                   ),
                 ),
-                const PopupMenuItem(
-                  value: 'delete',
-                  child: Text('Delete', style: TextStyle(color: Colors.red)),
+                TextSpan(
+                  text: 'rgy',
+                  style: TextStyle(
+                    fontSize: 24,
+                    fontWeight: FontWeight.w800,
+                    color: Colors.blue.shade900,
+                    letterSpacing: -0.5,
+                  ),
                 ),
               ],
             ),
-          ],
-        ),
-        const SizedBox(height: 8),
-        Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Expanded(
-              child: AnimatedContainer(
-                duration: const Duration(milliseconds: 200),
-                curve: Curves.easeInOut,
-                decoration: BoxDecoration(
-                  border: Border.all(
-                    color: isEditing ? Colors.blue : Colors.grey.shade300,
-                    width: isEditing ? 2 : 1,
-                  ),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                child: TextField(
-                  controller: controller,
-                  focusNode: focusNode,
-                  readOnly: !isEditing,
-                  decoration: const InputDecoration(
-                    border: InputBorder.none,
-                    hintText: 'Name',
-                  ),
-                  style: const TextStyle(fontSize: 16, color: Colors.black),
-                  onChanged: (val) {
-                    officials[category]![index]['name'] = val;
-                  },
-                ),
-              ),
+          ),
+          const Spacer(),
+          IconButton(
+            onPressed: () {},
+            icon: const Icon(
+              Icons.notifications_none_rounded,
+              color: Colors.black87,
             ),
-            const SizedBox(width: 8),
-          ],
-        ),
-        const SizedBox(height: 16),
-      ],
+          ),
+        ],
+      ),
     );
   }
 
-  @override
-  void dispose() {
-    for (var list in _nameControllers.values) {
-      for (var c in list) {
-        c.dispose();
-      }
-    }
-    for (var list in _focusNodes.values) {
-      for (var f in list) {
-        f.dispose();
-      }
-    }
-    // dispose per-category contact controllers
-    for (var map in _contactControllersPerCategory.values) {
-      for (var c in map.values) {
-        c.dispose();
-      }
-    }
-    super.dispose();
+  Widget _buildBanner() {
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.only(bottom: 24),
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [Colors.blue.shade700, Colors.blue.shade500],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.blue.withOpacity(0.3),
+            blurRadius: 10,
+            offset: const Offset(0, 5),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            "Meet Your Leaders",
+            style: TextStyle(
+              color: Colors.white,
+              fontSize: 22,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            "Dedicated to serving the community with integrity and transparency.",
+            style: TextStyle(color: Colors.blue.shade50, fontSize: 14),
+          ),
+        ],
+      ),
+    );
   }
 
-  bool _hasContactInfo(String category) {
-    final ctrls = _contactControllersPerCategory[category];
-    if (ctrls == null) return false;
-    return (ctrls['address']?.text.trim().isNotEmpty ?? false) ||
-        (ctrls['hours']?.text.trim().isNotEmpty ?? false) ||
-        (ctrls['contacts']?.text.trim().isNotEmpty ?? false);
+  Widget _buildSearchBar() {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.03),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: TextField(
+        controller: _searchController,
+        onChanged: _filterOfficials,
+        decoration: InputDecoration(
+          hintText: "Search official...",
+          hintStyle: TextStyle(color: Colors.grey.shade400, fontSize: 14),
+          prefixIcon: Icon(Icons.search, color: Colors.grey.shade400),
+          border: InputBorder.none,
+          contentPadding: const EdgeInsets.symmetric(
+            horizontal: 20,
+            vertical: 14,
+          ),
+        ),
+      ),
+    );
   }
 
-  @override
-  Widget build(BuildContext context) {
-    return ScaffoldMessenger(
-      key: _scaffoldMessengerKey,
-      child: Scaffold(
-        backgroundColor: Colors.grey[50],
-        body: SafeArea(
-          child: Column(
-            children: [
-              // --- HEADER: iBrgy style ---
-              Container(
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: const BorderRadius.only(
-                    bottomLeft: Radius.circular(20),
-                    bottomRight: Radius.circular(20),
+  Widget _buildOfficialCard(String category, int index) {
+    final official = _filteredOfficials[category]![index];
+    final isEditing = _isEditing[category]?[index] ?? false;
+    final controller = _nameControllers[category]?[index];
+    final focusNode = _focusNodes[category]?[index];
+
+    if (controller == null || focusNode == null) {
+      return const SizedBox.shrink();
+    }
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.grey.shade200),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.02),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          CircleAvatar(
+            radius: 24,
+            backgroundColor: Colors.blue.shade50,
+            child: Text(
+              (official['name'] ?? 'O').substring(0, 1).toUpperCase(),
+              style: TextStyle(
+                color: Colors.blue.shade700,
+                fontWeight: FontWeight.bold,
+                fontSize: 18,
+              ),
+            ),
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  official['title'] ?? '',
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.blue.shade700,
+                    letterSpacing: 0.5,
                   ),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withAlpha(13),
-                      blurRadius: 10,
-                      offset: const Offset(0, 5),
-                    ),
-                  ],
                 ),
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 20.0,
-                  vertical: 16.0,
-                ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                const SizedBox(height: 4),
+                Row(
                   children: [
-                    Row(
-                      children: [
-                        Icon(Icons.home, color: Colors.blue.shade700, size: 30),
-                        const SizedBox(width: 8),
-                        RichText(
-                          text: TextSpan(
+                    Expanded(
+                      child: TextField(
+                        controller: controller,
+                        focusNode: focusNode,
+                        readOnly: !isEditing,
+                        decoration: const InputDecoration(
+                          border: InputBorder.none,
+                          contentPadding: EdgeInsets.zero,
+                        ),
+                        style: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.black87,
+                        ),
+                      ),
+                    ),
+                    PopupMenuButton<String>(
+                      onSelected: (value) {
+                        if (value == 'edit') {
+                          _editOfficial(category, index);
+                        } else if (value == 'delete') {
+                          _deleteOfficial(category, index);
+                        }
+                      },
+                      itemBuilder: (context) => [
+                        PopupMenuItem(
+                          value: 'edit',
+                          child: Row(
                             children: [
-                              TextSpan(
-                                text: 'iB',
-                                style: TextStyle(
-                                  fontSize: 22,
-                                  fontWeight: FontWeight.bold,
-                                  color: Colors.blue,
-                                ),
+                              Icon(
+                                Icons.edit,
+                                size: 20,
+                                color: Colors.blue.shade700,
                               ),
-                              TextSpan(
-                                text: 'rgy',
-                                style: TextStyle(
-                                  fontSize: 22,
-                                  fontWeight: FontWeight.bold,
-                                  color: Colors.blue.shade700,
-                                ),
+                              const SizedBox(width: 8),
+                              Text(isEditing ? 'Save' : 'Edit'),
+                            ],
+                          ),
+                        ),
+                        PopupMenuItem(
+                          value: 'delete',
+                          child: Row(
+                            children: [
+                              Icon(Icons.delete, size: 20, color: Colors.red),
+                              const SizedBox(width: 8),
+                              const Text(
+                                'Delete',
+                                style: TextStyle(color: Colors.red),
                               ),
                             ],
                           ),
                         ),
                       ],
+                      icon: Icon(Icons.more_vert, color: Colors.grey.shade400),
                     ),
                   ],
                 ),
-              ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 
-              // --- BODY CONTENT ---
-              Expanded(
-                child: SingleChildScrollView(
-                  padding: const EdgeInsets.all(16.0),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      // --- SECTION TITLE: Text + Add Button ---
-                      Row(
+  Widget _buildContactInfoCard(String category) {
+    if (!_hasContactInfo(category)) return const SizedBox.shrink();
+
+    final contact = _contacts[category]!;
+    final controllers = _contactControllersPerCategory[category];
+
+    return Container(
+      margin: const EdgeInsets.only(top: 4, bottom: 20),
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF0F7FF),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.blue.shade100),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if ((contact['address'] ?? '').isNotEmpty) ...[
+            _buildContactRow(
+              Icons.location_on_outlined,
+              'Address',
+              contact['address']!,
+              onEdit: () => _editContactInfo(category, 'address', 'Address'),
+            ),
+            const SizedBox(height: 12),
+          ],
+          if ((contact['hours'] ?? '').isNotEmpty) ...[
+            _buildContactRow(
+              Icons.access_time,
+              'Office Hours',
+              contact['hours']!,
+              onEdit: () => _editContactInfo(category, 'hours', 'Office Hours'),
+            ),
+            const SizedBox(height: 12),
+          ],
+          if ((contact['contacts'] ?? '').isNotEmpty) ...[
+            _buildContactRow(
+              Icons.phone_outlined,
+              'Contact',
+              contact['contacts']!,
+              onEdit: () =>
+                  _editContactInfo(category, 'contacts', 'Contact Numbers'),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildContactRow(
+    IconData icon,
+    String label,
+    String value, {
+    VoidCallback? onEdit,
+  }) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Icon(icon, size: 18, color: Colors.blue.shade400),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Text(
+                    label,
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.blue.shade800,
+                    ),
+                  ),
+                  const Spacer(),
+                  if (onEdit != null)
+                    IconButton(
+                      onPressed: onEdit,
+                      icon: Icon(
+                        Icons.edit,
+                        size: 16,
+                        color: Colors.blue.shade600,
+                      ),
+                      padding: EdgeInsets.zero,
+                      constraints: const BoxConstraints(),
+                    ),
+                ],
+              ),
+              const SizedBox(height: 2),
+              Text(
+                value,
+                style: const TextStyle(fontSize: 13, color: Colors.black87),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildBottomNavBar() {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 10,
+            offset: const Offset(0, -5),
+          ),
+        ],
+      ),
+      child: BottomNavigationBar(
+        currentIndex: 3,
+        type: BottomNavigationBarType.fixed,
+        selectedItemColor: Colors.blue,
+        unselectedItemColor: Colors.grey.shade400,
+        backgroundColor: Colors.white,
+        showSelectedLabels: true,
+        showUnselectedLabels: true,
+        selectedLabelStyle: const TextStyle(
+          fontWeight: FontWeight.w600,
+          fontSize: 12,
+        ),
+        unselectedLabelStyle: const TextStyle(
+          fontWeight: FontWeight.w500,
+          fontSize: 12,
+        ),
+        elevation: 0,
+        onTap: _onItemTapped,
+        items: const [
+          BottomNavigationBarItem(
+            icon: Icon(Icons.home_rounded),
+            label: 'Home',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.phone_rounded),
+            label: 'Emergency',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.campaign_rounded),
+            label: 'Updates',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.people_alt_rounded),
+            label: 'People',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.person_rounded),
+            label: 'Profile',
+          ),
+        ],
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: const Color(0xFFF8F9FA),
+      body: SafeArea(
+        child: Column(
+          children: [
+            _buildHeader(),
+            Expanded(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.all(20),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Search Bar
+                    _buildSearchBar(),
+                    const SizedBox(height: 24),
+
+                    // Hero Banner
+                    _buildBanner(),
+
+                    // Section Title with Add Button
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 16.0),
+                      child: Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
                           const Text(
-                            'Barangay Officials',
+                            "Barangay Officials",
                             style: TextStyle(
                               fontSize: 18,
                               fontWeight: FontWeight.bold,
@@ -901,484 +910,100 @@ class _ModeratorBrgyOfficialsPageState
                           ),
                           IconButton(
                             onPressed: _showAddOfficialDialog,
-                            tooltip: 'Add Official',
-                            icon: const Icon(Icons.add, size: 28),
+                            icon: const Icon(Icons.add, size: 24),
                             color: Colors.blue,
+                            tooltip: 'Add Official',
                           ),
                         ],
                       ),
-                      const SizedBox(height: 16),
+                    ),
 
-                      // Build sections dynamically
-                      for (var entry in officials.entries)
-                        Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
+                    // Officials List
+                    if (_filteredOfficials.isEmpty &&
+                        _searchController.text.isEmpty)
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(24),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(color: Colors.grey.shade200),
+                        ),
+                        child: Column(
                           children: [
+                            Icon(
+                              Icons.people_outline,
+                              size: 40,
+                              color: Colors.grey.shade300,
+                            ),
+                            const SizedBox(height: 12),
                             Text(
-                              entry.key,
-                              style: const TextStyle(
-                                fontSize: 18,
-                                fontWeight: FontWeight.bold,
-                                color: Colors.blue,
+                              "No officials added yet",
+                              style: TextStyle(
+                                color: Colors.grey.shade500,
+                                fontWeight: FontWeight.w500,
                               ),
                             ),
-                            const SizedBox(height: 16),
-                            for (int i = 0; i < entry.value.length; i++)
-                              _buildOfficialFieldEditable(entry.key, i),
-
-                            // Per-category Contact Information card
-                            if (_hasContactInfo(entry.key))
-                              Padding(
-                                padding: const EdgeInsets.only(top: 8.0),
-                                child: Container(
-                                  width: double.infinity,
-                                  padding: const EdgeInsets.all(12),
-                                  decoration: BoxDecoration(
-                                    border: Border.all(
-                                      color: Colors.grey.shade300,
-                                    ),
-                                    borderRadius: BorderRadius.circular(8),
-                                    color: Colors.white,
-                                  ),
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      Builder(
-                                        builder: (ctx) {
-                                          final ctrls =
-                                              _contactControllersPerCategory[entry
-                                                  .key]!;
-                                          return Column(
-                                            children: [
-                                              // Office Address
-                                              Row(
-                                                crossAxisAlignment:
-                                                    CrossAxisAlignment.start,
-                                                children: [
-                                                  const Icon(
-                                                    Icons.location_on,
-                                                    color: Colors.blue,
-                                                  ),
-                                                  const SizedBox(width: 8),
-                                                  Expanded(
-                                                    child: Column(
-                                                      crossAxisAlignment:
-                                                          CrossAxisAlignment
-                                                              .start,
-                                                      children: [
-                                                        const Text(
-                                                          'Office Address',
-                                                          style: TextStyle(
-                                                            fontSize: 14,
-                                                            fontWeight:
-                                                                FontWeight.w600,
-                                                            color:
-                                                                Colors.black87,
-                                                          ),
-                                                        ),
-                                                        const SizedBox(
-                                                          height: 6,
-                                                        ),
-                                                        ctrls['address']!
-                                                                .text
-                                                                .isEmpty
-                                                            ? const SizedBox.shrink()
-                                                            : Text(
-                                                                ctrls['address']!
-                                                                    .text,
-                                                                style: const TextStyle(
-                                                                  fontSize: 14,
-                                                                  color: Colors
-                                                                      .black87,
-                                                                ),
-                                                              ),
-                                                      ],
-                                                    ),
-                                                  ),
-                                                  PopupMenuButton<String>(
-                                                    padding: EdgeInsets.zero,
-                                                    color: Colors.white,
-                                                    child: Container(
-                                                      width: 36,
-                                                      height: 36,
-                                                      decoration: BoxDecoration(
-                                                        color:
-                                                            Colors.transparent,
-                                                        borderRadius:
-                                                            BorderRadius.circular(
-                                                              8,
-                                                            ),
-                                                      ),
-                                                      child: const Icon(
-                                                        Icons.more_horiz,
-                                                        color: Colors.black,
-                                                      ),
-                                                    ),
-                                                    onSelected: (value) async {
-                                                      if (value == 'edit') {
-                                                        await _showEditCategoryFieldDialog(
-                                                          entry.key,
-                                                          'address',
-                                                          'Office Address',
-                                                        );
-                                                      } else if (value ==
-                                                          'delete') {
-                                                        final prev =
-                                                            ctrls['address']!
-                                                                .text;
-                                                        setState(() {
-                                                          ctrls['address']!
-                                                                  .text =
-                                                              '';
-                                                        });
-                                                        _scaffoldMessengerKey
-                                                            .currentState
-                                                            ?.showSnackBar(
-                                                              SnackBar(
-                                                                content: const Text(
-                                                                  'Address cleared',
-                                                                ),
-                                                                action: SnackBarAction(
-                                                                  label: 'Undo',
-                                                                  onPressed: () {
-                                                                    setState(() {
-                                                                      ctrls['address']!
-                                                                              .text =
-                                                                          prev;
-                                                                    });
-                                                                  },
-                                                                ),
-                                                              ),
-                                                            );
-                                                      }
-                                                    },
-                                                    itemBuilder: (context) => [
-                                                      PopupMenuItem(
-                                                        value: 'edit',
-                                                        child: Text(
-                                                          'Edit',
-                                                          style:
-                                                              const TextStyle(
-                                                                color: Colors
-                                                                    .black,
-                                                              ),
-                                                        ),
-                                                      ),
-                                                      const PopupMenuItem(
-                                                        value: 'delete',
-                                                        child: Text(
-                                                          'Delete',
-                                                          style: TextStyle(
-                                                            color: Colors.red,
-                                                          ),
-                                                        ),
-                                                      ),
-                                                    ],
-                                                  ),
-                                                ],
-                                              ),
-                                              const SizedBox(height: 12),
-
-                                              // Office Hours
-                                              Row(
-                                                children: [
-                                                  const Icon(
-                                                    Icons.access_time,
-                                                    color: Colors.blue,
-                                                  ),
-                                                  const SizedBox(width: 8),
-                                                  Expanded(
-                                                    child: Column(
-                                                      crossAxisAlignment:
-                                                          CrossAxisAlignment
-                                                              .start,
-                                                      children: [
-                                                        const Text(
-                                                          'Office Hours',
-                                                          style: TextStyle(
-                                                            fontSize: 14,
-                                                            fontWeight:
-                                                                FontWeight.w600,
-                                                            color:
-                                                                Colors.black87,
-                                                          ),
-                                                        ),
-                                                        const SizedBox(
-                                                          height: 6,
-                                                        ),
-                                                        ctrls['hours']!
-                                                                .text
-                                                                .isEmpty
-                                                            ? const SizedBox.shrink()
-                                                            : Text(
-                                                                ctrls['hours']!
-                                                                    .text,
-                                                                style: const TextStyle(
-                                                                  fontSize: 14,
-                                                                  color: Colors
-                                                                      .black87,
-                                                                ),
-                                                              ),
-                                                      ],
-                                                    ),
-                                                  ),
-                                                  PopupMenuButton<String>(
-                                                    padding: EdgeInsets.zero,
-                                                    color: Colors.white,
-                                                    child: Container(
-                                                      width: 36,
-                                                      height: 36,
-                                                      decoration: BoxDecoration(
-                                                        color:
-                                                            Colors.transparent,
-                                                        borderRadius:
-                                                            BorderRadius.circular(
-                                                              8,
-                                                            ),
-                                                      ),
-                                                      child: const Icon(
-                                                        Icons.more_horiz,
-                                                        color: Colors.black,
-                                                      ),
-                                                    ),
-                                                    onSelected: (value) async {
-                                                      if (value == 'edit') {
-                                                        await _showEditCategoryFieldDialog(
-                                                          entry.key,
-                                                          'hours',
-                                                          'Office Hours',
-                                                        );
-                                                      } else if (value ==
-                                                          'delete') {
-                                                        final prev =
-                                                            ctrls['hours']!
-                                                                .text;
-                                                        setState(() {
-                                                          ctrls['hours']!.text =
-                                                              '';
-                                                        });
-                                                        _scaffoldMessengerKey
-                                                            .currentState
-                                                            ?.showSnackBar(
-                                                              SnackBar(
-                                                                content: const Text(
-                                                                  'Office hours cleared',
-                                                                ),
-                                                                action: SnackBarAction(
-                                                                  label: 'Undo',
-                                                                  onPressed: () {
-                                                                    setState(() {
-                                                                      ctrls['hours']!
-                                                                              .text =
-                                                                          prev;
-                                                                    });
-                                                                  },
-                                                                ),
-                                                              ),
-                                                            );
-                                                      }
-                                                    },
-                                                    itemBuilder: (context) => [
-                                                      PopupMenuItem(
-                                                        value: 'edit',
-                                                        child: Text(
-                                                          'Edit',
-                                                          style:
-                                                              const TextStyle(
-                                                                color: Colors
-                                                                    .black,
-                                                              ),
-                                                        ),
-                                                      ),
-                                                      const PopupMenuItem(
-                                                        value: 'delete',
-                                                        child: Text(
-                                                          'Delete',
-                                                          style: TextStyle(
-                                                            color: Colors.red,
-                                                          ),
-                                                        ),
-                                                      ),
-                                                    ],
-                                                  ),
-                                                ],
-                                              ),
-                                              const SizedBox(height: 12),
-
-                                              // Contact Numbers
-                                              Row(
-                                                children: [
-                                                  const Icon(
-                                                    Icons.phone,
-                                                    color: Colors.blue,
-                                                  ),
-                                                  const SizedBox(width: 8),
-                                                  Expanded(
-                                                    child: Column(
-                                                      crossAxisAlignment:
-                                                          CrossAxisAlignment
-                                                              .start,
-                                                      children: [
-                                                        const Text(
-                                                          'Office Telephone Number',
-                                                          style: TextStyle(
-                                                            fontSize: 14,
-                                                            fontWeight:
-                                                                FontWeight.w600,
-                                                            color:
-                                                                Colors.black87,
-                                                          ),
-                                                        ),
-                                                        const SizedBox(
-                                                          height: 6,
-                                                        ),
-                                                        ctrls['contacts']!
-                                                                .text
-                                                                .isEmpty
-                                                            ? const SizedBox.shrink()
-                                                            : Text(
-                                                                ctrls['contacts']!
-                                                                    .text,
-                                                                style: const TextStyle(
-                                                                  fontSize: 14,
-                                                                  color: Colors
-                                                                      .black87,
-                                                                ),
-                                                              ),
-                                                      ],
-                                                    ),
-                                                  ),
-                                                  PopupMenuButton<String>(
-                                                    padding: EdgeInsets.zero,
-                                                    color: Colors.white,
-                                                    child: Container(
-                                                      width: 36,
-                                                      height: 36,
-                                                      decoration: BoxDecoration(
-                                                        color:
-                                                            Colors.transparent,
-                                                        borderRadius:
-                                                            BorderRadius.circular(
-                                                              8,
-                                                            ),
-                                                      ),
-                                                      child: const Icon(
-                                                        Icons.more_horiz,
-                                                        color: Colors.black,
-                                                      ),
-                                                    ),
-                                                    onSelected: (value) async {
-                                                      if (value == 'edit') {
-                                                        await _showEditCategoryFieldDialog(
-                                                          entry.key,
-                                                          'contacts',
-                                                          'Contact Numbers',
-                                                        );
-                                                      } else if (value ==
-                                                          'delete') {
-                                                        final prev =
-                                                            ctrls['contacts']!
-                                                                .text;
-                                                        setState(() {
-                                                          ctrls['contacts']!
-                                                                  .text =
-                                                              '';
-                                                        });
-                                                        _scaffoldMessengerKey
-                                                            .currentState
-                                                            ?.showSnackBar(
-                                                              SnackBar(
-                                                                content: const Text(
-                                                                  'Contact numbers cleared',
-                                                                ),
-                                                                action: SnackBarAction(
-                                                                  label: 'Undo',
-                                                                  onPressed: () {
-                                                                    setState(() {
-                                                                      ctrls['contacts']!
-                                                                              .text =
-                                                                          prev;
-                                                                    });
-                                                                  },
-                                                                ),
-                                                              ),
-                                                            );
-                                                      }
-                                                    },
-                                                    itemBuilder: (context) => [
-                                                      PopupMenuItem(
-                                                        value: 'edit',
-                                                        child: Text(
-                                                          'Edit',
-                                                          style:
-                                                              const TextStyle(
-                                                                color: Colors
-                                                                    .black,
-                                                              ),
-                                                        ),
-                                                      ),
-                                                      const PopupMenuItem(
-                                                        value: 'delete',
-                                                        child: Text(
-                                                          'Delete',
-                                                          style: TextStyle(
-                                                            color: Colors.red,
-                                                          ),
-                                                        ),
-                                                      ),
-                                                    ],
-                                                  ),
-                                                ],
-                                              ),
-                                            ],
-                                          );
-                                        },
-                                      ),
-                                    ],
-                                  ),
-                                ),
+                            const SizedBox(height: 4),
+                            Text(
+                              "Tap + to add new officials",
+                              style: TextStyle(
+                                color: Colors.grey.shade400,
+                                fontSize: 12,
                               ),
-
-                            const SizedBox(height: 24),
+                            ),
                           ],
                         ),
+                      )
+                    else if (_filteredOfficials.isEmpty &&
+                        _searchController.text.isNotEmpty)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 20),
+                        child: Center(
+                          child: Text(
+                            "No matching officials found",
+                            style: TextStyle(color: Colors.grey[500]),
+                          ),
+                        ),
+                      )
+                    else
+                      ..._filteredOfficials.entries.map((entry) {
+                        return Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Padding(
+                              padding: const EdgeInsets.only(
+                                bottom: 12.0,
+                                left: 4,
+                              ),
+                              child: Text(
+                                entry.key,
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.grey.shade600,
+                                  letterSpacing: 0.5,
+                                ),
+                              ),
+                            ),
+                            ...List.generate(
+                              entry.value.length,
+                              (index) => _buildOfficialCard(entry.key, index),
+                            ),
+                            _buildContactInfoCard(entry.key),
+                          ],
+                        );
+                      }),
 
-                      const SizedBox(height: 20),
-                    ],
-                  ),
+                    const SizedBox(height: 40),
+                  ],
                 ),
               ),
-            ],
-          ),
-        ),
-        bottomNavigationBar: BottomNavigationBar(
-          currentIndex: _selectedIndex,
-          type: BottomNavigationBarType.fixed,
-          selectedItemColor: Colors.blue,
-          unselectedItemColor: Colors.grey,
-          backgroundColor: Colors.white,
-          showSelectedLabels: true,
-          elevation: 8,
-          onTap: _onItemTapped,
-          items: const [
-            BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Home'),
-            BottomNavigationBarItem(
-              icon: Icon(Icons.phone),
-              label: 'Emergency',
             ),
-            BottomNavigationBarItem(
-              icon: Icon(Icons.announcement, size: 30),
-              label: 'Updates',
-            ),
-            BottomNavigationBarItem(
-              icon: Icon(Icons.people, color: Colors.blue),
-              label: 'People',
-            ),
-            BottomNavigationBarItem(icon: Icon(Icons.person), label: 'Profile'),
           ],
         ),
       ),
+      bottomNavigationBar: _buildBottomNavBar(),
     );
   }
 }

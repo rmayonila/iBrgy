@@ -1,7 +1,9 @@
+// ignore_for_file: use_build_context_synchronously
+import 'package:flutter/foundation.dart'; // For web check
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'moderator_nav.dart';
+import 'moderator_nav.dart'; // Assuming you have this for moderator specific routing
 
 // Category colors and icons mapping
 const Map<String, Map<String, dynamic>> categoryConfig = {
@@ -20,19 +22,18 @@ class ModeratorHomePage extends StatefulWidget {
   const ModeratorHomePage({super.key});
 
   @override
-  // 2. Renamed state
   State<ModeratorHomePage> createState() => _ModeratorHomePageState();
 }
 
-// 3. Renamed state class
 class _ModeratorHomePageState extends State<ModeratorHomePage> {
-  // track expanded indices for inline post expansion
-  final Set<int> _expanded = {};
-
   // Start with no seeded items — show placeholder for empty state
   List<Map<String, String>> infoItems = [];
   final FirebaseFirestore _db = FirebaseFirestore.instance;
   final FirebaseAuth _auth = FirebaseAuth.instance;
+  int _selectedIndex = 0;
+
+  // track expanded indices for inline post expansion
+  final Set<int> _expanded = {};
 
   Future<void> _ensureSignedIn() async {
     try {
@@ -40,7 +41,7 @@ class _ModeratorHomePageState extends State<ModeratorHomePage> {
         await _auth.signInAnonymously();
       }
     } catch (_) {
-      // ignore auth errors here; writes will fail with permission denied
+      // ignore auth errors here
     }
   }
 
@@ -65,7 +66,7 @@ class _ModeratorHomePageState extends State<ModeratorHomePage> {
           'category': (data['category'] ?? '').toString(),
           'description': (data['description'] ?? '').toString(),
           'lastUpdated': data['createdAt'] != null
-              ? data['createdAt'].toDate().toString()
+              ? _formatTimestamp(data['createdAt'])
               : 'recently',
         };
       }).toList();
@@ -77,7 +78,13 @@ class _ModeratorHomePageState extends State<ModeratorHomePage> {
     }
   }
 
-  int _selectedIndex = 0;
+  String _formatTimestamp(dynamic timestamp) {
+    if (timestamp is Timestamp) {
+      final date = timestamp.toDate();
+      return "${date.month}/${date.day}/${date.year}";
+    }
+    return 'recently';
+  }
 
   void _onItemTapped(int index) {
     navigateModeratorIndex(
@@ -88,134 +95,244 @@ class _ModeratorHomePageState extends State<ModeratorHomePage> {
     );
   }
 
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.grey[50],
-      body: SafeArea(
-        child: Column(
-          children: [
-            // --- HEADER: iBrgy style copied from admin_dashboard ---
-            Container(
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: const BorderRadius.only(
-                  bottomLeft: Radius.circular(20),
-                  bottomRight: Radius.circular(20),
-                ),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withAlpha(13),
-                    blurRadius: 10,
-                    offset: const Offset(0, 5),
-                  ),
-                ],
-              ),
-              padding: const EdgeInsets.symmetric(
-                horizontal: 20.0,
-                vertical: 16.0,
-              ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  // Left side: Home Icon + iBrgy Text
-                  Row(
-                    children: [
-                      Icon(Icons.home, color: Colors.blue.shade700, size: 30),
-                      const SizedBox(width: 8),
-                      RichText(
-                        text: TextSpan(
-                          children: [
-                            TextSpan(
-                              text: 'iB',
-                              style: TextStyle(
-                                fontSize: 22,
-                                fontWeight: FontWeight.bold,
-                                color: Colors.blue,
-                              ),
-                            ),
-                            TextSpan(
-                              text: 'rgy',
-                              style: TextStyle(
-                                fontSize: 22,
-                                fontWeight: FontWeight.bold,
-                                color: Colors.blue.shade700,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
+  // --- WIDGET BUILDERS ---
 
-            // Info cards list
-            Expanded(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // Section header
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        const Text(
-                          'Community Information',
-                          style: TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.black87,
-                          ),
-                        ),
-                        // --- UPDATED BUTTON: IconButton (no border) ---
-                        IconButton(
-                          onPressed: () => _showAddInfoDialog(),
-                          icon: const Icon(Icons.add, size: 28),
-                          color: Colors.blue,
-                          tooltip: 'Add Information',
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 16),
-
-                    // Info cards
-                    for (int i = 0; i < infoItems.length; i++)
-                      _buildEnhancedInfoCard(context, infoItems[i], index: i),
-                    const SizedBox(height: 20),
-                  ],
-                ),
-              ),
-            ),
-          ],
+  Widget _buildHeader() {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: const BorderRadius.only(
+          bottomLeft: Radius.circular(24),
+          bottomRight: Radius.circular(24),
         ),
-      ),
-      bottomNavigationBar: BottomNavigationBar(
-        currentIndex: _selectedIndex,
-        type: BottomNavigationBarType.fixed,
-        selectedItemColor: Colors.blue,
-        unselectedItemColor: Colors.grey,
-        backgroundColor: Colors.white,
-        showSelectedLabels: true,
-        elevation: 8,
-        onTap: _onItemTapped,
-        items: const [
-          BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Home'),
-          BottomNavigationBarItem(icon: Icon(Icons.phone), label: 'Emergency'),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.announcement, size: 30),
-            label: 'Updates',
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 15,
+            offset: const Offset(0, 5),
           ),
-          BottomNavigationBarItem(icon: Icon(Icons.people), label: 'People'),
-          BottomNavigationBarItem(icon: Icon(Icons.person), label: 'Profile'),
+        ],
+      ),
+      padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 20.0),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: Colors.blue.shade50,
+              shape: BoxShape.circle,
+            ),
+            child: Icon(
+              Icons.home_rounded,
+              color: Colors.blue.shade700,
+              size: 24,
+            ),
+          ),
+          const SizedBox(width: 12),
+          RichText(
+            text: TextSpan(
+              children: [
+                const TextSpan(
+                  text: 'iB',
+                  style: TextStyle(
+                    fontSize: 24,
+                    fontWeight: FontWeight.w800,
+                    color: Colors.blue,
+                    letterSpacing: -0.5,
+                  ),
+                ),
+                TextSpan(
+                  text: 'rgy',
+                  style: TextStyle(
+                    fontSize: 24,
+                    fontWeight: FontWeight.w800,
+                    color: Colors.blue.shade900,
+                    letterSpacing: -0.5,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const Spacer(),
+
+          // MODERATOR FEATURE: ADD BUTTON
+          IconButton(
+            onPressed: () => _showAddInfoDialog(),
+            icon: const Icon(
+              Icons.add_circle_outline_rounded,
+              color: Colors.blue,
+              size: 28,
+            ),
+            tooltip: "Add Service",
+          ),
         ],
       ),
     );
   }
 
-  // 8. Modified Info Card for USER (no edit/delete)
+  Widget _buildSearchBar() {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.03),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: TextField(
+        decoration: InputDecoration(
+          hintText: "Search services, forms...",
+          hintStyle: TextStyle(color: Colors.grey.shade400, fontSize: 14),
+          prefixIcon: Icon(Icons.search, color: Colors.grey.shade400),
+          suffixIcon: Icon(Icons.qr_code_scanner, color: Colors.blue.shade700),
+          border: InputBorder.none,
+          contentPadding: const EdgeInsets.symmetric(
+            horizontal: 20,
+            vertical: 14,
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSectionTitle(String title) {
+    return Text(
+      title,
+      style: const TextStyle(
+        fontSize: 18,
+        fontWeight: FontWeight.bold,
+        color: Colors.black87,
+      ),
+    );
+  }
+
+  // Grid for standard categories (Static for UI demo, can be dynamic)
+  Widget _buildServicesGrid() {
+    final services = [
+      {
+        'icon': Icons.description_outlined,
+        'label': 'Clearance',
+        'color': 0xFFFFE0B2,
+      },
+      {
+        'icon': Icons.badge_outlined,
+        'label': 'Barangay ID',
+        'color': 0xFFBBDEFB,
+      },
+      {
+        'icon': Icons.storefront_outlined,
+        'label': 'Business',
+        'color': 0xFFC8E6C9,
+      },
+      {
+        'icon': Icons.gavel_outlined,
+        'label': 'Complaints',
+        'color': 0xFFE1BEE7,
+      },
+    ];
+
+    return GridView.builder(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: 4,
+        childAspectRatio: 0.8,
+        crossAxisSpacing: 12,
+        mainAxisSpacing: 12,
+      ),
+      itemCount: services.length,
+      itemBuilder: (context, index) {
+        final item = services[index];
+        return Column(
+          children: [
+            Expanded(
+              child: Container(
+                width: double.infinity,
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(16),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.02),
+                      blurRadius: 8,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
+                ),
+                child: Center(
+                  child: Container(
+                    height: 45,
+                    width: 45,
+                    decoration: BoxDecoration(
+                      color: Color(item['color'] as int).withOpacity(0.4),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Icon(
+                      item['icon'] as IconData,
+                      color: Colors.black87,
+                      size: 24,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              item['label'] as String,
+              style: const TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                color: Colors.black87,
+              ),
+              textAlign: TextAlign.center,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  // This list displays the actual items added by the moderator via Firestore
+  Widget _buildAddedServicesList() {
+    if (infoItems.isEmpty) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(20.0),
+          child: Column(
+            children: [
+              Icon(Icons.post_add, size: 48, color: Colors.grey.shade300),
+              const SizedBox(height: 8),
+              Text(
+                "No services added yet",
+                style: TextStyle(color: Colors.grey.shade400),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                "Tap the + button to add your first service",
+                style: TextStyle(color: Colors.grey.shade400, fontSize: 12),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    return ListView.builder(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      itemCount: infoItems.length,
+      itemBuilder: (context, index) {
+        return _buildEnhancedInfoCard(context, infoItems[index], index: index);
+      },
+    );
+  }
+
   Widget _buildEnhancedInfoCard(
     BuildContext context,
     Map<String, String> info, {
@@ -232,32 +349,33 @@ class _ModeratorHomePageState extends State<ModeratorHomePage> {
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withAlpha(20),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
+            color: Colors.black.withOpacity(0.02),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
           ),
         ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Category header with color bar
+          // Header
           Container(
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
-              color: (config['color'] as Color).withAlpha(26),
+              color: (config['color'] as Color).withOpacity(0.1),
               borderRadius: const BorderRadius.only(
                 topLeft: Radius.circular(16),
                 topRight: Radius.circular(16),
               ),
-              border: Border(
-                left: BorderSide(color: config['color'] as Color, width: 4),
-              ),
             ),
             child: Row(
               children: [
-                CircleAvatar(
-                  backgroundColor: (config['color'] as Color).withAlpha(76),
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    shape: BoxShape.circle,
+                  ),
                   child: Icon(
                     config['icon'] as IconData,
                     color: config['color'] as Color,
@@ -278,20 +396,31 @@ class _ModeratorHomePageState extends State<ModeratorHomePage> {
                         ),
                       ),
                       Text(
-                        'Updated ${info['lastUpdated'] ?? 'recently'}',
+                        'Updated ${info['lastUpdated']}',
                         style: TextStyle(fontSize: 11, color: Colors.grey[600]),
                       ),
                     ],
                   ),
                 ),
-                // 9. REMOVED PopupMenuButton (Edit/Delete)
+                // Edit/Delete for Moderator
+                PopupMenuButton<String>(
+                  icon: Icon(Icons.more_vert, color: Colors.grey.shade400),
+                  onSelected: (value) {
+                    if (value == 'delete') {
+                      _deleteItem(info['id']!);
+                    }
+                  },
+                  itemBuilder: (context) => [
+                    const PopupMenuItem(value: 'delete', child: Text('Delete')),
+                  ],
+                ),
               ],
             ),
           ),
 
-          // Description
+          // Content
           Padding(
-            padding: const EdgeInsets.all(12),
+            padding: const EdgeInsets.all(16),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -310,38 +439,28 @@ class _ModeratorHomePageState extends State<ModeratorHomePage> {
                   ),
                 ),
                 const SizedBox(height: 12),
-                // Action buttons (User-facing)
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    TextButton.icon(
-                      onPressed: () {
-                        if (index != null) {
-                          setState(() {
-                            if (_expanded.contains(index)) {
-                              _expanded.remove(index);
-                            } else {
-                              _expanded.add(index);
-                            }
-                          });
-                        }
-                      },
-                      icon: Icon(
-                        _expanded.contains(index)
-                            ? Icons.expand_less
-                            : Icons.read_more,
-                        size: 16,
-                      ),
-                      label: Text(
-                        _expanded.contains(index) ? 'Show Less' : 'Read More',
-                      ),
-                      style: TextButton.styleFrom(
-                        foregroundColor: config['color'] as Color,
+                if ((info['description']?.length ?? 0) > 100)
+                  GestureDetector(
+                    onTap: () {
+                      if (index != null) {
+                        setState(() {
+                          if (_expanded.contains(index)) {
+                            _expanded.remove(index);
+                          } else {
+                            _expanded.add(index);
+                          }
+                        });
+                      }
+                    },
+                    child: Text(
+                      _expanded.contains(index) ? "Show Less" : "Read More",
+                      style: TextStyle(
+                        color: config['color'] as Color,
+                        fontWeight: FontWeight.w600,
+                        fontSize: 13,
                       ),
                     ),
-                    const SizedBox.shrink(),
-                  ],
-                ),
+                  ),
               ],
             ),
           ),
@@ -350,7 +469,86 @@ class _ModeratorHomePageState extends State<ModeratorHomePage> {
     );
   }
 
-  // Simple dialog to add an info item (title, category, description)
+  Widget _buildBottomNavBar() {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 10,
+            offset: const Offset(0, -5),
+          ),
+        ],
+      ),
+      child: BottomNavigationBar(
+        currentIndex: _selectedIndex,
+        type: BottomNavigationBarType.fixed,
+        selectedItemColor: Colors.blue,
+        unselectedItemColor: Colors.grey.shade400,
+        backgroundColor: Colors.white,
+        showSelectedLabels: true,
+        showUnselectedLabels: true,
+        selectedLabelStyle: const TextStyle(
+          fontWeight: FontWeight.w600,
+          fontSize: 12,
+        ),
+        unselectedLabelStyle: const TextStyle(
+          fontWeight: FontWeight.w500,
+          fontSize: 12,
+        ),
+        elevation: 0,
+        onTap: _onItemTapped,
+        items: const [
+          BottomNavigationBarItem(
+            icon: Icon(Icons.home_rounded),
+            label: 'Home',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.phone_rounded),
+            label: 'Emergency',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.campaign_rounded),
+            label: 'Updates',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.people_alt_rounded),
+            label: 'People',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.person_rounded),
+            label: 'Profile',
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _deleteItem(String id) async {
+    try {
+      await _db.collection('infoItems').doc(id).delete();
+      // Remove from local list immediately for instant UI update
+      setState(() {
+        infoItems.removeWhere((item) => item['id'] == id);
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Service deleted successfully'),
+          backgroundColor: Colors.green,
+        ),
+      );
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Failed to delete service'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
+
+  // --- ADD DIALOG LOGIC ---
   void _showAddInfoDialog() {
     final titleCtrl = TextEditingController();
     final descCtrl = TextEditingController();
@@ -359,49 +557,40 @@ class _ModeratorHomePageState extends State<ModeratorHomePage> {
     showDialog<void>(
       context: context,
       builder: (ctx) {
-        // Use the same centered fixed dialog approach as the announcements
-        // modal so the dialog stays in place when the keyboard appears.
         return MediaQuery(
           data: MediaQuery.of(ctx).copyWith(viewInsets: EdgeInsets.zero),
           child: Center(
             child: ConstrainedBox(
               constraints: const BoxConstraints(maxWidth: 360),
               child: Material(
-                color:
-                    Theme.of(ctx).dialogTheme.backgroundColor ??
-                    Theme.of(ctx).colorScheme.surface,
-                borderRadius: BorderRadius.circular(12),
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(16),
                 child: Padding(
-                  padding: const EdgeInsets.all(16.0),
+                  padding: const EdgeInsets.all(20.0),
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Row(
-                        children: [
-                          const Expanded(
-                            child: Text(
-                              'Add Information',
-                              style: TextStyle(
-                                fontSize: 18,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          ),
-                          TextButton(
-                            onPressed: () => Navigator.of(ctx).pop(),
-                            child: const Text('Cancel'),
-                          ),
-                        ],
+                      const Text(
+                        'Add Service Information',
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
-                      const SizedBox(height: 8),
+                      const SizedBox(height: 16),
                       TextField(
                         controller: titleCtrl,
-                        decoration: const InputDecoration(labelText: 'Title'),
+                        decoration: InputDecoration(
+                          labelText: 'Title',
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
                       ),
-                      const SizedBox(height: 8),
+                      const SizedBox(height: 12),
                       DropdownButtonFormField<String>(
-                        initialValue: selectedCategory,
+                        value: selectedCategory,
                         items: categoryConfig.keys
                             .map(
                               (k) => DropdownMenuItem(value: k, child: Text(k)),
@@ -410,38 +599,43 @@ class _ModeratorHomePageState extends State<ModeratorHomePage> {
                         onChanged: (v) {
                           if (v != null) selectedCategory = v;
                         },
-                        decoration: const InputDecoration(
+                        decoration: InputDecoration(
                           labelText: 'Category',
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      SizedBox(
-                        height: 140,
-                        child: TextField(
-                          controller: descCtrl,
-                          maxLines: 6,
-                          textAlignVertical: TextAlignVertical.top,
-                          decoration: InputDecoration(
-                            labelText: 'Description',
-                            contentPadding: const EdgeInsets.all(12),
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(8),
-                            ),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
                           ),
-                          autofocus: true,
                         ),
                       ),
                       const SizedBox(height: 12),
+                      TextField(
+                        controller: descCtrl,
+                        maxLines: 4,
+                        decoration: InputDecoration(
+                          labelText: 'Description',
+                          alignLabelWithHint: true,
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 20),
                       Row(
+                        mainAxisAlignment: MainAxisAlignment.end,
                         children: [
-                          const Spacer(),
+                          TextButton(
+                            onPressed: () => Navigator.of(ctx).pop(),
+                            child: const Text(
+                              'Cancel',
+                              style: TextStyle(color: Colors.grey),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
                           ElevatedButton(
                             onPressed: () async {
                               final title = titleCtrl.text.trim();
                               final desc = descCtrl.text.trim();
                               if (title.isEmpty) return;
                               try {
-                                final navigator = Navigator.of(ctx);
                                 await _ensureSignedIn();
                                 final docRef = await _db
                                     .collection('infoItems')
@@ -452,24 +646,46 @@ class _ModeratorHomePageState extends State<ModeratorHomePage> {
                                       'createdAt': FieldValue.serverTimestamp(),
                                     });
                                 if (!mounted) return;
+
+                                // Add to local list immediately for instant UI update
+                                final newItem = {
+                                  'id': docRef.id,
+                                  'title': title,
+                                  'category': selectedCategory,
+                                  'description': desc,
+                                  'lastUpdated': 'just now',
+                                };
+
                                 setState(() {
-                                  infoItems.insert(0, {
-                                    'id': docRef.id,
-                                    'title': title,
-                                    'category': selectedCategory,
-                                    'description': desc,
-                                    'lastUpdated': 'Just now',
-                                  });
+                                  infoItems.insert(0, newItem);
                                 });
-                                navigator.pop();
-                              } catch (e) {
-                                if (!mounted) return;
+
+                                Navigator.of(ctx).pop();
                                 ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(content: Text('Failed to add: $e')),
+                                  const SnackBar(
+                                    content: Text('Service added successfully'),
+                                    backgroundColor: Colors.green,
+                                  ),
+                                );
+                              } catch (e) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                    content: Text('Failed to add service'),
+                                    backgroundColor: Colors.red,
+                                  ),
                                 );
                               }
                             },
-                            child: const Text('Add'),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.blue,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                            ),
+                            child: const Text(
+                              'Post',
+                              style: TextStyle(color: Colors.white),
+                            ),
                           ),
                         ],
                       ),
@@ -484,5 +700,76 @@ class _ModeratorHomePageState extends State<ModeratorHomePage> {
     );
   }
 
-  // 10. REMOVED _showAddInfoDialog, _showEditInfoDialog, and _showDeleteConfirmation
+  @override
+  Widget build(BuildContext context) {
+    Widget mobileContent = Scaffold(
+      backgroundColor: const Color(0xFFF8F9FA),
+      body: SafeArea(
+        child: Column(
+          children: [
+            _buildHeader(),
+            Expanded(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.all(20),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _buildSearchBar(),
+                    const SizedBox(height: 24),
+                    _buildSectionTitle("Barangay Services"),
+                    const SizedBox(height: 16),
+                    _buildServicesGrid(),
+                    const SizedBox(height: 24),
+                    _buildSectionTitle("Added Services (Manage)"),
+                    const SizedBox(height: 16),
+                    _buildAddedServicesList(),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+      bottomNavigationBar: _buildBottomNavBar(),
+    );
+
+    if (kIsWeb) {
+      return PhoneFrame(child: mobileContent);
+    }
+    return mobileContent;
+  }
+}
+
+// --- PHONE FRAME ---
+class PhoneFrame extends StatelessWidget {
+  final Widget child;
+  const PhoneFrame({super.key, required this.child});
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: const Color(0xFFF2F2F7),
+      body: Center(
+        child: Container(
+          width: 375,
+          height: 812,
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(40),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.1),
+                blurRadius: 30,
+                spreadRadius: 5,
+                offset: const Offset(0, 10),
+              ),
+            ],
+          ),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(40),
+            child: child,
+          ),
+        ),
+      ),
+    );
+  }
 }

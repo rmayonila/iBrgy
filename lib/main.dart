@@ -9,7 +9,6 @@ import 'admin/account_settings_page.dart';
 import 'Moderator/moderator_home_page.dart' as mod_home;
 import 'Moderator/moderator_emergency_hotline_page.dart' as mod_emergency;
 import 'Moderator/moderator_announcement_page.dart' as mod_announcement;
-import 'Moderator/moderator_notifications_page.dart' as mod_notifications;
 import 'Moderator/moderator_brgy_officials_page.dart' as mod_brgy;
 import 'Moderator/moderator_account_settings_page.dart' as mod_account;
 import 'firebase_options.dart';
@@ -93,8 +92,6 @@ class _MyAppState extends State<MyApp> {
             PhoneFrame(child: UserBrgyOfficialsPage()),
         '/moderator-emergency-hotline': (context) =>
             PhoneFrame(child: mod_emergency.ModeratorEmergencyHotlinePage()),
-        '/moderator-notifications': (context) =>
-            PhoneFrame(child: mod_notifications.ModeratorNotificationsPage()),
         '/moderator-announcement': (context) =>
             PhoneFrame(child: mod_announcement.ModeratorAnnouncementPage()),
         '/moderator-brgy-officials': (context) =>

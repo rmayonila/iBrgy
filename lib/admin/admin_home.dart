@@ -121,9 +121,9 @@ class _AdminHomePageState extends State<AdminHomePage> {
           ),
           const SizedBox(width: 12),
           RichText(
-            text: TextSpan(
+            text: const TextSpan(
               children: [
-                const TextSpan(
+                TextSpan(
                   text: 'iB',
                   style: TextStyle(
                     fontSize: 24,
@@ -137,7 +137,7 @@ class _AdminHomePageState extends State<AdminHomePage> {
                   style: TextStyle(
                     fontSize: 24,
                     fontWeight: FontWeight.w800,
-                    color: Colors.blue.shade900,
+                    color: Color(0xFF0D47A1),
                     letterSpacing: -0.5,
                   ),
                 ),
@@ -146,7 +146,14 @@ class _AdminHomePageState extends State<AdminHomePage> {
           ),
           const Spacer(),
           IconButton(
-            onPressed: () {},
+            onPressed: () {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('Notifications'),
+                  duration: Duration(seconds: 1),
+                ),
+              );
+            },
             icon: const Icon(
               Icons.notifications_none_rounded,
               color: Colors.black87,
@@ -182,6 +189,15 @@ class _AdminHomePageState extends State<AdminHomePage> {
             vertical: 14,
           ),
         ),
+        readOnly: true,
+        onTap: () {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Search feature coming soon'),
+              duration: Duration(seconds: 1),
+            ),
+          );
+        },
       ),
     );
   }
@@ -198,29 +214,27 @@ class _AdminHomePageState extends State<AdminHomePage> {
   }
 
   Widget _buildServicesGrid() {
-    // Hardcoded data for UI demonstration purposes
-    // You can replace this with your infoItems list logic later
     final services = [
       {
         'icon': Icons.description_outlined,
         'label': 'Clearance',
         'color': 0xFFFFE0B2,
-      }, // Orange
+      },
       {
         'icon': Icons.badge_outlined,
         'label': 'Barangay ID',
         'color': 0xFFBBDEFB,
-      }, // Blue
+      },
       {
         'icon': Icons.storefront_outlined,
         'label': 'Business',
         'color': 0xFFC8E6C9,
-      }, // Green
+      },
       {
         'icon': Icons.gavel_outlined,
         'label': 'Complaints',
         'color': 0xFFE1BEE7,
-      }, // Purple
+      },
     ];
 
     return GridView.builder(
@@ -235,59 +249,68 @@ class _AdminHomePageState extends State<AdminHomePage> {
       itemCount: services.length,
       itemBuilder: (context, index) {
         final item = services[index];
-        return Column(
-          children: [
-            Expanded(
-              child: Container(
-                width: double.infinity,
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(16),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withOpacity(0.02),
-                      blurRadius: 8,
-                      offset: const Offset(0, 2),
-                    ),
-                  ],
-                ),
-                child: Center(
-                  child: Container(
-                    height: 45,
-                    width: 45,
-                    decoration: BoxDecoration(
-                      color: Color(item['color'] as int).withOpacity(0.4),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Icon(
-                      item['icon'] as IconData,
-                      color: Colors.black87,
-                      size: 24,
+        return GestureDetector(
+          onTap: () {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text('${item['label']} clicked'),
+                duration: const Duration(seconds: 1),
+              ),
+            );
+          },
+          child: Column(
+            children: [
+              Expanded(
+                child: Container(
+                  width: double.infinity,
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(16),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.02),
+                        blurRadius: 8,
+                        offset: const Offset(0, 2),
+                      ),
+                    ],
+                  ),
+                  child: Center(
+                    child: Container(
+                      height: 45,
+                      width: 45,
+                      decoration: BoxDecoration(
+                        color: Color(item['color'] as int).withOpacity(0.4),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Icon(
+                        item['icon'] as IconData,
+                        color: Colors.black87,
+                        size: 24,
+                      ),
                     ),
                   ),
                 ),
               ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              item['label'] as String,
-              style: const TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.w600,
-                color: Colors.black87,
+              const SizedBox(height: 8),
+              Text(
+                item['label'] as String,
+                style: const TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.black87,
+                ),
+                textAlign: TextAlign.center,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
               ),
-              textAlign: TextAlign.center,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-            ),
-          ],
+            ],
+          ),
         );
       },
     );
   }
 
   Widget _buildRecentActivityList() {
-    // Mock Data for Design
     final requests = [
       {
         'id': '#REQ-2024-001',
@@ -302,15 +325,6 @@ class _AdminHomePageState extends State<AdminHomePage> {
         'date': 'Yesterday',
       },
     ];
-
-    if (requests.isEmpty) {
-      return Center(
-        child: Text(
-          "No recent activity",
-          style: TextStyle(color: Colors.grey[400]),
-        ),
-      );
-    }
 
     return ListView.builder(
       shrinkWrap: true,
@@ -430,7 +444,6 @@ class _AdminHomePageState extends State<AdminHomePage> {
             icon: Icon(Icons.phone_rounded),
             label: 'Emergency',
           ),
-          // FIX: Changed from ContainerIcon (blue) to Icon (grey when unselected)
           BottomNavigationBarItem(
             icon: Icon(Icons.campaign_rounded),
             label: 'Updates',
@@ -449,27 +462,11 @@ class _AdminHomePageState extends State<AdminHomePage> {
   }
 }
 
-// --- HELPER CLASS FOR CUSTOM ICON ---
-class ContainerIcon extends StatelessWidget {
-  final IconData icon;
-  const ContainerIcon({super.key, required this.icon});
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(4),
-      decoration: BoxDecoration(
-        color: Colors.blue.shade50,
-        shape: BoxShape.circle,
-      ),
-      child: Icon(icon, size: 24, color: Colors.blue),
-    );
-  }
-}
-
 // --- PHONE FRAME (Standard Reuse) ---
 class PhoneFrame extends StatelessWidget {
   final Widget child;
   const PhoneFrame({super.key, required this.child});
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
