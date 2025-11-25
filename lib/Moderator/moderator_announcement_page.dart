@@ -16,7 +16,12 @@ class _ModeratorAnnouncementPageState extends State<ModeratorAnnouncementPage> {
   final FirebaseFirestore _db = FirebaseFirestore.instance;
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final TextEditingController _searchController = TextEditingController();
-  String _searchQuery = '';
+
+  // Real-time stream for announcements
+  final Stream<QuerySnapshot> _announcementsStream = FirebaseFirestore.instance
+      .collection('announcements')
+      .orderBy('createdAt', descending: true)
+      .snapshots();
 
   // --- STATIC PINNED POSTS (Always Visible) ---
   final List<Map<String, dynamic>> _staticPosts = [
@@ -46,18 +51,12 @@ class _ModeratorAnnouncementPageState extends State<ModeratorAnnouncementPage> {
     },
   ];
 
-  // Dynamic Data from Firestore
-  List<Map<String, dynamic>> _dynamicPosts = [];
-
-  // Filtered Data
   List<Map<String, dynamic>> _filteredStatic = [];
-  List<Map<String, dynamic>> _filteredDynamic = [];
 
   @override
   void initState() {
     super.initState();
     _filteredStatic = List.from(_staticPosts);
-    _loadAnnouncements();
   }
 
   @override
@@ -85,57 +84,17 @@ class _ModeratorAnnouncementPageState extends State<ModeratorAnnouncementPage> {
     }
   }
 
-  Future<void> _loadAnnouncements() async {
-    try {
-      final snap = await _db
-          .collection('announcements')
-          .orderBy('createdAt', descending: true)
-          .get();
-      if (!mounted) return;
-      final items = snap.docs.map((d) {
-        final data = d.data();
-        return {
-          'id': d.id,
-          'author': (data['author'] ?? 'Barangay Office').toString(),
-          'time': data['createdAt'] != null
-              ? _formatTimestamp(data['createdAt'])
-              : 'recently',
-          'content': (data['content'] ?? '').toString(),
-          'type': 'dynamic',
-        };
-      }).toList();
-
-      setState(() {
-        _dynamicPosts = items;
-        _filteredDynamic = items;
-      });
-    } catch (e) {
-      // ignore load errors
-    }
-  }
-
-  void _filterPosts(String query) {
-    if (query.isEmpty) {
-      setState(() {
-        _filteredStatic = List.from(_staticPosts);
-        _filteredDynamic = List.from(_dynamicPosts);
-      });
-      return;
-    }
-
-    final lowerQuery = query.toLowerCase();
-
+  // Filter only static posts - dynamic filtering happens in StreamBuilder
+  void _onSearchChanged(String query) {
     setState(() {
-      // Filter Static
+      final lowerQuery = query.toLowerCase();
       _filteredStatic = _staticPosts.where((post) {
-        return (post['title'] ?? '').toLowerCase().contains(lowerQuery) ||
-            (post['content'] ?? '').toLowerCase().contains(lowerQuery);
-      }).toList();
-
-      // Filter Dynamic
-      _filteredDynamic = _dynamicPosts.where((post) {
-        return (post['content'] ?? '').toLowerCase().contains(lowerQuery) ||
-            (post['author'] ?? '').toLowerCase().contains(lowerQuery);
+        return (post['title']?.toString() ?? '').toLowerCase().contains(
+              lowerQuery,
+            ) ||
+            (post['content']?.toString() ?? '').toLowerCase().contains(
+              lowerQuery,
+            );
       }).toList();
     });
   }
@@ -149,11 +108,8 @@ class _ModeratorAnnouncementPageState extends State<ModeratorAnnouncementPage> {
   }
 
   // --- CRUD OPERATIONS ---
-
-  // ADD Announcement
   Future<void> _showAddAnnouncementDialog() async {
     final contentController = TextEditingController();
-
     final entered = await showDialog<Map<String, String>>(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -192,39 +148,24 @@ class _ModeratorAnnouncementPageState extends State<ModeratorAnnouncementPage> {
         ],
       ),
     );
-
     contentController.dispose();
 
     if (entered != null) {
       if (!mounted) return;
       final scaffold = ScaffoldMessenger.of(context);
       final content = entered['content'] ?? '';
-
       if (content.isEmpty) {
         scaffold.showSnackBar(
           const SnackBar(content: Text('Please write something')),
         );
         return;
       }
-
       try {
         await _ensureSignedIn();
-        final docRef = await _db.collection('announcements').add({
+        await _db.collection('announcements').add({
           'author': 'Barangay Office',
           'content': content,
           'createdAt': FieldValue.serverTimestamp(),
-        });
-
-        if (!mounted) return;
-        setState(() {
-          _dynamicPosts.insert(0, {
-            'id': docRef.id,
-            'author': 'Barangay Office',
-            'time': 'Just now',
-            'content': content,
-            'type': 'dynamic',
-          });
-          _filteredDynamic = List.from(_dynamicPosts);
         });
         scaffold.showSnackBar(
           const SnackBar(content: Text('Announcement posted')),
@@ -237,10 +178,10 @@ class _ModeratorAnnouncementPageState extends State<ModeratorAnnouncementPage> {
     }
   }
 
-  // EDIT Announcement
   Future<void> _showEditAnnouncementDialog(Map<String, dynamic> post) async {
-    final contentController = TextEditingController(text: post['content']);
-
+    final contentController = TextEditingController(
+      text: post['content']?.toString(),
+    );
     final entered = await showDialog<Map<String, String>>(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -279,35 +220,23 @@ class _ModeratorAnnouncementPageState extends State<ModeratorAnnouncementPage> {
         ],
       ),
     );
-
     contentController.dispose();
 
     if (entered != null) {
       if (!mounted) return;
       final scaffold = ScaffoldMessenger.of(context);
       final newContent = entered['content'] ?? '';
-
       if (newContent.isEmpty) {
         scaffold.showSnackBar(
           const SnackBar(content: Text('Please write something')),
         );
         return;
       }
-
       try {
         final postId = post['id'];
-        await _db.collection('announcements').doc(postId).update({
+        await _db.collection('announcements').doc(postId?.toString()).update({
           'content': newContent,
           'updatedAt': FieldValue.serverTimestamp(),
-        });
-
-        if (!mounted) return;
-        setState(() {
-          final index = _dynamicPosts.indexWhere((p) => p['id'] == postId);
-          if (index != -1) {
-            _dynamicPosts[index]['content'] = newContent;
-            _filteredDynamic = List.from(_dynamicPosts);
-          }
         });
         scaffold.showSnackBar(
           const SnackBar(content: Text('Announcement updated')),
@@ -320,11 +249,9 @@ class _ModeratorAnnouncementPageState extends State<ModeratorAnnouncementPage> {
     }
   }
 
-  // DELETE Announcement
   Future<void> _deleteAnnouncement(Map<String, dynamic> post) async {
     final postId = post['id'];
     final scaffold = ScaffoldMessenger.of(context);
-
     final confirmDelete = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -347,13 +274,7 @@ class _ModeratorAnnouncementPageState extends State<ModeratorAnnouncementPage> {
 
     if (confirmDelete == true && postId != null) {
       try {
-        await _db.collection('announcements').doc(postId).delete();
-
-        if (!mounted) return;
-        setState(() {
-          _dynamicPosts.removeWhere((p) => p['id'] == postId);
-          _filteredDynamic = List.from(_dynamicPosts);
-        });
+        await _db.collection('announcements').doc(postId.toString()).delete();
         scaffold.showSnackBar(
           const SnackBar(content: Text('Announcement deleted')),
         );
@@ -366,7 +287,6 @@ class _ModeratorAnnouncementPageState extends State<ModeratorAnnouncementPage> {
   }
 
   // --- WIDGET BUILDERS ---
-
   Widget _buildHeader() {
     return Container(
       decoration: BoxDecoration(
@@ -451,7 +371,7 @@ class _ModeratorAnnouncementPageState extends State<ModeratorAnnouncementPage> {
       ),
       child: TextField(
         controller: _searchController,
-        onChanged: _filterPosts,
+        onChanged: _onSearchChanged,
         decoration: InputDecoration(
           hintText: "Search updates...",
           hintStyle: TextStyle(color: Colors.grey.shade400, fontSize: 14),
@@ -498,7 +418,6 @@ class _ModeratorAnnouncementPageState extends State<ModeratorAnnouncementPage> {
   Widget _buildPostCard(Map<String, dynamic> post) {
     final isPinned = post['type'] == 'pinned';
     final isDynamic = post['type'] == 'dynamic';
-
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
       decoration: BoxDecoration(
@@ -518,7 +437,6 @@ class _ModeratorAnnouncementPageState extends State<ModeratorAnnouncementPage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Header
             Row(
               children: [
                 Container(
@@ -538,7 +456,7 @@ class _ModeratorAnnouncementPageState extends State<ModeratorAnnouncementPage> {
                             size: 20,
                           )
                         : Text(
-                            (post['author'] ?? 'U')
+                            (post['author']?.toString() ?? 'U')
                                 .substring(0, 1)
                                 .toUpperCase(),
                             style: const TextStyle(
@@ -556,8 +474,8 @@ class _ModeratorAnnouncementPageState extends State<ModeratorAnnouncementPage> {
                     children: [
                       Text(
                         isPinned
-                            ? (post['title'] ?? 'Reminder')
-                            : (post['author'] ?? 'Unknown'),
+                            ? (post['title']?.toString() ?? 'Reminder')
+                            : (post['author']?.toString() ?? 'Unknown'),
                         style: TextStyle(
                           fontSize: 15,
                           fontWeight: FontWeight.w700,
@@ -568,7 +486,7 @@ class _ModeratorAnnouncementPageState extends State<ModeratorAnnouncementPage> {
                       ),
                       const SizedBox(height: 2),
                       Text(
-                        post['time'] ?? '',
+                        post['time']?.toString() ?? '',
                         style: TextStyle(
                           fontSize: 12,
                           color: Colors.grey.shade500,
@@ -618,20 +536,15 @@ class _ModeratorAnnouncementPageState extends State<ModeratorAnnouncementPage> {
                   Icon(Icons.more_horiz_rounded, color: Colors.grey.shade300),
               ],
             ),
-
             const SizedBox(height: 12),
-
-            // Content Text
             Text(
-              post['content'] ?? '',
+              post['content']?.toString() ?? '',
               style: TextStyle(
                 fontSize: 14,
                 height: 1.5,
                 color: Colors.black87.withOpacity(0.8),
               ),
             ),
-
-            // Only show image placeholder for dynamic posts
             if (isDynamic) ...[
               const SizedBox(height: 12),
               Container(
@@ -749,7 +662,6 @@ class _ModeratorAnnouncementPageState extends State<ModeratorAnnouncementPage> {
                       ),
                     ),
                     const SizedBox(height: 16),
-
                     // IMPORTANT REMINDERS (Static Pinned Posts)
                     if (_filteredStatic.isNotEmpty) ...[
                       _buildSectionTitle("IMPORTANT REMINDERS"),
@@ -761,64 +673,114 @@ class _ModeratorAnnouncementPageState extends State<ModeratorAnnouncementPage> {
                       ),
                       const SizedBox(height: 8),
                     ],
-
-                    // RECENT UPDATES (Dynamic Posts - Moderator can CRUD)
+                    // RECENT UPDATES (Dynamic Posts - StreamBuilder)
                     _buildSectionTitle("RECENT UPDATES"),
+                    StreamBuilder<QuerySnapshot>(
+                      stream: _announcementsStream,
+                      builder: (context, snapshot) {
+                        if (snapshot.connectionState ==
+                            ConnectionState.waiting) {
+                          return const Center(
+                            child: Padding(
+                              padding: EdgeInsets.all(32.0),
+                              child: CircularProgressIndicator(),
+                            ),
+                          );
+                        }
+                        if (snapshot.hasError) {
+                          return Center(
+                            child: Text(
+                              'Error loading updates: ${snapshot.error}',
+                            ),
+                          );
+                        }
 
-                    if (_filteredDynamic.isEmpty && _searchQuery.isEmpty)
-                      Container(
-                        width: double.infinity,
-                        padding: const EdgeInsets.all(24),
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(16),
-                          border: Border.all(color: Colors.grey.shade200),
-                        ),
-                        child: Column(
-                          children: [
-                            Icon(
-                              Icons.campaign_outlined,
-                              size: 40,
-                              color: Colors.grey.shade300,
-                            ),
-                            const SizedBox(height: 12),
-                            Text(
-                              "No recent updates",
-                              style: TextStyle(
-                                color: Colors.grey.shade500,
-                                fontWeight: FontWeight.w500,
-                              ),
-                            ),
-                            const SizedBox(height: 4),
-                            Text(
-                              "Tap + to add new announcement",
-                              style: TextStyle(
-                                color: Colors.grey.shade400,
-                                fontSize: 12,
-                              ),
-                            ),
-                          ],
-                        ),
-                      )
-                    else if (_filteredDynamic.isEmpty &&
-                        _searchQuery.isNotEmpty)
-                      Padding(
-                        padding: const EdgeInsets.all(16.0),
-                        child: Center(
-                          child: Text(
-                            "No matching updates found",
-                            style: TextStyle(color: Colors.grey[500]),
-                          ),
-                        ),
-                      )
-                    else
-                      Column(
-                        children: [
-                          for (var post in _filteredDynamic)
-                            _buildPostCard(post),
-                        ],
-                      ),
+                        final documents = snapshot.data?.docs ?? [];
 
+                        // Build the list of posts
+                        final allDynamicPosts = documents.map((doc) {
+                          final data = doc.data() as Map<String, dynamic>;
+                          return <String, dynamic>{
+                            'id': doc.id,
+                            'author':
+                                data['author']?.toString() ?? 'Barangay Office',
+                            'time': data['createdAt'] != null
+                                ? _formatTimestamp(data['createdAt'])
+                                : 'recently',
+                            'content': data['content']?.toString() ?? '',
+                            'type': 'dynamic',
+                          };
+                        }).toList();
+
+                        // Apply search filter
+                        final searchQuery = _searchController.text
+                            .toLowerCase();
+                        final filteredPosts = allDynamicPosts.where((post) {
+                          final content =
+                              post['content']?.toString().toLowerCase() ?? '';
+                          final author =
+                              post['author']?.toString().toLowerCase() ?? '';
+                          return content.contains(searchQuery) ||
+                              author.contains(searchQuery);
+                        }).toList();
+
+                        // Show appropriate UI
+                        if (filteredPosts.isEmpty) {
+                          if (searchQuery.isNotEmpty) {
+                            return Padding(
+                              padding: const EdgeInsets.all(16.0),
+                              child: Center(
+                                child: Text(
+                                  "No matching updates found",
+                                  style: TextStyle(color: Colors.grey[500]),
+                                ),
+                              ),
+                            );
+                          } else {
+                            return Container(
+                              width: double.infinity,
+                              padding: const EdgeInsets.all(24),
+                              decoration: BoxDecoration(
+                                color: Colors.white,
+                                borderRadius: BorderRadius.circular(16),
+                                border: Border.all(color: Colors.grey.shade200),
+                              ),
+                              child: Column(
+                                children: [
+                                  Icon(
+                                    Icons.campaign_outlined,
+                                    size: 40,
+                                    color: Colors.grey.shade300,
+                                  ),
+                                  const SizedBox(height: 12),
+                                  Text(
+                                    "No recent updates",
+                                    style: TextStyle(
+                                      color: Colors.grey.shade500,
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    "Tap + to add new announcement",
+                                    style: TextStyle(
+                                      color: Colors.grey.shade400,
+                                      fontSize: 12,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            );
+                          }
+                        }
+
+                        return Column(
+                          children: filteredPosts
+                              .map((post) => _buildPostCard(post))
+                              .toList(),
+                        );
+                      },
+                    ),
                     const SizedBox(height: 40),
                   ],
                 ),

@@ -13,10 +13,14 @@ class UserAnnouncementPage extends StatefulWidget {
 }
 
 class _UserAnnouncementPageState extends State<UserAnnouncementPage> {
-  final FirebaseFirestore _db = FirebaseFirestore.instance;
+  // 🔑 Real-time stream for announcements
+  final Stream<QuerySnapshot> _announcementsStream = FirebaseFirestore.instance
+      .collection('announcements')
+      .orderBy('createdAt', descending: true)
+      .snapshots();
 
   // --- STATIC PINNED POSTS (Always Visible) ---
-  final List<Map<String, String>> _staticPosts = [
+  final List<Map<String, dynamic>> _staticPosts = [
     {
       'author': 'Barangay Admin',
       'time': 'Always Pinned',
@@ -43,13 +47,7 @@ class _UserAnnouncementPageState extends State<UserAnnouncementPage> {
     },
   ];
 
-  // Dynamic Data
-  List<Map<String, String>> _dynamicPosts = [];
-
-  // Filtered Data
-  List<Map<String, String>> _filteredStatic = [];
-  List<Map<String, String>> _filteredDynamic = [];
-
+  List<Map<String, dynamic>> _filteredStatic = [];
   final TextEditingController _searchController = TextEditingController();
 
   // Navigation for User
@@ -66,9 +64,7 @@ class _UserAnnouncementPageState extends State<UserAnnouncementPage> {
   @override
   void initState() {
     super.initState();
-    // Initialize filtered lists
     _filteredStatic = List.from(_staticPosts);
-    _loadAnnouncements();
   }
 
   @override
@@ -77,57 +73,16 @@ class _UserAnnouncementPageState extends State<UserAnnouncementPage> {
     super.dispose();
   }
 
-  Future<void> _loadAnnouncements() async {
-    try {
-      final snap = await _db
-          .collection('announcements')
-          .orderBy('createdAt', descending: true)
-          .get();
-      final items = snap.docs.map((d) {
-        final data = d.data();
-        return {
-          'id': d.id,
-          'author': (data['author'] ?? '').toString(),
-          'time': data['createdAt'] != null
-              ? _formatTimestamp(data['createdAt'])
-              : 'recently',
-          'content': (data['content'] ?? '').toString(),
-          'type': 'dynamic',
-        };
-      }).toList();
-
-      if (!mounted) return;
-      setState(() {
-        _dynamicPosts = items;
-        _filteredDynamic = items; // Initial state
-      });
-    } catch (e) {
-      // ignore load errors
-    }
-  }
-
   void _filterPosts(String query) {
-    if (query.isEmpty) {
-      setState(() {
-        _filteredStatic = List.from(_staticPosts);
-        _filteredDynamic = List.from(_dynamicPosts);
-      });
-      return;
-    }
-
     final lowerQuery = query.toLowerCase();
-
     setState(() {
-      // Filter Static
       _filteredStatic = _staticPosts.where((post) {
-        return (post['title'] ?? '').toLowerCase().contains(lowerQuery) ||
-            (post['content'] ?? '').toLowerCase().contains(lowerQuery);
-      }).toList();
-
-      // Filter Dynamic
-      _filteredDynamic = _dynamicPosts.where((post) {
-        return (post['content'] ?? '').toLowerCase().contains(lowerQuery) ||
-            (post['author'] ?? '').toLowerCase().contains(lowerQuery);
+        return (post['title']?.toString() ?? '').toLowerCase().contains(
+              lowerQuery,
+            ) ||
+            (post['content']?.toString() ?? '').toLowerCase().contains(
+              lowerQuery,
+            );
       }).toList();
     });
   }
@@ -149,7 +104,6 @@ class _UserAnnouncementPageState extends State<UserAnnouncementPage> {
         elevation: 10,
         insetPadding: const EdgeInsets.symmetric(horizontal: 60),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-
         title: const Text(
           'Exit',
           textAlign: TextAlign.center,
@@ -186,7 +140,6 @@ class _UserAnnouncementPageState extends State<UserAnnouncementPage> {
       try {
         await FirebaseAuth.instance.signOut();
       } catch (_) {}
-
       if (!mounted) return;
       Navigator.pushAndRemoveUntil(
         context,
@@ -197,7 +150,6 @@ class _UserAnnouncementPageState extends State<UserAnnouncementPage> {
   }
 
   // --- WIDGET BUILDERS ---
-
   Widget _buildHeader() {
     return Container(
       decoration: BoxDecoration(
@@ -255,14 +207,9 @@ class _UserAnnouncementPageState extends State<UserAnnouncementPage> {
             ),
           ),
           const Spacer(),
-
-          // --- EXIT / BACK ICON ---
           IconButton(
             onPressed: _handleBackOrLogout,
-            icon: const Icon(
-              Icons.logout, // Visual "Exit" icon
-              color: Colors.red,
-            ),
+            icon: const Icon(Icons.logout, color: Colors.red),
             tooltip: "Exit",
           ),
         ],
@@ -315,9 +262,8 @@ class _UserAnnouncementPageState extends State<UserAnnouncementPage> {
     );
   }
 
-  Widget _buildPostCard(Map<String, String> post) {
+  Widget _buildPostCard(Map<String, dynamic> post) {
     final isPinned = post['type'] == 'pinned';
-
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
       decoration: BoxDecoration(
@@ -337,7 +283,6 @@ class _UserAnnouncementPageState extends State<UserAnnouncementPage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Header
             Row(
               children: [
                 Container(
@@ -357,7 +302,7 @@ class _UserAnnouncementPageState extends State<UserAnnouncementPage> {
                             size: 20,
                           )
                         : Text(
-                            (post['author'] ?? 'U')
+                            (post['author']?.toString() ?? 'U')
                                 .substring(0, 1)
                                 .toUpperCase(),
                             style: const TextStyle(
@@ -375,8 +320,8 @@ class _UserAnnouncementPageState extends State<UserAnnouncementPage> {
                     children: [
                       Text(
                         isPinned
-                            ? (post['title'] ?? 'Reminder')
-                            : (post['author'] ?? 'Unknown'),
+                            ? (post['title']?.toString() ?? 'Reminder')
+                            : (post['author']?.toString() ?? 'Unknown'),
                         style: TextStyle(
                           fontSize: 15,
                           fontWeight: FontWeight.w700,
@@ -387,7 +332,7 @@ class _UserAnnouncementPageState extends State<UserAnnouncementPage> {
                       ),
                       const SizedBox(height: 2),
                       Text(
-                        post['time'] ?? '',
+                        post['time']?.toString() ?? '',
                         style: TextStyle(
                           fontSize: 12,
                           color: Colors.grey.shade500,
@@ -401,19 +346,15 @@ class _UserAnnouncementPageState extends State<UserAnnouncementPage> {
                   Icon(Icons.more_horiz_rounded, color: Colors.grey.shade300),
               ],
             ),
-
             const SizedBox(height: 12),
-
-            // Content Text
             Text(
-              post['content'] ?? '',
+              post['content']?.toString() ?? '',
               style: TextStyle(
                 fontSize: 14,
                 height: 1.5,
                 color: Colors.black87.withOpacity(0.8),
               ),
             ),
-
             if (!isPinned) ...[
               const SizedBox(height: 12),
               Container(
@@ -463,7 +404,7 @@ class _UserAnnouncementPageState extends State<UserAnnouncementPage> {
         ],
       ),
       child: BottomNavigationBar(
-        currentIndex: 2, // Highlight 'Updates'
+        currentIndex: 2,
         type: BottomNavigationBarType.fixed,
         selectedItemColor: Colors.blue,
         unselectedItemColor: Colors.grey.shade400,
@@ -505,25 +446,19 @@ class _UserAnnouncementPageState extends State<UserAnnouncementPage> {
   @override
   Widget build(BuildContext context) {
     Widget mobileContent = Scaffold(
-      backgroundColor: const Color(0xFFF8F9FA), // Matches Admin Home bg
+      backgroundColor: const Color(0xFFF8F9FA),
       body: SafeArea(
         child: Column(
           children: [
-            // --- HEADER ---
             _buildHeader(),
-
-            // --- SCROLLABLE BODY ---
             Expanded(
               child: SingleChildScrollView(
                 padding: const EdgeInsets.all(20),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // 1. Search Bar
                     _buildSearchBar(),
-
                     const SizedBox(height: 24),
-
                     const Text(
                       'Barangay Updates',
                       style: TextStyle(
@@ -533,8 +468,7 @@ class _UserAnnouncementPageState extends State<UserAnnouncementPage> {
                       ),
                     ),
                     const SizedBox(height: 16),
-
-                    // 2. Pinned Posts (Static)
+                    // Pinned Posts (Static)
                     if (_filteredStatic.isNotEmpty) ...[
                       _buildSectionTitle("IMPORTANT REMINDERS"),
                       Column(
@@ -545,68 +479,115 @@ class _UserAnnouncementPageState extends State<UserAnnouncementPage> {
                       ),
                       const SizedBox(height: 8),
                     ],
-
-                    // 3. Dynamic Posts (From Firestore)
+                    // Dynamic Posts - Real-time with StreamBuilder
                     _buildSectionTitle("RECENT UPDATES"),
+                    StreamBuilder<QuerySnapshot>(
+                      stream: _announcementsStream,
+                      builder: (context, snapshot) {
+                        if (snapshot.connectionState ==
+                            ConnectionState.waiting) {
+                          return const Center(
+                            child: Padding(
+                              padding: EdgeInsets.all(32.0),
+                              child: CircularProgressIndicator(),
+                            ),
+                          );
+                        }
+                        if (snapshot.hasError) {
+                          return Center(
+                            child: Text(
+                              'Error loading data: ${snapshot.error}',
+                            ),
+                          );
+                        }
 
-                    if (_filteredDynamic.isEmpty &&
-                        _searchController.text.isEmpty)
-                      // Empty State (No Search, No Data)
-                      Container(
-                        width: double.infinity,
-                        padding: const EdgeInsets.all(24),
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(16),
-                          border: Border.all(color: Colors.grey.shade200),
-                        ),
-                        child: Column(
+                        final documents = snapshot.data?.docs ?? [];
+                        final dynamicPosts = documents.map((d) {
+                          final data = d.data() as Map<String, dynamic>;
+                          return <String, dynamic>{
+                            'id': d.id,
+                            'author': (data['author'] ?? 'Moderator')
+                                .toString(),
+                            'time': data['createdAt'] != null
+                                ? _formatTimestamp(data['createdAt'])
+                                : 'recently',
+                            'content': (data['content'] ?? 'No content')
+                                .toString(),
+                            'type': 'dynamic',
+                          };
+                        }).toList();
+
+                        // Apply search filter
+                        final currentQuery = _searchController.text
+                            .toLowerCase();
+                        final filteredDynamicPosts = dynamicPosts.where((post) {
+                          return (post['content']?.toString() ?? '')
+                                  .toLowerCase()
+                                  .contains(currentQuery) ||
+                              (post['author']?.toString() ?? '')
+                                  .toLowerCase()
+                                  .contains(currentQuery);
+                        }).toList();
+
+                        // Empty states
+                        if (filteredDynamicPosts.isEmpty) {
+                          if (currentQuery.isNotEmpty) {
+                            return Padding(
+                              padding: const EdgeInsets.all(16.0),
+                              child: Center(
+                                child: Text(
+                                  "No matching updates found",
+                                  style: TextStyle(color: Colors.grey[500]),
+                                ),
+                              ),
+                            );
+                          } else {
+                            return Container(
+                              width: double.infinity,
+                              padding: const EdgeInsets.all(24),
+                              decoration: BoxDecoration(
+                                color: Colors.white,
+                                borderRadius: BorderRadius.circular(16),
+                                border: Border.all(color: Colors.grey.shade200),
+                              ),
+                              child: Column(
+                                children: [
+                                  Icon(
+                                    Icons.campaign_outlined,
+                                    size: 40,
+                                    color: Colors.grey.shade300,
+                                  ),
+                                  const SizedBox(height: 12),
+                                  Text(
+                                    "No recent updates",
+                                    style: TextStyle(
+                                      color: Colors.grey.shade500,
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    "Check the reminders above for info",
+                                    style: TextStyle(
+                                      color: Colors.grey.shade400,
+                                      fontSize: 12,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            );
+                          }
+                        }
+
+                        // Display posts
+                        return Column(
                           children: [
-                            Icon(
-                              Icons.campaign_outlined,
-                              size: 40,
-                              color: Colors.grey.shade300,
-                            ),
-                            const SizedBox(height: 12),
-                            Text(
-                              "No recent updates",
-                              style: TextStyle(
-                                color: Colors.grey.shade500,
-                                fontWeight: FontWeight.w500,
-                              ),
-                            ),
-                            const SizedBox(height: 4),
-                            Text(
-                              "Check the reminders above for info",
-                              style: TextStyle(
-                                color: Colors.grey.shade400,
-                                fontSize: 12,
-                              ),
-                            ),
+                            for (var post in filteredDynamicPosts)
+                              _buildPostCard(post),
                           ],
-                        ),
-                      )
-                    else if (_filteredDynamic.isEmpty &&
-                        _searchController.text.isNotEmpty)
-                      // Empty State (Search Active)
-                      Padding(
-                        padding: const EdgeInsets.all(16.0),
-                        child: Center(
-                          child: Text(
-                            "No matching updates found",
-                            style: TextStyle(color: Colors.grey[500]),
-                          ),
-                        ),
-                      )
-                    else
-                      // Data Exists
-                      Column(
-                        children: [
-                          for (var post in _filteredDynamic)
-                            _buildPostCard(post),
-                        ],
-                      ),
-
+                        );
+                      },
+                    ),
                     const SizedBox(height: 40),
                   ],
                 ),
@@ -629,6 +610,7 @@ class _UserAnnouncementPageState extends State<UserAnnouncementPage> {
 class ContainerIcon extends StatelessWidget {
   final IconData icon;
   const ContainerIcon({super.key, required this.icon});
+
   @override
   Widget build(BuildContext context) {
     return Container(
@@ -646,6 +628,7 @@ class ContainerIcon extends StatelessWidget {
 class PhoneFrame extends StatelessWidget {
   final Widget child;
   const PhoneFrame({super.key, required this.child});
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
