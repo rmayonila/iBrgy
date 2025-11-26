@@ -15,11 +15,9 @@ class LoginPage extends StatefulWidget {
 class _LoginPageState extends State<LoginPage> {
   late TextEditingController _emailController;
   late TextEditingController _passwordController;
-  String? _selectedRole;
   bool _loading = false;
-
-  // NEW: State to toggle password visibility
   bool _obscurePassword = true;
+  String? _errorMessage;
 
   @override
   void initState() {
@@ -32,29 +30,20 @@ class _LoginPageState extends State<LoginPage> {
     final email = _emailController.text.trim();
     final password = _passwordController.text.trim();
 
-    if (_selectedRole == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Please select a Role (Admin or Moderator)'),
-          backgroundColor: Colors.redAccent,
-        ),
-      );
-      return;
-    }
+    // Clear previous error message
+    setState(() => _errorMessage = null);
 
     if (email.isEmpty || password.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please enter email and password')),
-      );
+      setState(() {
+        _errorMessage = 'Please enter your email and password';
+      });
       return;
     }
 
     setState(() => _loading = true);
 
-    // Admin Bypass
-    if ((_selectedRole?.toLowerCase() ?? '') == 'admin' &&
-        email.toLowerCase() == 'admin@ibrgy.com' &&
-        password == 'admin1234') {
+    // 1. Admin Bypass Check (for the hardcoded admin)
+    if (email.toLowerCase() == 'admin@ibrgy.com' && password == 'admin1234') {
       if (mounted) setState(() => _loading = false);
       Navigator.pushReplacement(
         context,
@@ -66,6 +55,7 @@ class _LoginPageState extends State<LoginPage> {
     }
 
     try {
+      // 2. Sign in with Email and Password
       final cred = await FirebaseAuth.instance.signInWithEmailAndPassword(
         email: email,
         password: password,
@@ -74,6 +64,7 @@ class _LoginPageState extends State<LoginPage> {
       final uid = cred.user?.uid;
       if (uid == null) throw FirebaseAuthException(code: 'no-user');
 
+      // 3. Fetch User Role from Firestore
       final doc = await FirebaseFirestore.instance
           .collection('users')
           .doc(uid)
@@ -82,53 +73,65 @@ class _LoginPageState extends State<LoginPage> {
       if (!doc.exists) {
         await FirebaseAuth.instance.signOut();
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('User profile not found in database')),
-          );
+          setState(() {
+            _errorMessage =
+                'User profile not found in database. Contact support.';
+          });
         }
         return;
       }
 
       final roleFromDb = (doc.data()?['role'] ?? '').toString().toLowerCase();
-      final selectedRoleInput = (_selectedRole ?? '').toLowerCase();
 
-      if (roleFromDb != selectedRoleInput) {
-        await FirebaseAuth.instance.signOut();
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text(
-                'Role mismatch: You are not authorized for this role.',
-              ),
-            ),
-          );
-        }
-        return;
-      }
-
+      // 4. Redirect based on the fetched role
       if (mounted) {
-        if (selectedRoleInput == 'admin') {
+        if (roleFromDb == 'admin') {
           Navigator.pushReplacement(
             context,
             MaterialPageRoute(
               builder: (ctx) => PhoneFrame(child: admin.AdminHomePage()),
             ),
           );
-        } else {
+        } else if (roleFromDb == 'moderator') {
+          // Redirect to moderator dashboard
           Navigator.pushReplacementNamed(context, '/moderator-home');
+        } else {
+          // Handle unknown or unauthorized roles
+          await FirebaseAuth.instance.signOut();
+          if (mounted) {
+            setState(() {
+              _errorMessage =
+                  'Unauthorized role detected. Please contact support.';
+            });
+          }
         }
       }
     } on FirebaseAuthException catch (e) {
+      String errorMessage = 'Authentication error';
+
+      // Specific error messages based on Firebase error codes
+      if (e.code == 'user-not-found') {
+        errorMessage = 'INCORRECT EMAIL';
+      } else if (e.code == 'invalid-email') {
+        errorMessage = 'INVALID EMAIL FORMAT';
+      } else if (e.code == 'wrong-password') {
+        errorMessage = 'INCORRECT PASSWORD';
+      } else if (e.code == 'invalid-credential') {
+        errorMessage = 'INCORRECT EMAIL OR PASSWORD';
+      } else {
+        errorMessage = e.message ?? 'Authentication error';
+      }
+
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(e.message ?? 'Authentication error')),
-        );
+        setState(() {
+          _errorMessage = errorMessage;
+        });
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Login failed: $e')));
+        setState(() {
+          _errorMessage = 'Login failed. Please try again.';
+        });
       }
     } finally {
       if (mounted) setState(() => _loading = false);
@@ -163,15 +166,13 @@ class _LoginPageState extends State<LoginPage> {
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      // FIX: Wrapped in SizedBox to force stable height
-                      // This prevents the layout from jumping if the image loads slowly or fails
+                      // iBrgy Logo
                       SizedBox(
                         height: 40,
                         width: 100,
                         child: Image.network(
                           'https://i.postimg.cc/mkm9rg5L/ibrgy-logo.png',
                           fit: BoxFit.contain,
-                          // If image fails/loads, show an empty box of SAME size, not shrink
                           errorBuilder: (c, e, st) =>
                               const SizedBox(height: 40, width: 100),
                           loadingBuilder: (context, child, loadingProgress) {
@@ -180,9 +181,8 @@ class _LoginPageState extends State<LoginPage> {
                           },
                         ),
                       ),
-                      const SizedBox(height: 12),
-
-                      // iBrgy Label
+                      const SizedBox(height: 2), // Minimal space
+                      // iBrgy Text Label
                       Center(
                         child: Container(
                           padding: const EdgeInsets.symmetric(
@@ -219,55 +219,28 @@ class _LoginPageState extends State<LoginPage> {
                       ),
                       const SizedBox(height: 16),
 
-                      // Role Dropdown
-                      Row(
-                        children: [
-                          const Text(
-                            'ROLE',
-                            style: TextStyle(fontSize: 12, color: Colors.black),
+                      // Error Message Display - No border
+                      if (_errorMessage != null)
+                        Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 8,
                           ),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: DropdownButtonFormField<String>(
-                              initialValue: _selectedRole,
-                              hint: const Text(
-                                'Select Role',
-                                style: TextStyle(color: Colors.black54),
-                              ),
-                              dropdownColor: Colors.white,
-                              items: const [
-                                DropdownMenuItem(
-                                  value: 'Admin',
-                                  child: Text(
-                                    'Admin',
-                                    style: TextStyle(color: Colors.black),
-                                  ),
-                                ),
-                                DropdownMenuItem(
-                                  value: 'Moderator',
-                                  child: Text(
-                                    'Moderator',
-                                    style: TextStyle(color: Colors.black),
-                                  ),
-                                ),
-                              ],
-                              onChanged: (v) =>
-                                  setState(() => _selectedRole = v),
-                              decoration: const InputDecoration(
-                                contentPadding: EdgeInsets.symmetric(
-                                  horizontal: 8,
-                                  vertical: 6,
-                                ),
-                                border: OutlineInputBorder(),
-                              ),
+                          child: Text(
+                            _errorMessage!,
+                            style: const TextStyle(
+                              color: Colors.redAccent,
+                              fontSize: 14,
+                              fontWeight: FontWeight.w500,
                             ),
+                            textAlign: TextAlign.center,
                           ),
-                        ],
-                      ),
+                        ),
 
-                      const SizedBox(height: 12),
+                      if (_errorMessage != null) const SizedBox(height: 12),
 
-                      // Email
+                      // Email Field
                       const Align(
                         alignment: Alignment.centerLeft,
                         child: Text(
@@ -279,6 +252,7 @@ class _LoginPageState extends State<LoginPage> {
                       TextField(
                         controller: _emailController,
                         style: const TextStyle(color: Colors.black),
+                        keyboardType: TextInputType.emailAddress,
                         decoration: const InputDecoration(
                           border: OutlineInputBorder(),
                         ),
@@ -286,7 +260,7 @@ class _LoginPageState extends State<LoginPage> {
 
                       const SizedBox(height: 12),
 
-                      // Password
+                      // Password Field
                       const Align(
                         alignment: Alignment.centerLeft,
                         child: Text(
@@ -297,12 +271,10 @@ class _LoginPageState extends State<LoginPage> {
                       const SizedBox(height: 6),
                       TextField(
                         controller: _passwordController,
-                        // FIX: Use state variable to toggle visibility
                         obscureText: _obscurePassword,
                         style: const TextStyle(color: Colors.black),
                         decoration: InputDecoration(
                           border: const OutlineInputBorder(),
-                          // FIX: Add Suffix Icon for Eye Toggle
                           suffixIcon: IconButton(
                             icon: Icon(
                               _obscurePassword
@@ -365,10 +337,10 @@ class _LoginPageState extends State<LoginPage> {
                   ),
                 ),
 
-                // Close Icon
+                // Close Icon - Moved much closer to the top
                 Positioned(
-                  top: 12,
-                  right: 12,
+                  top: 2, // Very close to the top
+                  right: 2, // Very close to the right edge
                   child: GestureDetector(
                     onTap: () => Navigator.of(context).maybePop(),
                     child: Semantics(

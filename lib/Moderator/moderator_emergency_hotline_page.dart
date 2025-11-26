@@ -544,14 +544,6 @@ class _ModeratorEmergencyHotlinePageState
               ],
             ),
           ),
-          const Spacer(),
-          IconButton(
-            onPressed: () {},
-            icon: const Icon(
-              Icons.notifications_none_rounded,
-              color: Colors.black87,
-            ),
-          ),
         ],
       ),
     );

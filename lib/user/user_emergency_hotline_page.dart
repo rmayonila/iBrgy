@@ -21,39 +21,9 @@ class _UserEmergencyHotlinePageState extends State<UserEmergencyHotlinePage> {
   bool _showToast = false;
   String _copiedNumber = '';
 
-  // --- STATIC NATIONAL NUMBERS ---
-  final List<Map<String, dynamic>> _nationalHotlines = [
-    {
-      'name': 'National Emergency',
-      'number': '911',
-      'type': 'national',
-      'isUrgent': true,
-      'icon': Icons.warning_amber_rounded,
-    },
-    {
-      'name': 'Philippine Red Cross',
-      'number': '143',
-      'type': 'national',
-      'isUrgent': false,
-      'icon': Icons.medical_services_outlined,
-    },
-    {
-      'name': 'Police (PNP)',
-      'number': '117',
-      'type': 'national',
-      'isUrgent': false,
-      'icon': Icons.local_police_outlined,
-    },
-    {
-      'name': 'Fire Protection (BFP)',
-      'number': '(02) 8426-0219',
-      'type': 'national',
-      'isUrgent': false,
-      'icon': Icons.fire_truck_outlined,
-    },
-  ];
-
+  List<Map<String, dynamic>> _nationalHotlines = [];
   List<Map<String, dynamic>> _localHotlines = [];
+  List<Map<String, dynamic>> _barangayHotlines = [];
   String _searchQuery = '';
   final TextEditingController _searchController = TextEditingController();
 
@@ -70,7 +40,7 @@ class _UserEmergencyHotlinePageState extends State<UserEmergencyHotlinePage> {
   @override
   void initState() {
     super.initState();
-    _loadLocalHotlines();
+    _loadHotlines();
   }
 
   @override
@@ -79,30 +49,62 @@ class _UserEmergencyHotlinePageState extends State<UserEmergencyHotlinePage> {
     super.dispose();
   }
 
-  Future<void> _loadLocalHotlines() async {
+  Future<void> _loadHotlines() async {
     try {
       final snap = await _db
           .collection('hotlines')
           .orderBy('createdAt', descending: true)
           .get();
-      final items = snap.docs.map((d) {
-        final data = d.data();
-        return {
-          'id': d.id,
+
+      final List<Map<String, dynamic>> nationalItems = [];
+      final List<Map<String, dynamic>> localItems = [];
+      final List<Map<String, dynamic>> barangayItems = [];
+
+      for (final doc in snap.docs) {
+        final data = doc.data();
+        final hotline = {
+          'id': doc.id,
           'name': (data['name'] ?? '').toString(),
           'number': (data['number'] ?? '').toString(),
-          'type': 'local',
-          'isUrgent': false,
-          'icon': Icons.call_rounded,
+          'type': (data['type'] ?? 'local').toString(),
+          'isUrgent': data['isUrgent'] == true,
+          'icon': _getIconForType((data['type'] ?? 'local').toString()),
         };
-      }).toList();
+
+        if (hotline['type'] == 'national') {
+          nationalItems.add(hotline);
+        } else if (hotline['type'] == 'barangay') {
+          barangayItems.add(hotline);
+        } else {
+          localItems.add(hotline);
+        }
+      }
 
       if (!mounted) return;
       setState(() {
-        _localHotlines = items;
+        _nationalHotlines = nationalItems;
+        _localHotlines = localItems;
+        _barangayHotlines = barangayItems;
       });
     } catch (e) {
       // ignore
+    }
+  }
+
+  IconData _getIconForType(String type) {
+    switch (type) {
+      case 'national':
+        return Icons.warning_amber_rounded;
+      case 'barangay':
+        return Icons.account_balance_rounded;
+      case 'police':
+        return Icons.local_police_outlined;
+      case 'fire':
+        return Icons.fire_truck_outlined;
+      case 'medical':
+        return Icons.medical_services_outlined;
+      default:
+        return Icons.call_rounded;
     }
   }
 
@@ -124,6 +126,14 @@ class _UserEmergencyHotlinePageState extends State<UserEmergencyHotlinePage> {
   List<Map<String, dynamic>> get _filteredLocal {
     if (_searchQuery.isEmpty) return _localHotlines;
     return _localHotlines.where((h) {
+      return h['name'].toLowerCase().contains(_searchQuery) ||
+          h['number'].toLowerCase().contains(_searchQuery);
+    }).toList();
+  }
+
+  List<Map<String, dynamic>> get _filteredBarangay {
+    if (_searchQuery.isEmpty) return _barangayHotlines;
+    return _barangayHotlines.where((h) {
       return h['name'].toLowerCase().contains(_searchQuery) ||
           h['number'].toLowerCase().contains(_searchQuery);
     }).toList();
@@ -325,10 +335,7 @@ class _UserEmergencyHotlinePageState extends State<UserEmergencyHotlinePage> {
           // --- EXIT ICON ---
           IconButton(
             onPressed: _handleBackOrLogout,
-            icon: const Icon(
-              Icons.logout, // Visual Exit icon
-              color: Colors.red,
-            ),
+            icon: const Icon(Icons.logout, color: Colors.red),
             tooltip: "Exit",
           ),
         ],
@@ -456,6 +463,43 @@ class _UserEmergencyHotlinePageState extends State<UserEmergencyHotlinePage> {
     );
   }
 
+  Widget _buildEmptyState(String sectionName) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: Colors.grey.shade200,
+          style: BorderStyle.solid,
+        ),
+      ),
+      child: Column(
+        children: [
+          Icon(
+            Icons.add_ic_call_rounded,
+            size: 40,
+            color: Colors.grey.shade300,
+          ),
+          const SizedBox(height: 12),
+          Text(
+            "No $sectionName hotlines added yet",
+            style: TextStyle(
+              color: Colors.grey.shade500,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            "Tap + to add new number",
+            style: TextStyle(color: Colors.grey.shade400, fontSize: 12),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildBottomNavBar() {
     return Container(
       decoration: BoxDecoration(
@@ -544,50 +588,31 @@ class _UserEmergencyHotlinePageState extends State<UserEmergencyHotlinePage> {
                           ),
                         ),
                         const SizedBox(height: 20),
-                        if (_filteredNational.isNotEmpty) ...[
-                          _buildSectionTitle("NATIONAL EMERGENCY"),
-                          ..._filteredNational.map((h) => _buildHotlineCard(h)),
-                          const SizedBox(height: 20),
-                        ],
-                        _buildSectionTitle("BARANGAY LOCAL HOTLINES"),
-                        if (_filteredLocal.isEmpty && _searchQuery.isEmpty)
-                          Container(
-                            width: double.infinity,
-                            padding: const EdgeInsets.all(24),
-                            decoration: BoxDecoration(
-                              color: Colors.white,
-                              borderRadius: BorderRadius.circular(16),
-                              border: Border.all(
-                                color: Colors.grey.shade200,
-                                style: BorderStyle.solid,
+
+                        // NATIONAL EMERGENCY SECTION
+                        _buildSectionTitle("NATIONAL EMERGENCY"),
+                        if (_filteredNational.isEmpty && _searchQuery.isEmpty)
+                          _buildEmptyState("national")
+                        else if (_filteredNational.isEmpty &&
+                            _searchQuery.isNotEmpty)
+                          Padding(
+                            padding: const EdgeInsets.all(16.0),
+                            child: Center(
+                              child: Text(
+                                "No matching national numbers",
+                                style: TextStyle(color: Colors.grey.shade400),
                               ),
                             ),
-                            child: Column(
-                              children: [
-                                Icon(
-                                  Icons.add_ic_call_rounded,
-                                  size: 40,
-                                  color: Colors.grey.shade300,
-                                ),
-                                const SizedBox(height: 12),
-                                Text(
-                                  "No local hotlines added yet",
-                                  style: TextStyle(
-                                    color: Colors.grey.shade500,
-                                    fontWeight: FontWeight.w500,
-                                  ),
-                                ),
-                                const SizedBox(height: 4),
-                                Text(
-                                  "Check back soon for updates",
-                                  style: TextStyle(
-                                    color: Colors.grey.shade400,
-                                    fontSize: 12,
-                                  ),
-                                ),
-                              ],
-                            ),
                           )
+                        else
+                          ..._filteredNational.map((h) => _buildHotlineCard(h)),
+
+                        const SizedBox(height: 20),
+
+                        // LOCAL HOTLINES SECTION
+                        _buildSectionTitle("LOCAL HOTLINES"),
+                        if (_filteredLocal.isEmpty && _searchQuery.isEmpty)
+                          _buildEmptyState("local")
                         else if (_filteredLocal.isEmpty &&
                             _searchQuery.isNotEmpty)
                           Padding(
@@ -601,8 +626,27 @@ class _UserEmergencyHotlinePageState extends State<UserEmergencyHotlinePage> {
                           )
                         else
                           ..._filteredLocal.map((h) => _buildHotlineCard(h)),
+                        const SizedBox(height: 80),
+
+                        // BARANGAY HOTLINES SECTION
+                        _buildSectionTitle("BARANGAY HOTLINES"),
+                        if (_filteredBarangay.isEmpty && _searchQuery.isEmpty)
+                          _buildEmptyState("barangay")
+                        else if (_filteredBarangay.isEmpty &&
+                            _searchQuery.isNotEmpty)
+                          Padding(
+                            padding: const EdgeInsets.all(16.0),
+                            child: Center(
+                              child: Text(
+                                "No matching barangay numbers",
+                                style: TextStyle(color: Colors.grey.shade400),
+                              ),
+                            ),
+                          )
+                        else
+                          ..._filteredBarangay.map((h) => _buildHotlineCard(h)),
                         const SizedBox(
-                          height: 80,
+                          height: 20,
                         ), // Padding for toast visibility
                       ],
                     ),

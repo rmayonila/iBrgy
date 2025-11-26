@@ -3,7 +3,7 @@ import 'package:flutter/foundation.dart'; // For web check
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'moderator_nav.dart'; // Assuming you have this for moderator specific routing
+import 'moderator_nav.dart';
 
 // Category colors and icons mapping
 const Map<String, Map<String, dynamic>> categoryConfig = {
@@ -16,6 +16,7 @@ const Map<String, Map<String, dynamic>> categoryConfig = {
   'Emergency Services': {'color': Color(0xFFEF5350), 'icon': Icons.emergency},
   'Events & Announcements': {'color': Color(0xFF7E57C2), 'icon': Icons.event},
   'Community Programs': {'color': Color(0xFF26A69A), 'icon': Icons.groups},
+  'Other': {'color': Color(0xFF9E9E9E), 'icon': Icons.info},
 };
 
 class ModeratorHomePage extends StatefulWidget {
@@ -26,14 +27,18 @@ class ModeratorHomePage extends StatefulWidget {
 }
 
 class _ModeratorHomePageState extends State<ModeratorHomePage> {
-  // Start with no seeded items — show placeholder for empty state
-  List<Map<String, String>> infoItems = [];
   final FirebaseFirestore _db = FirebaseFirestore.instance;
   final FirebaseAuth _auth = FirebaseAuth.instance;
   int _selectedIndex = 0;
 
-  // track expanded indices for inline post expansion
-  final Set<int> _expanded = {};
+  // Track expanded state for service cards using Document IDs
+  final Map<String, bool> _expandedStates = {};
+
+  // Stream for Barangay Services
+  final Stream<QuerySnapshot> _servicesStream = FirebaseFirestore.instance
+      .collection('barangay_services')
+      .orderBy('createdAt', descending: true)
+      .snapshots();
 
   Future<void> _ensureSignedIn() async {
     try {
@@ -41,49 +46,8 @@ class _ModeratorHomePageState extends State<ModeratorHomePage> {
         await _auth.signInAnonymously();
       }
     } catch (_) {
-      // ignore auth errors here
+      // ignore auth errors
     }
-  }
-
-  @override
-  void initState() {
-    super.initState();
-    _loadInfoItems();
-  }
-
-  Future<void> _loadInfoItems() async {
-    try {
-      final snap = await _db
-          .collection('infoItems')
-          .orderBy('createdAt', descending: true)
-          .get();
-      if (!mounted) return;
-      final items = snap.docs.map((d) {
-        final data = d.data();
-        return {
-          'id': d.id,
-          'title': (data['title'] ?? '').toString(),
-          'category': (data['category'] ?? '').toString(),
-          'description': (data['description'] ?? '').toString(),
-          'lastUpdated': data['createdAt'] != null
-              ? _formatTimestamp(data['createdAt'])
-              : 'recently',
-        };
-      }).toList();
-      setState(() {
-        infoItems = items;
-      });
-    } catch (e) {
-      // ignore load errors for now
-    }
-  }
-
-  String _formatTimestamp(dynamic timestamp) {
-    if (timestamp is Timestamp) {
-      final date = timestamp.toDate();
-      return "${date.month}/${date.day}/${date.year}";
-    }
-    return 'recently';
   }
 
   void _onItemTapped(int index) {
@@ -92,6 +56,358 @@ class _ModeratorHomePageState extends State<ModeratorHomePage> {
       index,
       currentIndex: _selectedIndex,
       onSamePage: (i) => setState(() => _selectedIndex = i),
+    );
+  }
+
+  // --- CRUD LOGIC ---
+
+  Future<void> _addService(String title, String category, String steps) async {
+    await _ensureSignedIn();
+    await _db.collection('barangay_services').add({
+      'title': title,
+      'category': category,
+      'steps': steps, // Storing steps as a single multiline string
+      'createdAt': FieldValue.serverTimestamp(),
+    });
+  }
+
+  Future<void> _updateService(
+    String docId,
+    String title,
+    String category,
+    String steps,
+  ) async {
+    await _db.collection('barangay_services').doc(docId).update({
+      'title': title,
+      'category': category,
+      'steps': steps,
+      'updatedAt': FieldValue.serverTimestamp(),
+    });
+  }
+
+  Future<void> _deleteService(String docId) async {
+    await _db.collection('barangay_services').doc(docId).delete();
+  }
+
+  // --- DIALOGS ---
+
+  // Enhanced Input Decoration
+  InputDecoration _buildInputDecoration({
+    required String label,
+    required String hint,
+    required IconData icon,
+  }) {
+    return InputDecoration(
+      labelText: label,
+      hintText: hint,
+      filled: true,
+      fillColor: Colors.grey.shade50,
+      prefixIcon: Icon(icon, color: Colors.blue.shade700),
+      labelStyle: TextStyle(color: Colors.grey.shade700),
+      hintStyle: TextStyle(color: Colors.grey.shade400),
+      contentPadding: const EdgeInsets.symmetric(vertical: 16, horizontal: 20),
+      border: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: BorderSide(color: Colors.grey.shade300),
+      ),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: BorderSide(color: Colors.grey.shade200),
+      ),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: BorderSide(color: Colors.blue.shade700, width: 2),
+      ),
+    );
+  }
+
+  void _showAddServiceDialog() {
+    final titleCtrl = TextEditingController();
+    final stepsCtrl = TextEditingController();
+    String selectedCategory = categoryConfig.keys.first;
+
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: Colors.white,
+        surfaceTintColor: Colors.white,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        titlePadding: const EdgeInsets.fromLTRB(24, 24, 24, 0),
+        contentPadding: const EdgeInsets.fromLTRB(24, 20, 24, 24),
+        actionsPadding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
+        title: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: Colors.blue.shade50,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Icon(
+                Icons.post_add_rounded,
+                color: Colors.blue.shade700,
+                size: 28,
+              ),
+            ),
+            const SizedBox(width: 16),
+            const Expanded(
+              child: Text(
+                'Add Service',
+                style: TextStyle(
+                  color: Colors.black87,
+                  fontSize: 22,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+          ],
+        ),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: titleCtrl,
+                style: const TextStyle(color: Colors.black87),
+                decoration: _buildInputDecoration(
+                  label: 'Service Title',
+                  hint: 'e.g. Barangay Clearance',
+                  icon: Icons.title_rounded,
+                ),
+              ),
+              const SizedBox(height: 16),
+              DropdownButtonFormField<String>(
+                value: selectedCategory,
+                items: categoryConfig.keys.map((k) {
+                  return DropdownMenuItem(value: k, child: Text(k));
+                }).toList(),
+                onChanged: (v) => selectedCategory = v!,
+                decoration: _buildInputDecoration(
+                  label: 'Category',
+                  hint: 'Select Category',
+                  icon: Icons.category_outlined,
+                ),
+                style: const TextStyle(color: Colors.black87, fontSize: 16),
+                dropdownColor: Colors.white,
+              ),
+              const SizedBox(height: 16),
+              TextField(
+                controller: stepsCtrl,
+                maxLines: 6,
+                style: const TextStyle(color: Colors.black87),
+                decoration: _buildInputDecoration(
+                  label: 'Steps / Requirements',
+                  hint: '1. Bring valid ID\n2. Fill out form...',
+                  icon: Icons.format_list_numbered_rounded,
+                ),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            style: TextButton.styleFrom(foregroundColor: Colors.grey.shade700),
+            child: const Text(
+              'Cancel',
+              style: TextStyle(fontWeight: FontWeight.w600),
+            ),
+          ),
+          ElevatedButton.icon(
+            onPressed: () {
+              final title = titleCtrl.text.trim();
+              final steps = stepsCtrl.text.trim();
+              if (title.isEmpty || steps.isEmpty) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Please fill all fields')),
+                );
+                return;
+              }
+              _addService(title, selectedCategory, steps);
+              Navigator.of(ctx).pop();
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Service added successfully')),
+              );
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.blue.shade700,
+              foregroundColor: Colors.white,
+              elevation: 2,
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+              shape: const StadiumBorder(),
+            ),
+            icon: const Icon(Icons.check_rounded, size: 20),
+            label: const Text(
+              'Add',
+              style: TextStyle(fontWeight: FontWeight.bold),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showEditServiceDialog(DocumentSnapshot doc) {
+    final data = doc.data() as Map<String, dynamic>;
+    final titleCtrl = TextEditingController(text: data['title']);
+    final stepsCtrl = TextEditingController(text: data['steps']);
+    String selectedCategory = data['category'] ?? categoryConfig.keys.first;
+
+    // Handle category if it doesn't exist in config anymore
+    if (!categoryConfig.containsKey(selectedCategory)) {
+      selectedCategory = categoryConfig.keys.first;
+    }
+
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: Colors.white,
+        surfaceTintColor: Colors.white,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        titlePadding: const EdgeInsets.fromLTRB(24, 24, 24, 0),
+        contentPadding: const EdgeInsets.fromLTRB(24, 20, 24, 24),
+        actionsPadding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
+        title: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: Colors.orange.shade50,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Icon(
+                Icons.edit_rounded,
+                color: Colors.orange.shade700,
+                size: 28,
+              ),
+            ),
+            const SizedBox(width: 16),
+            const Expanded(
+              child: Text(
+                'Edit Service',
+                style: TextStyle(
+                  color: Colors.black87,
+                  fontSize: 22,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+          ],
+        ),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: titleCtrl,
+                style: const TextStyle(color: Colors.black87),
+                decoration: _buildInputDecoration(
+                  label: 'Service Title',
+                  hint: 'e.g. Barangay Clearance',
+                  icon: Icons.title_rounded,
+                ),
+              ),
+              const SizedBox(height: 16),
+              DropdownButtonFormField<String>(
+                value: selectedCategory,
+                items: categoryConfig.keys.map((k) {
+                  return DropdownMenuItem(value: k, child: Text(k));
+                }).toList(),
+                onChanged: (v) => selectedCategory = v!,
+                decoration: _buildInputDecoration(
+                  label: 'Category',
+                  hint: 'Select Category',
+                  icon: Icons.category_outlined,
+                ),
+                style: const TextStyle(color: Colors.black87, fontSize: 16),
+                dropdownColor: Colors.white,
+              ),
+              const SizedBox(height: 16),
+              TextField(
+                controller: stepsCtrl,
+                maxLines: 6,
+                style: const TextStyle(color: Colors.black87),
+                decoration: _buildInputDecoration(
+                  label: 'Steps / Requirements',
+                  hint: '1. Bring valid ID\n2. Fill out form...',
+                  icon: Icons.format_list_numbered_rounded,
+                ),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            style: TextButton.styleFrom(foregroundColor: Colors.grey.shade700),
+            child: const Text(
+              'Cancel',
+              style: TextStyle(fontWeight: FontWeight.w600),
+            ),
+          ),
+          ElevatedButton.icon(
+            onPressed: () {
+              final title = titleCtrl.text.trim();
+              final steps = stepsCtrl.text.trim();
+              if (title.isEmpty || steps.isEmpty) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Please fill all fields')),
+                );
+                return;
+              }
+              _updateService(doc.id, title, selectedCategory, steps);
+              Navigator.of(ctx).pop();
+              ScaffoldMessenger.of(
+                context,
+              ).showSnackBar(const SnackBar(content: Text('Service updated')));
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.orange.shade700,
+              foregroundColor: Colors.white,
+              elevation: 2,
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+              shape: const StadiumBorder(),
+            ),
+            icon: const Icon(Icons.check_rounded, size: 20),
+            label: const Text(
+              'Update',
+              style: TextStyle(fontWeight: FontWeight.bold),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showDeleteConfirmDialog(String docId) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: Colors.white,
+        surfaceTintColor: Colors.white,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text(
+          'Delete Service',
+          style: TextStyle(fontWeight: FontWeight.bold),
+        ),
+        content: const Text('Are you sure you want to delete this service?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('Cancel', style: TextStyle(color: Colors.grey)),
+          ),
+          TextButton(
+            onPressed: () {
+              _deleteService(docId);
+              Navigator.of(ctx).pop();
+              ScaffoldMessenger.of(
+                context,
+              ).showSnackBar(const SnackBar(content: Text('Service deleted')));
+            },
+            child: const Text('Delete', style: TextStyle(color: Colors.red)),
+          ),
+        ],
+      ),
     );
   }
 
@@ -154,17 +470,6 @@ class _ModeratorHomePageState extends State<ModeratorHomePage> {
             ),
           ),
           const Spacer(),
-
-          // MODERATOR FEATURE: ADD BUTTON
-          IconButton(
-            onPressed: () => _showAddInfoDialog(),
-            icon: const Icon(
-              Icons.add_circle_outline_rounded,
-              color: Colors.blue,
-              size: 28,
-            ),
-            tooltip: "Add Service",
-          ),
         ],
       ),
     );
@@ -188,7 +493,6 @@ class _ModeratorHomePageState extends State<ModeratorHomePage> {
           hintText: "Search services, forms...",
           hintStyle: TextStyle(color: Colors.grey.shade400, fontSize: 14),
           prefixIcon: Icon(Icons.search, color: Colors.grey.shade400),
-          suffixIcon: Icon(Icons.qr_code_scanner, color: Colors.blue.shade700),
           border: InputBorder.none,
           contentPadding: const EdgeInsets.symmetric(
             horizontal: 20,
@@ -199,271 +503,207 @@ class _ModeratorHomePageState extends State<ModeratorHomePage> {
     );
   }
 
-  Widget _buildSectionTitle(String title) {
-    return Text(
-      title,
-      style: const TextStyle(
-        fontSize: 18,
-        fontWeight: FontWeight.bold,
-        color: Colors.black87,
-      ),
-    );
-  }
-
-  // Grid for standard categories (Static for UI demo, can be dynamic)
-  Widget _buildServicesGrid() {
-    final services = [
-      {
-        'icon': Icons.description_outlined,
-        'label': 'Clearance',
-        'color': 0xFFFFE0B2,
-      },
-      {
-        'icon': Icons.badge_outlined,
-        'label': 'Barangay ID',
-        'color': 0xFFBBDEFB,
-      },
-      {
-        'icon': Icons.storefront_outlined,
-        'label': 'Business',
-        'color': 0xFFC8E6C9,
-      },
-      {
-        'icon': Icons.gavel_outlined,
-        'label': 'Complaints',
-        'color': 0xFFE1BEE7,
-      },
-    ];
-
-    return GridView.builder(
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 4,
-        childAspectRatio: 0.8,
-        crossAxisSpacing: 12,
-        mainAxisSpacing: 12,
-      ),
-      itemCount: services.length,
-      itemBuilder: (context, index) {
-        final item = services[index];
-        return Column(
-          children: [
-            Expanded(
-              child: Container(
-                width: double.infinity,
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(16),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withOpacity(0.02),
-                      blurRadius: 8,
-                      offset: const Offset(0, 2),
-                    ),
-                  ],
-                ),
-                child: Center(
-                  child: Container(
-                    height: 45,
-                    width: 45,
-                    decoration: BoxDecoration(
-                      color: Color(item['color'] as int).withOpacity(0.4),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Icon(
-                      item['icon'] as IconData,
-                      color: Colors.black87,
-                      size: 24,
-                    ),
-                  ),
-                ),
-              ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              item['label'] as String,
-              style: const TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.w600,
-                color: Colors.black87,
-              ),
-              textAlign: TextAlign.center,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-            ),
-          ],
-        );
-      },
-    );
-  }
-
-  // This list displays the actual items added by the moderator via Firestore
-  Widget _buildAddedServicesList() {
-    if (infoItems.isEmpty) {
-      return Center(
-        child: Padding(
-          padding: const EdgeInsets.all(20.0),
-          child: Column(
-            children: [
-              Icon(Icons.post_add, size: 48, color: Colors.grey.shade300),
-              const SizedBox(height: 8),
-              Text(
-                "No services added yet",
-                style: TextStyle(color: Colors.grey.shade400),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                "Tap the + button to add your first service",
-                style: TextStyle(color: Colors.grey.shade400, fontSize: 12),
-              ),
-            ],
+  Widget _buildSectionTitle(String title, VoidCallback onAdd) {
+    return Row(
+      children: [
+        Text(
+          title,
+          style: const TextStyle(
+            fontSize: 18,
+            fontWeight: FontWeight.bold,
+            color: Colors.black87,
           ),
         ),
-      );
-    }
-
-    return ListView.builder(
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      itemCount: infoItems.length,
-      itemBuilder: (context, index) {
-        return _buildEnhancedInfoCard(context, infoItems[index], index: index);
-      },
+        const Spacer(),
+        // 2. Add functionality to plus button
+        GestureDetector(
+          onTap: onAdd,
+          child: Container(
+            padding: const EdgeInsets.all(4),
+            decoration: BoxDecoration(
+              color: Colors.blue.shade50,
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: const Icon(Icons.add, color: Colors.blue, size: 24),
+          ),
+        ),
+      ],
     );
   }
 
-  Widget _buildEnhancedInfoCard(
-    BuildContext context,
-    Map<String, String> info, {
-    int? index,
-  }) {
-    final category = info['category'] ?? 'Community Info';
+  // 5. Placeholder for empty state
+  Widget _buildEmptyState() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(vertical: 40),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.grey.shade200),
+      ),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(Icons.post_add_rounded, size: 48, color: Colors.grey.shade300),
+          const SizedBox(height: 12),
+          Text(
+            'No services added yet',
+            style: TextStyle(
+              color: Colors.grey.shade500,
+              fontSize: 14,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            'Tap + to add a new service',
+            style: TextStyle(color: Colors.grey.shade400, fontSize: 12),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // Dynamic Service Card
+  Widget _buildServiceCard(DocumentSnapshot doc) {
+    final data = doc.data() as Map<String, dynamic>;
+    final docId = doc.id;
+    final title = data['title'] ?? 'Service';
+    final category = data['category'] ?? 'Other';
+    final steps = data['steps'] ?? '';
     final config =
-        categoryConfig[category] ?? {'color': Colors.grey, 'icon': Icons.info};
+        categoryConfig[category] ??
+        {'color': const Color(0xFF9E9E9E), 'icon': Icons.info};
+
+    final isExpanded = _expandedStates[docId] ?? false;
 
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(12),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.02),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
           ),
         ],
       ),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Header
-          Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: (config['color'] as Color).withOpacity(0.1),
-              borderRadius: const BorderRadius.only(
-                topLeft: Radius.circular(16),
-                topRight: Radius.circular(16),
+          // Service Header (Tile)
+          ListTile(
+            leading: Container(
+              height: 40,
+              width: 40,
+              decoration: BoxDecoration(
+                color: (config['color'] as Color).withOpacity(0.1),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Icon(
+                config['icon'] as IconData,
+                color: config['color'] as Color,
+                size: 20,
               ),
             ),
-            child: Row(
+            title: Text(
+              title,
+              style: const TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w600,
+                color: Colors.black87,
+              ),
+            ),
+            subtitle: Text(
+              category,
+              style: TextStyle(fontSize: 12, color: Colors.grey.shade500),
+            ),
+            trailing: Row(
+              mainAxisSize: MainAxisSize.min,
               children: [
-                Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    shape: BoxShape.circle,
-                  ),
-                  child: Icon(
-                    config['icon'] as IconData,
-                    color: config['color'] as Color,
+                // 3. Edit Button (connected to Firestore)
+                IconButton(
+                  onPressed: () => _showEditServiceDialog(doc),
+                  icon: const Icon(
+                    Icons.edit_outlined,
+                    color: Colors.grey,
                     size: 20,
                   ),
+                  tooltip: "Edit",
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(),
                 ),
                 const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        info['title'] ?? '',
-                        style: const TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.black87,
-                        ),
-                      ),
-                      Text(
-                        'Updated ${info['lastUpdated']}',
-                        style: TextStyle(fontSize: 11, color: Colors.grey[600]),
-                      ),
-                    ],
+                // 4. Delete Button (connected to Firestore)
+                IconButton(
+                  onPressed: () => _showDeleteConfirmDialog(docId),
+                  icon: const Icon(
+                    Icons.delete_outline,
+                    color: Colors.redAccent,
+                    size: 20,
                   ),
+                  tooltip: "Delete",
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(),
                 ),
-                // Edit/Delete for Moderator
-                PopupMenuButton<String>(
-                  icon: Icon(Icons.more_vert, color: Colors.grey.shade400),
-                  onSelected: (value) {
-                    if (value == 'delete') {
-                      _deleteItem(info['id']!);
-                    }
+                const SizedBox(width: 12),
+                // Expand Toggle
+                InkWell(
+                  onTap: () {
+                    setState(() {
+                      _expandedStates[docId] = !isExpanded;
+                    });
                   },
-                  itemBuilder: (context) => [
-                    const PopupMenuItem(value: 'delete', child: Text('Delete')),
-                  ],
+                  child: Icon(
+                    isExpanded ? Icons.expand_less : Icons.expand_more,
+                    color: Colors.grey.shade600,
+                  ),
                 ),
               ],
             ),
+            onTap: () {
+              setState(() {
+                _expandedStates[docId] = !isExpanded;
+              });
+            },
           ),
 
-          // Content
-          Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  info['description'] ?? '',
-                  maxLines: (index != null && _expanded.contains(index))
-                      ? null
-                      : 3,
-                  overflow: (index != null && _expanded.contains(index))
-                      ? TextOverflow.visible
-                      : TextOverflow.ellipsis,
-                  style: TextStyle(
-                    fontSize: 13,
-                    color: Colors.grey[700],
-                    height: 1.5,
-                  ),
+          // Expanded Content (Steps)
+          if (isExpanded)
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.grey.shade50,
+                borderRadius: const BorderRadius.only(
+                  bottomLeft: Radius.circular(12),
+                  bottomRight: Radius.circular(12),
                 ),
-                const SizedBox(height: 12),
-                if ((info['description']?.length ?? 0) > 100)
-                  GestureDetector(
-                    onTap: () {
-                      if (index != null) {
-                        setState(() {
-                          if (_expanded.contains(index)) {
-                            _expanded.remove(index);
-                          } else {
-                            _expanded.add(index);
-                          }
-                        });
-                      }
-                    },
-                    child: Text(
-                      _expanded.contains(index) ? "Show Less" : "Read More",
-                      style: TextStyle(
-                        color: config['color'] as Color,
-                        fontWeight: FontWeight.w600,
-                        fontSize: 13,
-                      ),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Steps / Requirements:',
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 14,
+                      color: Colors.black87,
                     ),
                   ),
-              ],
+                  const SizedBox(height: 8),
+                  Text(
+                    steps,
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: Colors.grey.shade700,
+                      height: 1.5,
+                    ),
+                  ),
+                ],
+              ),
             ),
-          ),
         ],
       ),
     );
@@ -525,181 +765,6 @@ class _ModeratorHomePageState extends State<ModeratorHomePage> {
     );
   }
 
-  Future<void> _deleteItem(String id) async {
-    try {
-      await _db.collection('infoItems').doc(id).delete();
-      // Remove from local list immediately for instant UI update
-      setState(() {
-        infoItems.removeWhere((item) => item['id'] == id);
-      });
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Service deleted successfully'),
-          backgroundColor: Colors.green,
-        ),
-      );
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Failed to delete service'),
-          backgroundColor: Colors.red,
-        ),
-      );
-    }
-  }
-
-  // --- ADD DIALOG LOGIC ---
-  void _showAddInfoDialog() {
-    final titleCtrl = TextEditingController();
-    final descCtrl = TextEditingController();
-    String selectedCategory = categoryConfig.keys.first;
-
-    showDialog<void>(
-      context: context,
-      builder: (ctx) {
-        return MediaQuery(
-          data: MediaQuery.of(ctx).copyWith(viewInsets: EdgeInsets.zero),
-          child: Center(
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 360),
-              child: Material(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(16),
-                child: Padding(
-                  padding: const EdgeInsets.all(20.0),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text(
-                        'Add Service Information',
-                        style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      const SizedBox(height: 16),
-                      TextField(
-                        controller: titleCtrl,
-                        decoration: InputDecoration(
-                          labelText: 'Title',
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 12),
-                      DropdownButtonFormField<String>(
-                        value: selectedCategory,
-                        items: categoryConfig.keys
-                            .map(
-                              (k) => DropdownMenuItem(value: k, child: Text(k)),
-                            )
-                            .toList(),
-                        onChanged: (v) {
-                          if (v != null) selectedCategory = v;
-                        },
-                        decoration: InputDecoration(
-                          labelText: 'Category',
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 12),
-                      TextField(
-                        controller: descCtrl,
-                        maxLines: 4,
-                        decoration: InputDecoration(
-                          labelText: 'Description',
-                          alignLabelWithHint: true,
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 20),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.end,
-                        children: [
-                          TextButton(
-                            onPressed: () => Navigator.of(ctx).pop(),
-                            child: const Text(
-                              'Cancel',
-                              style: TextStyle(color: Colors.grey),
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          ElevatedButton(
-                            onPressed: () async {
-                              final title = titleCtrl.text.trim();
-                              final desc = descCtrl.text.trim();
-                              if (title.isEmpty) return;
-                              try {
-                                await _ensureSignedIn();
-                                final docRef = await _db
-                                    .collection('infoItems')
-                                    .add({
-                                      'title': title,
-                                      'category': selectedCategory,
-                                      'description': desc,
-                                      'createdAt': FieldValue.serverTimestamp(),
-                                    });
-                                if (!mounted) return;
-
-                                // Add to local list immediately for instant UI update
-                                final newItem = {
-                                  'id': docRef.id,
-                                  'title': title,
-                                  'category': selectedCategory,
-                                  'description': desc,
-                                  'lastUpdated': 'just now',
-                                };
-
-                                setState(() {
-                                  infoItems.insert(0, newItem);
-                                });
-
-                                Navigator.of(ctx).pop();
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(
-                                    content: Text('Service added successfully'),
-                                    backgroundColor: Colors.green,
-                                  ),
-                                );
-                              } catch (e) {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(
-                                    content: Text('Failed to add service'),
-                                    backgroundColor: Colors.red,
-                                  ),
-                                );
-                              }
-                            },
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: Colors.blue,
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                            ),
-                            child: const Text(
-                              'Post',
-                              style: TextStyle(color: Colors.white),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-          ),
-        );
-      },
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     Widget mobileContent = Scaffold(
@@ -716,13 +781,46 @@ class _ModeratorHomePageState extends State<ModeratorHomePage> {
                   children: [
                     _buildSearchBar(),
                     const SizedBox(height: 24),
-                    _buildSectionTitle("Barangay Services"),
+                    // 1. Removed "Added Services (Manage)"
+                    // Only "Barangay Services" remains, fully dynamic.
+                    _buildSectionTitle(
+                      "Barangay Services",
+                      _showAddServiceDialog,
+                    ),
                     const SizedBox(height: 16),
-                    _buildServicesGrid(),
-                    const SizedBox(height: 24),
-                    _buildSectionTitle("Added Services (Manage)"),
-                    const SizedBox(height: 16),
-                    _buildAddedServicesList(),
+
+                    // StreamBuilder for Real-time Data
+                    StreamBuilder<QuerySnapshot>(
+                      stream: _servicesStream,
+                      builder: (context, snapshot) {
+                        if (snapshot.connectionState ==
+                            ConnectionState.waiting) {
+                          return const Center(
+                            child: Padding(
+                              padding: EdgeInsets.all(20),
+                              child: CircularProgressIndicator(),
+                            ),
+                          );
+                        }
+                        if (snapshot.hasError) {
+                          return const Text("Error loading services");
+                        }
+
+                        final docs = snapshot.data?.docs ?? [];
+
+                        if (docs.isEmpty) {
+                          // 5. Placeholder for empty state
+                          return _buildEmptyState();
+                        }
+
+                        return Column(
+                          children: docs
+                              .map((doc) => _buildServiceCard(doc))
+                              .toList(),
+                        );
+                      },
+                    ),
+                    const SizedBox(height: 40),
                   ],
                 ),
               ),

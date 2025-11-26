@@ -1,8 +1,22 @@
-// ignore_for_file: use_build_context_synchronously
 import 'package:flutter/foundation.dart'; // For web check
 import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import '../splash_screen.dart'; // Import your splash screen
+import 'dart:async'; // ADD THIS IMPORT
+import '../splash_screen.dart'; // ADD THIS IMPORT
+
+// Category colors and icons mapping (same as moderator page)
+const Map<String, Map<String, dynamic>> categoryConfig = {
+  'Health & Welfare': {'color': Color(0xFF4CAF50), 'icon': Icons.favorite},
+  'Brgy Clearance/Permit Process': {
+    'color': Color(0xFFFFA726),
+    'icon': Icons.assignment,
+  },
+  'Brgy Hall Schedule': {'color': Color(0xFF29B6F6), 'icon': Icons.schedule},
+  'Emergency Services': {'color': Color(0xFFEF5350), 'icon': Icons.emergency},
+  'Events & Announcements': {'color': Color(0xFF7E57C2), 'icon': Icons.event},
+  'Community Programs': {'color': Color(0xFF26A69A), 'icon': Icons.groups},
+};
 
 class UserHomePage extends StatefulWidget {
   const UserHomePage({super.key});
@@ -13,8 +27,85 @@ class UserHomePage extends StatefulWidget {
 
 class _UserHomePageState extends State<UserHomePage> {
   int _selectedIndex = 0;
+  List<Map<String, String>> infoItems = [];
+  final FirebaseFirestore _db = FirebaseFirestore.instance;
+  final FirebaseAuth _auth = FirebaseAuth.instance;
 
-  // Navigation Logic for User
+  // track expanded indices for inline post expansion
+  final Set<int> _expanded = {};
+  StreamSubscription<QuerySnapshot>? _subscription;
+  bool _isLoading = true;
+
+  Future<void> _ensureSignedIn() async {
+    try {
+      if (_auth.currentUser == null) {
+        await _auth.signInAnonymously();
+      }
+    } catch (_) {
+      // ignore auth errors here
+    }
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _setupRealTimeListener();
+  }
+
+  @override
+  void dispose() {
+    _subscription?.cancel();
+    super.dispose();
+  }
+
+  void _setupRealTimeListener() {
+    setState(() {
+      _isLoading = true;
+    });
+
+    _subscription = _db
+        .collection('infoItems')
+        .orderBy('createdAt', descending: true)
+        .snapshots()
+        .listen(
+          (QuerySnapshot snapshot) {
+            if (mounted) {
+              final items = snapshot.docs.map((d) {
+                final data = d.data() as Map<String, dynamic>;
+                return {
+                  'id': d.id,
+                  'title': (data['title'] ?? '').toString(),
+                  'category': (data['category'] ?? '').toString(),
+                  'description': (data['description'] ?? '').toString(),
+                  'lastUpdated': data['createdAt'] != null
+                      ? _formatTimestamp(data['createdAt'])
+                      : 'recently',
+                };
+              }).toList();
+
+              setState(() {
+                infoItems = items;
+                _isLoading = false;
+              });
+            }
+          },
+          onError: (error) {
+            print("Error listening to posts: $error");
+            setState(() {
+              _isLoading = false;
+            });
+          },
+        );
+  }
+
+  String _formatTimestamp(dynamic timestamp) {
+    if (timestamp is Timestamp) {
+      final date = timestamp.toDate();
+      return "${date.month}/${date.day}/${date.year}";
+    }
+    return 'recently';
+  }
+
   void _onItemTapped(BuildContext context, int index) {
     if (index == 1) {
       Navigator.pushReplacementNamed(context, '/user-emergency-hotline');
@@ -79,7 +170,6 @@ class _UserHomePageState extends State<UserHomePage> {
         ],
       ),
     );
-
     if (shouldExit == true) {
       // Sign out to ensure session is cleared
       try {
@@ -94,6 +184,190 @@ class _UserHomePageState extends State<UserHomePage> {
         (r) => false,
       );
     }
+  }
+
+  // This list displays the actual items added by moderators via Firestore
+  Widget _buildBarangayServicesList() {
+    if (_isLoading) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(20.0),
+          child: Column(
+            children: [
+              SizedBox(
+                width: 40,
+                height: 40,
+                child: CircularProgressIndicator(color: Colors.blue.shade700),
+              ),
+              const SizedBox(height: 12),
+              Text(
+                "Loading services...",
+                style: TextStyle(color: Colors.grey.shade600),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    if (infoItems.isEmpty) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(20.0),
+          child: Column(
+            children: [
+              Icon(Icons.post_add, size: 48, color: Colors.grey.shade300),
+              const SizedBox(height: 8),
+              Text(
+                "No barangay services yet",
+                style: TextStyle(color: Colors.grey.shade400),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                "Services will appear here when moderators add them",
+                style: TextStyle(color: Colors.grey.shade400, fontSize: 12),
+                textAlign: TextAlign.center,
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    return ListView.builder(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      itemCount: infoItems.length,
+      itemBuilder: (context, index) {
+        return _buildEnhancedInfoCard(context, infoItems[index], index: index);
+      },
+    );
+  }
+
+  Widget _buildEnhancedInfoCard(
+    BuildContext context,
+    Map<String, String> info, {
+    int? index,
+  }) {
+    final category = info['category'] ?? 'Community Info';
+    final config =
+        categoryConfig[category] ?? {'color': Colors.grey, 'icon': Icons.info};
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.02),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Header
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: (config['color'] as Color).withOpacity(0.1),
+              borderRadius: const BorderRadius.only(
+                topLeft: Radius.circular(16),
+                topRight: Radius.circular(16),
+              ),
+            ),
+            child: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(
+                    config['icon'] as IconData,
+                    color: config['color'] as Color,
+                    size: 20,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        info['title'] ?? '',
+                        style: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.black87,
+                        ),
+                      ),
+                      Text(
+                        'Updated ${info['lastUpdated']}',
+                        style: TextStyle(fontSize: 11, color: Colors.grey[600]),
+                      ),
+                    ],
+                  ),
+                ),
+                // User can only view, not edit/delete
+                Icon(Icons.visibility, color: Colors.grey.shade400, size: 20),
+              ],
+            ),
+          ),
+
+          // Content
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  info['description'] ?? '',
+                  maxLines: (index != null && _expanded.contains(index))
+                      ? null
+                      : 3,
+                  overflow: (index != null && _expanded.contains(index))
+                      ? TextOverflow.visible
+                      : TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 13,
+                    color: Colors.grey[700],
+                    height: 1.5,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                if ((info['description']?.length ?? 0) > 100)
+                  GestureDetector(
+                    onTap: () {
+                      if (index != null) {
+                        setState(() {
+                          if (_expanded.contains(index)) {
+                            _expanded.remove(index);
+                          } else {
+                            _expanded.add(index);
+                          }
+                        });
+                      }
+                    },
+                    child: Text(
+                      _expanded.contains(index) ? "Show Less" : "Read More",
+                      style: TextStyle(
+                        color: config['color'] as Color,
+                        fontWeight: FontWeight.w600,
+                        fontSize: 13,
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   @override
@@ -208,7 +482,7 @@ class _UserHomePageState extends State<UserHomePage> {
           ),
           const Spacer(),
 
-          // --- EXIT / BACK ICON (LOOKS LIKE ➜] ) ---
+          // --- EXIT / BACK ICON (REPLACED NOTIFICATION) ---
           IconButton(
             onPressed: _handleBackOrLogout,
             icon: const Icon(

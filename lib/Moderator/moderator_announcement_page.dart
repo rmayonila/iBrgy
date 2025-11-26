@@ -17,47 +17,17 @@ class _ModeratorAnnouncementPageState extends State<ModeratorAnnouncementPage> {
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final TextEditingController _searchController = TextEditingController();
 
-  // Real-time stream for announcements
+  // 1. Stream for Regular Announcements
   final Stream<QuerySnapshot> _announcementsStream = FirebaseFirestore.instance
       .collection('announcements')
       .orderBy('createdAt', descending: true)
       .snapshots();
 
-  // --- STATIC PINNED POSTS (Always Visible) ---
-  final List<Map<String, dynamic>> _staticPosts = [
-    {
-      'author': 'Barangay Admin',
-      'time': 'Always Pinned',
-      'title': 'Office Hours',
-      'content':
-          'Barangay Hall is open Monday to Friday, from 8:00 AM to 5:00 PM. Closed on Holidays.',
-      'type': 'pinned',
-    },
-    {
-      'author': 'Sanitation Dept',
-      'time': 'Weekly Schedule',
-      'title': 'Garbage Collection',
-      'content':
-          'Garbage collection is scheduled every Tuesday and Friday morning. Please segregate your waste properly.',
-      'type': 'pinned',
-    },
-    {
-      'author': 'Security',
-      'time': 'Daily',
-      'title': 'Curfew Hours',
-      'content':
-          'Curfew hours for minors are strictly observed from 10:00 PM to 4:00 AM.',
-      'type': 'pinned',
-    },
-  ];
-
-  List<Map<String, dynamic>> _filteredStatic = [];
-
-  @override
-  void initState() {
-    super.initState();
-    _filteredStatic = List.from(_staticPosts);
-  }
+  // 2. Stream for Important Reminders
+  final Stream<QuerySnapshot> _remindersStream = FirebaseFirestore.instance
+      .collection('important_reminders')
+      .orderBy('createdAt', descending: true)
+      .snapshots();
 
   @override
   void dispose() {
@@ -84,21 +54,6 @@ class _ModeratorAnnouncementPageState extends State<ModeratorAnnouncementPage> {
     }
   }
 
-  // Filter only static posts - dynamic filtering happens in StreamBuilder
-  void _onSearchChanged(String query) {
-    setState(() {
-      final lowerQuery = query.toLowerCase();
-      _filteredStatic = _staticPosts.where((post) {
-        return (post['title']?.toString() ?? '').toLowerCase().contains(
-              lowerQuery,
-            ) ||
-            (post['content']?.toString() ?? '').toLowerCase().contains(
-              lowerQuery,
-            );
-      }).toList();
-    });
-  }
-
   String _formatTimestamp(dynamic timestamp) {
     if (timestamp is Timestamp) {
       final date = timestamp.toDate();
@@ -107,9 +62,235 @@ class _ModeratorAnnouncementPageState extends State<ModeratorAnnouncementPage> {
     return 'recently';
   }
 
-  // --- CRUD OPERATIONS ---
+  // --- CRUD: IMPORTANT REMINDERS ---
+
+  Future<void> _showAddReminderDialog({DocumentSnapshot? existingDoc}) async {
+    final isEditing = existingDoc != null;
+    final titleController = TextEditingController(
+      text: isEditing ? existingDoc['title'] : '',
+    );
+    final contentController = TextEditingController(
+      text: isEditing ? existingDoc['content'] : '',
+    );
+
+    // Reusable Decoration
+    InputDecoration buildInputDecoration({
+      required String label,
+      required String hint,
+      required IconData icon,
+    }) {
+      return InputDecoration(
+        labelText: label,
+        hintText: hint,
+        filled: true,
+        fillColor: Colors.grey.shade50,
+        prefixIcon: Icon(icon, color: Colors.orange.shade800),
+        labelStyle: TextStyle(color: Colors.grey.shade700),
+        hintStyle: TextStyle(color: Colors.grey.shade400),
+        contentPadding: const EdgeInsets.symmetric(
+          vertical: 16,
+          horizontal: 20,
+        ),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide(color: Colors.grey.shade300),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide(color: Colors.grey.shade200),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide(color: Colors.orange.shade800, width: 2),
+        ),
+      );
+    }
+
+    await showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: Colors.white,
+        surfaceTintColor: Colors.white,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        titlePadding: const EdgeInsets.fromLTRB(24, 24, 24, 0),
+        contentPadding: const EdgeInsets.fromLTRB(24, 20, 24, 24),
+        actionsPadding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
+        title: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: Colors.orange.shade50,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Icon(
+                Icons.push_pin_rounded,
+                color: Colors.orange.shade800,
+                size: 28,
+              ),
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Text(
+                isEditing ? 'Edit Reminder' : 'Add Reminder',
+                style: const TextStyle(
+                  color: Colors.black87,
+                  fontSize: 22,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+          ],
+        ),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: titleController,
+                style: const TextStyle(color: Colors.black87),
+                decoration: buildInputDecoration(
+                  label: 'Title',
+                  hint: 'e.g. Office Hours',
+                  icon: Icons.title_rounded,
+                ),
+              ),
+              const SizedBox(height: 16),
+              TextField(
+                controller: contentController,
+                style: const TextStyle(color: Colors.black87),
+                maxLines: 4,
+                decoration: buildInputDecoration(
+                  label: 'Content',
+                  hint: 'Enter reminder details...',
+                  icon: Icons.description_outlined,
+                ),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            style: TextButton.styleFrom(foregroundColor: Colors.grey.shade700),
+            child: const Text(
+              'Cancel',
+              style: TextStyle(fontWeight: FontWeight.w600),
+            ),
+          ),
+          ElevatedButton.icon(
+            onPressed: () async {
+              final title = titleController.text.trim();
+              final content = contentController.text.trim();
+
+              if (title.isEmpty || content.isEmpty) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Please fill all fields')),
+                );
+                return;
+              }
+
+              Navigator.of(ctx).pop(); // Close dialog
+
+              try {
+                await _ensureSignedIn();
+                if (isEditing) {
+                  await _db
+                      .collection('important_reminders')
+                      .doc(existingDoc.id)
+                      .update({
+                        'title': title,
+                        'content': content,
+                        'updatedAt': FieldValue.serverTimestamp(),
+                      });
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Reminder updated')),
+                    );
+                  }
+                } else {
+                  await _db.collection('important_reminders').add({
+                    'title': title,
+                    'content': content,
+                    'createdAt': FieldValue.serverTimestamp(),
+                    'author': 'Admin',
+                  });
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Reminder added')),
+                    );
+                  }
+                }
+              } catch (e) {
+                ScaffoldMessenger.of(
+                  context,
+                ).showSnackBar(SnackBar(content: Text('Error: $e')));
+              }
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.orange.shade800,
+              foregroundColor: Colors.white,
+              elevation: 2,
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+              shape: const StadiumBorder(),
+            ),
+            icon: const Icon(Icons.check, size: 18),
+            label: Text(
+              isEditing ? 'Update' : 'Post',
+              style: const TextStyle(fontWeight: FontWeight.bold),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _deleteReminder(String docId) async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Delete Reminder'),
+        content: const Text('Are you sure you want to delete this reminder?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text('Delete', style: TextStyle(color: Colors.red)),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm == true) {
+      await _db.collection('important_reminders').doc(docId).delete();
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('Reminder deleted')));
+      }
+    }
+  }
+
+  // --- CRUD: REGULAR ANNOUNCEMENTS ---
+
   Future<void> _showAddAnnouncementDialog() async {
     final contentController = TextEditingController();
+    // Reuse the same decoration logic but blue
+    InputDecoration buildBlueDecoration({
+      required String label,
+      required String hint,
+    }) {
+      return InputDecoration(
+        labelText: label,
+        hintText: hint,
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+        alignLabelWithHint: true,
+      );
+    }
+
     final entered = await showDialog<Map<String, String>>(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -125,9 +306,9 @@ class _ModeratorAnnouncementPageState extends State<ModeratorAnnouncementPage> {
                 TextField(
                   controller: contentController,
                   maxLines: 5,
-                  decoration: const InputDecoration(
-                    labelText: 'Announcement Content',
-                    border: OutlineInputBorder(),
+                  decoration: buildBlueDecoration(
+                    label: 'Content',
+                    hint: "What's happening in the barangay?",
                   ),
                 ),
               ],
@@ -152,14 +333,9 @@ class _ModeratorAnnouncementPageState extends State<ModeratorAnnouncementPage> {
 
     if (entered != null) {
       if (!mounted) return;
-      final scaffold = ScaffoldMessenger.of(context);
       final content = entered['content'] ?? '';
-      if (content.isEmpty) {
-        scaffold.showSnackBar(
-          const SnackBar(content: Text('Please write something')),
-        );
-        return;
-      }
+      if (content.isEmpty) return;
+
       try {
         await _ensureSignedIn();
         await _db.collection('announcements').add({
@@ -167,126 +343,19 @@ class _ModeratorAnnouncementPageState extends State<ModeratorAnnouncementPage> {
           'content': content,
           'createdAt': FieldValue.serverTimestamp(),
         });
-        scaffold.showSnackBar(
-          const SnackBar(content: Text('Announcement posted')),
-        );
+        if (mounted) {
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(const SnackBar(content: Text('Announcement posted')));
+        }
       } catch (e) {
-        scaffold.showSnackBar(
-          SnackBar(content: Text('Failed to post announcement: $e')),
-        );
+        // handle error
       }
     }
   }
 
-  Future<void> _showEditAnnouncementDialog(Map<String, dynamic> post) async {
-    final contentController = TextEditingController(
-      text: post['content']?.toString(),
-    );
-    final entered = await showDialog<Map<String, String>>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Edit Announcement'),
-        content: SingleChildScrollView(
-          child: Padding(
-            padding: EdgeInsets.only(
-              bottom: MediaQuery.of(ctx).viewInsets.bottom,
-            ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                TextField(
-                  controller: contentController,
-                  maxLines: 5,
-                  decoration: const InputDecoration(
-                    labelText: 'Announcement Content',
-                    border: OutlineInputBorder(),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(null),
-            child: const Text('Cancel'),
-          ),
-          TextButton(
-            onPressed: () {
-              Navigator.of(ctx).pop({'content': contentController.text.trim()});
-            },
-            child: const Text('Save'),
-          ),
-        ],
-      ),
-    );
-    contentController.dispose();
+  // --- WIDGETS ---
 
-    if (entered != null) {
-      if (!mounted) return;
-      final scaffold = ScaffoldMessenger.of(context);
-      final newContent = entered['content'] ?? '';
-      if (newContent.isEmpty) {
-        scaffold.showSnackBar(
-          const SnackBar(content: Text('Please write something')),
-        );
-        return;
-      }
-      try {
-        final postId = post['id'];
-        await _db.collection('announcements').doc(postId?.toString()).update({
-          'content': newContent,
-          'updatedAt': FieldValue.serverTimestamp(),
-        });
-        scaffold.showSnackBar(
-          const SnackBar(content: Text('Announcement updated')),
-        );
-      } catch (e) {
-        scaffold.showSnackBar(
-          SnackBar(content: Text('Failed to update announcement: $e')),
-        );
-      }
-    }
-  }
-
-  Future<void> _deleteAnnouncement(Map<String, dynamic> post) async {
-    final postId = post['id'];
-    final scaffold = ScaffoldMessenger.of(context);
-    final confirmDelete = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Confirm Deletion'),
-        content: const Text(
-          'Are you sure you want to delete this announcement?',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(false),
-            child: const Text('Cancel'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(true),
-            child: const Text('Delete', style: TextStyle(color: Colors.red)),
-          ),
-        ],
-      ),
-    );
-
-    if (confirmDelete == true && postId != null) {
-      try {
-        await _db.collection('announcements').doc(postId.toString()).delete();
-        scaffold.showSnackBar(
-          const SnackBar(content: Text('Announcement deleted')),
-        );
-      } catch (e) {
-        scaffold.showSnackBar(
-          SnackBar(content: Text('Failed to delete announcement: $e')),
-        );
-      }
-    }
-  }
-
-  // --- WIDGET BUILDERS ---
   Widget _buildHeader() {
     return Container(
       decoration: BoxDecoration(
@@ -356,37 +425,9 @@ class _ModeratorAnnouncementPageState extends State<ModeratorAnnouncementPage> {
     );
   }
 
-  Widget _buildSearchBar() {
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.03),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: TextField(
-        controller: _searchController,
-        onChanged: _onSearchChanged,
-        decoration: InputDecoration(
-          hintText: "Search updates...",
-          hintStyle: TextStyle(color: Colors.grey.shade400, fontSize: 14),
-          prefixIcon: Icon(Icons.search, color: Colors.grey.shade400),
-          border: InputBorder.none,
-          contentPadding: const EdgeInsets.symmetric(
-            horizontal: 20,
-            vertical: 14,
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildSectionTitle(String title) {
+  // --- SECTION HEADER WIDGET ---
+  // Handles the title and the optional "Add" button
+  Widget _buildSectionTitle(String title, VoidCallback? onAdd) {
     return Padding(
       padding: const EdgeInsets.only(left: 4, bottom: 12, top: 8),
       child: Row(
@@ -401,12 +442,19 @@ class _ModeratorAnnouncementPageState extends State<ModeratorAnnouncementPage> {
             ),
           ),
           const Spacer(),
-          if (title == "RECENT UPDATES")
+          // This renders the Plus button if a callback is provided
+          if (onAdd != null)
             IconButton(
-              onPressed: _showAddAnnouncementDialog,
-              icon: const Icon(Icons.add, size: 20),
-              color: Colors.blue,
-              tooltip: 'Add Announcement',
+              onPressed: onAdd,
+              icon: Icon(
+                Icons.add_circle_rounded,
+                size: 28,
+                // Orange for Reminders, Blue for Updates
+                color: title.contains("REMINDERS")
+                    ? Colors.orange.shade800
+                    : Colors.blue,
+              ),
+              tooltip: 'Add Item',
               padding: EdgeInsets.zero,
               constraints: const BoxConstraints(),
             ),
@@ -415,15 +463,162 @@ class _ModeratorAnnouncementPageState extends State<ModeratorAnnouncementPage> {
     );
   }
 
+  // --- CREAM CARD DESIGN FOR REMINDERS ---
+  Widget _buildImportantReminderCard(DocumentSnapshot doc) {
+    final data = doc.data() as Map<String, dynamic>;
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      width: double.infinity,
+      decoration: BoxDecoration(
+        // Cream/Yellowish background matching screenshot
+        color: const Color(0xFFFFFBE6),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFFFE58F), width: 1),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Pin Icon Circle
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: const BoxDecoration(
+                    color: Color(0xFFFFECB3), // Lighter orange
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(
+                    Icons.push_pin_rounded,
+                    color: Colors.orange.shade900,
+                    size: 20,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                // Title & Subtitle
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        data['title'] ?? 'Reminder',
+                        style: TextStyle(
+                          color: Colors.orange.shade900,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 16,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        'Important Reminder',
+                        style: TextStyle(
+                          color: Colors.grey.shade600,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                // Three-dot Menu for Edit/Delete
+                PopupMenuButton<String>(
+                  padding: EdgeInsets.zero,
+                  icon: Icon(Icons.more_horiz, color: Colors.grey.shade500),
+                  color: Colors.white,
+                  onSelected: (value) {
+                    if (value == 'edit') {
+                      _showAddReminderDialog(existingDoc: doc);
+                    } else if (value == 'delete') {
+                      _deleteReminder(doc.id);
+                    }
+                  },
+                  itemBuilder: (context) => [
+                    const PopupMenuItem(
+                      value: 'edit',
+                      child: Row(
+                        children: [
+                          Icon(Icons.edit, size: 18),
+                          SizedBox(width: 8),
+                          Text('Edit'),
+                        ],
+                      ),
+                    ),
+                    const PopupMenuItem(
+                      value: 'delete',
+                      child: Row(
+                        children: [
+                          Icon(Icons.delete, color: Colors.red, size: 18),
+                          SizedBox(width: 8),
+                          Text('Delete', style: TextStyle(color: Colors.red)),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            // Reminder Content
+            Text(
+              data['content'] ?? '',
+              style: TextStyle(
+                color: Colors.grey.shade800,
+                fontSize: 14,
+                height: 1.4,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildEmptyRemindersPlaceholder() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(vertical: 24),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.grey.shade200),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.02),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        children: [
+          Icon(
+            Icons.notifications_off_outlined,
+            size: 40,
+            color: Colors.grey.shade300,
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'No important reminders yet.',
+            style: TextStyle(
+              color: Colors.grey.shade400,
+              fontSize: 14,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildPostCard(Map<String, dynamic> post) {
-    final isPinned = post['type'] == 'pinned';
-    final isDynamic = post['type'] == 'dynamic';
+    // This is for the dynamic feed (Regular Updates)
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
       decoration: BoxDecoration(
-        color: isPinned ? const Color(0xFFFFFDF5) : Colors.white,
+        color: Colors.white,
         borderRadius: BorderRadius.circular(16),
-        border: isPinned ? Border.all(color: Colors.amber.shade200) : null,
         boxShadow: [
           BoxShadow(
             color: Colors.black.withOpacity(0.03),
@@ -443,28 +638,20 @@ class _ModeratorAnnouncementPageState extends State<ModeratorAnnouncementPage> {
                   width: 40,
                   height: 40,
                   decoration: BoxDecoration(
-                    color: isPinned
-                        ? Colors.amber.shade100
-                        : Colors.blue.shade50,
+                    color: Colors.blue.shade50,
                     shape: BoxShape.circle,
                   ),
                   child: Center(
-                    child: isPinned
-                        ? Icon(
-                            Icons.push_pin_rounded,
-                            color: Colors.amber.shade800,
-                            size: 20,
-                          )
-                        : Text(
-                            (post['author']?.toString() ?? 'U')
-                                .substring(0, 1)
-                                .toUpperCase(),
-                            style: const TextStyle(
-                              color: Colors.blue,
-                              fontWeight: FontWeight.bold,
-                              fontSize: 16,
-                            ),
-                          ),
+                    child: Text(
+                      (post['author']?.toString() ?? 'U')
+                          .substring(0, 1)
+                          .toUpperCase(),
+                      style: const TextStyle(
+                        color: Colors.blue,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 16,
+                      ),
+                    ),
                   ),
                 ),
                 const SizedBox(width: 12),
@@ -473,15 +660,11 @@ class _ModeratorAnnouncementPageState extends State<ModeratorAnnouncementPage> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        isPinned
-                            ? (post['title']?.toString() ?? 'Reminder')
-                            : (post['author']?.toString() ?? 'Unknown'),
-                        style: TextStyle(
+                        post['author']?.toString() ?? 'Unknown',
+                        style: const TextStyle(
                           fontSize: 15,
                           fontWeight: FontWeight.w700,
-                          color: isPinned
-                              ? Colors.amber.shade900
-                              : Colors.black87,
+                          color: Colors.black87,
                         ),
                       ),
                       const SizedBox(height: 2),
@@ -496,44 +679,7 @@ class _ModeratorAnnouncementPageState extends State<ModeratorAnnouncementPage> {
                     ],
                   ),
                 ),
-                if (isDynamic)
-                  PopupMenuButton<String>(
-                    onSelected: (value) {
-                      if (value == 'edit') {
-                        _showEditAnnouncementDialog(post);
-                      } else if (value == 'delete') {
-                        _deleteAnnouncement(post);
-                      }
-                    },
-                    itemBuilder: (context) => [
-                      const PopupMenuItem(
-                        value: 'edit',
-                        child: Row(
-                          children: [
-                            Icon(Icons.edit, size: 20),
-                            SizedBox(width: 8),
-                            Text('Edit'),
-                          ],
-                        ),
-                      ),
-                      const PopupMenuItem(
-                        value: 'delete',
-                        child: Row(
-                          children: [
-                            Icon(Icons.delete, size: 20, color: Colors.red),
-                            SizedBox(width: 8),
-                            Text('Delete', style: TextStyle(color: Colors.red)),
-                          ],
-                        ),
-                      ),
-                    ],
-                    icon: Icon(
-                      Icons.more_horiz_rounded,
-                      color: Colors.grey.shade300,
-                    ),
-                  )
-                else
-                  Icon(Icons.more_horiz_rounded, color: Colors.grey.shade300),
+                Icon(Icons.more_horiz_rounded, color: Colors.grey.shade300),
               ],
             ),
             const SizedBox(height: 12),
@@ -545,36 +691,6 @@ class _ModeratorAnnouncementPageState extends State<ModeratorAnnouncementPage> {
                 color: Colors.black87.withOpacity(0.8),
               ),
             ),
-            if (isDynamic) ...[
-              const SizedBox(height: 12),
-              Container(
-                width: double.infinity,
-                height: 140,
-                decoration: BoxDecoration(
-                  color: Colors.grey.shade50,
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: Colors.grey.shade100),
-                ),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(
-                      Icons.image_outlined,
-                      color: Colors.grey.shade300,
-                      size: 32,
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      "No Image Attached",
-                      style: TextStyle(
-                        color: Colors.grey.shade400,
-                        fontSize: 12,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
           ],
         ),
       ),
@@ -601,14 +717,6 @@ class _ModeratorAnnouncementPageState extends State<ModeratorAnnouncementPage> {
         backgroundColor: Colors.white,
         showSelectedLabels: true,
         showUnselectedLabels: true,
-        selectedLabelStyle: const TextStyle(
-          fontWeight: FontWeight.w600,
-          fontSize: 12,
-        ),
-        unselectedLabelStyle: const TextStyle(
-          fontWeight: FontWeight.w500,
-          fontSize: 12,
-        ),
         elevation: 0,
         onTap: _onItemTapped,
         items: const [
@@ -651,7 +759,39 @@ class _ModeratorAnnouncementPageState extends State<ModeratorAnnouncementPage> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    _buildSearchBar(),
+                    // Search Bar
+                    Container(
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(16),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.03),
+                            blurRadius: 10,
+                            offset: const Offset(0, 4),
+                          ),
+                        ],
+                      ),
+                      child: TextField(
+                        controller: _searchController,
+                        decoration: InputDecoration(
+                          hintText: "Search updates...",
+                          hintStyle: TextStyle(
+                            color: Colors.grey.shade400,
+                            fontSize: 14,
+                          ),
+                          prefixIcon: Icon(
+                            Icons.search,
+                            color: Colors.grey.shade400,
+                          ),
+                          border: InputBorder.none,
+                          contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 20,
+                            vertical: 14,
+                          ),
+                        ),
+                      ),
+                    ),
                     const SizedBox(height: 24),
                     const Text(
                       'Barangay Updates',
@@ -662,122 +802,90 @@ class _ModeratorAnnouncementPageState extends State<ModeratorAnnouncementPage> {
                       ),
                     ),
                     const SizedBox(height: 16),
-                    // IMPORTANT REMINDERS (Static Pinned Posts)
-                    if (_filteredStatic.isNotEmpty) ...[
-                      _buildSectionTitle("IMPORTANT REMINDERS"),
-                      Column(
-                        children: [
-                          for (var post in _filteredStatic)
-                            _buildPostCard(post),
-                        ],
-                      ),
-                      const SizedBox(height: 8),
-                    ],
-                    // RECENT UPDATES (Dynamic Posts - StreamBuilder)
-                    _buildSectionTitle("RECENT UPDATES"),
+
+                    // --- SECTION 1: IMPORTANT REMINDERS (Dynamic Stream) ---
+                    // The Plus Button is integrated here
+                    _buildSectionTitle(
+                      "IMPORTANT REMINDERS",
+                      () => _showAddReminderDialog(),
+                    ),
                     StreamBuilder<QuerySnapshot>(
-                      stream: _announcementsStream,
+                      stream: _remindersStream,
                       builder: (context, snapshot) {
                         if (snapshot.connectionState ==
                             ConnectionState.waiting) {
                           return const Center(
                             child: Padding(
-                              padding: EdgeInsets.all(32.0),
+                              padding: EdgeInsets.all(8.0),
                               child: CircularProgressIndicator(),
                             ),
                           );
                         }
                         if (snapshot.hasError) {
-                          return Center(
+                          return const Text('Something went wrong');
+                        }
+
+                        final docs = snapshot.data?.docs ?? [];
+
+                        if (docs.isEmpty) {
+                          return _buildEmptyRemindersPlaceholder();
+                        }
+
+                        return Column(
+                          children: docs
+                              .map((doc) => _buildImportantReminderCard(doc))
+                              .toList(),
+                        );
+                      },
+                    ),
+
+                    const SizedBox(height: 24),
+
+                    // --- SECTION 2: RECENT UPDATES (Dynamic Stream) ---
+                    _buildSectionTitle(
+                      "RECENT UPDATES",
+                      _showAddAnnouncementDialog,
+                    ), // Plus button for updates
+                    StreamBuilder<QuerySnapshot>(
+                      stream: _announcementsStream,
+                      builder: (context, snapshot) {
+                        if (snapshot.connectionState ==
+                            ConnectionState.waiting) {
+                          return const Padding(
+                            padding: EdgeInsets.all(20),
+                            child: Center(child: CircularProgressIndicator()),
+                          );
+                        }
+                        final docs = snapshot.data?.docs ?? [];
+                        if (docs.isEmpty) {
+                          return const Center(
                             child: Text(
-                              'Error loading updates: ${snapshot.error}',
+                              "No recent updates",
+                              style: TextStyle(color: Colors.grey),
                             ),
                           );
                         }
 
-                        final documents = snapshot.data?.docs ?? [];
-
-                        // Build the list of posts
-                        final allDynamicPosts = documents.map((doc) {
-                          final data = doc.data() as Map<String, dynamic>;
-                          return <String, dynamic>{
-                            'id': doc.id,
-                            'author':
-                                data['author']?.toString() ?? 'Barangay Office',
-                            'time': data['createdAt'] != null
-                                ? _formatTimestamp(data['createdAt'])
-                                : 'recently',
-                            'content': data['content']?.toString() ?? '',
-                            'type': 'dynamic',
-                          };
-                        }).toList();
-
-                        // Apply search filter
+                        // Simple client-side search filtering for updates
                         final searchQuery = _searchController.text
                             .toLowerCase();
-                        final filteredPosts = allDynamicPosts.where((post) {
-                          final content =
-                              post['content']?.toString().toLowerCase() ?? '';
-                          final author =
-                              post['author']?.toString().toLowerCase() ?? '';
-                          return content.contains(searchQuery) ||
-                              author.contains(searchQuery);
+                        final filteredDocs = docs.where((doc) {
+                          final data = doc.data() as Map<String, dynamic>;
+                          final content = (data['content'] ?? '')
+                              .toString()
+                              .toLowerCase();
+                          return content.contains(searchQuery);
                         }).toList();
 
-                        // Show appropriate UI
-                        if (filteredPosts.isEmpty) {
-                          if (searchQuery.isNotEmpty) {
-                            return Padding(
-                              padding: const EdgeInsets.all(16.0),
-                              child: Center(
-                                child: Text(
-                                  "No matching updates found",
-                                  style: TextStyle(color: Colors.grey[500]),
-                                ),
-                              ),
-                            );
-                          } else {
-                            return Container(
-                              width: double.infinity,
-                              padding: const EdgeInsets.all(24),
-                              decoration: BoxDecoration(
-                                color: Colors.white,
-                                borderRadius: BorderRadius.circular(16),
-                                border: Border.all(color: Colors.grey.shade200),
-                              ),
-                              child: Column(
-                                children: [
-                                  Icon(
-                                    Icons.campaign_outlined,
-                                    size: 40,
-                                    color: Colors.grey.shade300,
-                                  ),
-                                  const SizedBox(height: 12),
-                                  Text(
-                                    "No recent updates",
-                                    style: TextStyle(
-                                      color: Colors.grey.shade500,
-                                      fontWeight: FontWeight.w500,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 4),
-                                  Text(
-                                    "Tap + to add new announcement",
-                                    style: TextStyle(
-                                      color: Colors.grey.shade400,
-                                      fontSize: 12,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            );
-                          }
-                        }
-
                         return Column(
-                          children: filteredPosts
-                              .map((post) => _buildPostCard(post))
-                              .toList(),
+                          children: filteredDocs.map((doc) {
+                            final data = doc.data() as Map<String, dynamic>;
+                            return _buildPostCard({
+                              'author': data['author'],
+                              'content': data['content'],
+                              'time': _formatTimestamp(data['createdAt']),
+                            });
+                          }).toList(),
                         );
                       },
                     ),
