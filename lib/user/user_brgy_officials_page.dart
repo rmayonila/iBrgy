@@ -16,6 +16,7 @@ class UserBrgyOfficialsPage extends StatefulWidget {
 class _UserBrgyOfficialsPageState extends State<UserBrgyOfficialsPage> {
   final TextEditingController _searchController = TextEditingController();
   String _searchQuery = '';
+  int _selectedIndex = 3; // People tab
 
   // 1. Streams (Same as Moderator to ensure sync)
   final Stream<QuerySnapshot> _officialsStream = FirebaseFirestore.instance
@@ -33,14 +34,16 @@ class _UserBrgyOfficialsPageState extends State<UserBrgyOfficialsPage> {
     super.dispose();
   }
 
-  // Navigation for User (Kept original)
-  void _onItemTapped(BuildContext context, int index) {
+  // Navigation for User
+  void _onItemTapped(int index) {
     if (index == 0) {
       Navigator.pushReplacementNamed(context, '/user-home');
     } else if (index == 1) {
       Navigator.pushReplacementNamed(context, '/user-emergency-hotline');
     } else if (index == 2) {
       Navigator.pushReplacementNamed(context, '/user-announcement');
+    } else if (index == 3) {
+      // Current page
     }
   }
 
@@ -50,10 +53,11 @@ class _UserBrgyOfficialsPageState extends State<UserBrgyOfficialsPage> {
     });
   }
 
-  // --- EXIT / BACK FUNCTION (Kept original) ---
+  // --- EXIT / BACK FUNCTION ---
   Future<void> _handleBackOrLogout() async {
     final shouldExit = await showDialog<bool>(
       context: context,
+      useRootNavigator: false, // Ensure it stays in frame
       builder: (context) => AlertDialog(
         backgroundColor: Colors.white,
         elevation: 10,
@@ -103,6 +107,213 @@ class _UserBrgyOfficialsPageState extends State<UserBrgyOfficialsPage> {
         (r) => false,
       );
     }
+  }
+
+  // --- SHOW DETAILS MODAL (Read-Only Version) ---
+  void _showOfficialDetails(Map<String, dynamic> data) {
+    final title = data['title']?.toString() ?? '';
+    final name = data['name']?.toString() ?? '';
+    final nickname = data['nickname']?.toString() ?? '';
+    final age = data['age']?.toString() ?? ''; // Added Age
+    final address = data['address']?.toString() ?? '';
+    final category = data['category']?.toString() ?? '';
+    final imageUrl = data['imageUrl']?.toString() ?? '';
+
+    // Create Combined Position Title (CATEGORY + TITLE)
+    String combinedPosition = title;
+    if (category.isNotEmpty) {
+      combinedPosition = "$category $title";
+    }
+
+    // Helper for image in modal
+    ImageProvider? getProfileImage() {
+      if (imageUrl.isEmpty) return null;
+      try {
+        if (imageUrl.startsWith('http')) {
+          return NetworkImage(imageUrl);
+        } else {
+          return MemoryImage(base64Decode(imageUrl));
+        }
+      } catch (e) {
+        return null;
+      }
+    }
+
+    showDialog(
+      context: context,
+      useRootNavigator: false, // CRITICAL: Keeps modal inside the "phone frame"
+      builder: (ctx) => Dialog(
+        backgroundColor: Colors.transparent,
+        insetPadding: const EdgeInsets.symmetric(horizontal: 30, vertical: 24),
+        child: Container(
+          clipBehavior: Clip.antiAlias,
+          constraints: const BoxConstraints(maxWidth: 340),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(24),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.25),
+                blurRadius: 25,
+                offset: const Offset(0, 10),
+              ),
+            ],
+          ),
+          child: Stack(
+            children: [
+              // MAIN CONTENT
+              SingleChildScrollView(
+                padding: const EdgeInsets.fromLTRB(24, 40, 24, 32),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    // Large Image
+                    Container(
+                      width: 130,
+                      height: 130,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: Colors.blue.shade50,
+                        border: Border.all(
+                          color: Colors.blue.shade100,
+                          width: 4,
+                        ),
+                        image: getProfileImage() != null
+                            ? DecorationImage(
+                                image: getProfileImage()!,
+                                fit: BoxFit.cover,
+                              )
+                            : null,
+                      ),
+                      child: getProfileImage() == null
+                          ? Icon(
+                              Icons.person,
+                              size: 65,
+                              color: Colors.blue.shade200,
+                            )
+                          : null,
+                    ),
+                    const SizedBox(height: 20),
+
+                    // Name & Nickname
+                    Text(
+                      name,
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(
+                        fontSize: 24,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.black87,
+                        letterSpacing: -0.5,
+                      ),
+                    ),
+                    if (nickname.isNotEmpty)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 6.0),
+                        child: Text(
+                          '"$nickname"',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontStyle: FontStyle.italic,
+                            color: Colors.blue.shade700,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ),
+
+                    const SizedBox(height: 24),
+                    const Divider(height: 1, thickness: 0.5),
+                    const SizedBox(height: 24),
+
+                    // Details List
+                    // Showing Combined Position
+                    _buildDetailRow(
+                      Icons.work_outline_rounded,
+                      "Position",
+                      combinedPosition.toUpperCase(),
+                    ),
+                    // 2. Added Age Row
+                    if (age.isNotEmpty)
+                      _buildDetailRow(
+                        Icons.calendar_today_rounded,
+                        "Age",
+                        "$age years old",
+                      ),
+                    if (address.isNotEmpty)
+                      _buildDetailRow(
+                        Icons.location_on_outlined,
+                        "Address",
+                        address,
+                      ),
+                  ],
+                ),
+              ),
+
+              // CLOSE BUTTON ("X" at Upper Right)
+              Positioned(
+                top: 8,
+                right: 8,
+                child: IconButton(
+                  onPressed: () => Navigator.of(ctx).pop(),
+                  style: IconButton.styleFrom(
+                    backgroundColor: Colors.grey.shade100,
+                    highlightColor: Colors.grey.shade200,
+                  ),
+                  icon: Icon(Icons.close, color: Colors.grey.shade600),
+                  tooltip: 'Close',
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  // Helper widget for the details modal
+  Widget _buildDetailRow(IconData icon, String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 16.0),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: Colors.blue.shade50,
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Icon(icon, size: 20, color: Colors.blue.shade700),
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  label,
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Colors.grey.shade500,
+                    fontWeight: FontWeight.w600,
+                    letterSpacing: 0.5,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  value,
+                  style: const TextStyle(
+                    fontSize: 16,
+                    color: Colors.black87,
+                    fontWeight: FontWeight.w400,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   // --- WIDGET BUILDERS ---
@@ -164,7 +375,7 @@ class _UserBrgyOfficialsPageState extends State<UserBrgyOfficialsPage> {
             ),
           ),
           const Spacer(),
-          // --- EXIT ICON (Kept original) ---
+          // --- EXIT ICON ---
           IconButton(
             onPressed: _handleBackOrLogout,
             icon: const Icon(Icons.logout, color: Colors.red),
@@ -246,7 +457,7 @@ class _UserBrgyOfficialsPageState extends State<UserBrgyOfficialsPage> {
     );
   }
 
-  // --- READ-ONLY OFFICIAL CARD ---
+  // --- READ-ONLY OFFICIAL CARD (Clickable for Details) ---
   Widget _buildOfficialCard(DocumentSnapshot doc) {
     final data = doc.data() as Map<String, dynamic>;
     final title = data['title']?.toString() ?? '';
@@ -269,7 +480,6 @@ class _UserBrgyOfficialsPageState extends State<UserBrgyOfficialsPage> {
 
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
-      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
@@ -282,52 +492,81 @@ class _UserBrgyOfficialsPageState extends State<UserBrgyOfficialsPage> {
           ),
         ],
       ),
-      child: Row(
-        children: [
-          // Profile Image
-          CircleAvatar(
-            radius: 24,
-            backgroundColor: Colors.blue.shade50,
-            backgroundImage: getProfileImage(),
-            child: getProfileImage() == null
-                ? Text(
-                    name.isNotEmpty ? name.substring(0, 1).toUpperCase() : '?',
-                    style: TextStyle(
-                      color: Colors.blue.shade700,
-                      fontWeight: FontWeight.bold,
-                      fontSize: 18,
-                    ),
-                  )
-                : null,
-          ),
-          const SizedBox(width: 16),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(16),
+          onTap: () {
+            // View Only - Show Details Modal
+            _showOfficialDetails(data);
+          },
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Row(
               children: [
-                Text(
-                  title,
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                    color: Colors.blue.shade700,
-                    letterSpacing: 0.5,
+                // Profile Image
+                CircleAvatar(
+                  radius: 28,
+                  backgroundColor: Colors.blue.shade50,
+                  backgroundImage: getProfileImage(),
+                  child: getProfileImage() == null
+                      ? Text(
+                          name.isNotEmpty
+                              ? name.substring(0, 1).toUpperCase()
+                              : '?',
+                          style: TextStyle(
+                            color: Colors.blue.shade700,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 20,
+                          ),
+                        )
+                      : null,
+                ),
+                const SizedBox(width: 16),
+
+                // Info Column
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Title Badge
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 2,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.blue.shade50,
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: Text(
+                          title.toUpperCase(),
+                          style: TextStyle(
+                            fontSize: 10,
+                            fontWeight: FontWeight.w700,
+                            color: Colors.blue.shade800,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+
+                      // Full Name
+                      Text(
+                        name,
+                        style: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.black87,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
-                const SizedBox(height: 4),
-                Text(
-                  name,
-                  style: const TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.black87,
-                  ),
-                ),
+                // REMOVED: Edit/Delete Menu (User is Read-Only)
               ],
             ),
           ),
-          // NO POPUP MENU BUTTON (Read Only)
-        ],
+        ),
       ),
     );
   }
@@ -414,7 +653,7 @@ class _UserBrgyOfficialsPageState extends State<UserBrgyOfficialsPage> {
         ],
       ),
       child: BottomNavigationBar(
-        currentIndex: 3, // Highlight 'People'
+        currentIndex: _selectedIndex,
         type: BottomNavigationBarType.fixed,
         selectedItemColor: Colors.blue,
         unselectedItemColor: Colors.grey.shade400,
@@ -430,7 +669,7 @@ class _UserBrgyOfficialsPageState extends State<UserBrgyOfficialsPage> {
           fontSize: 12,
         ),
         elevation: 0,
-        onTap: (index) => _onItemTapped(context, index),
+        onTap: (index) => _onItemTapped(index),
         items: const [
           BottomNavigationBarItem(
             icon: Icon(Icons.home_rounded),
@@ -455,6 +694,7 @@ class _UserBrgyOfficialsPageState extends State<UserBrgyOfficialsPage> {
 
   @override
   Widget build(BuildContext context) {
+    // Mobile Content
     Widget mobileContent = Scaffold(
       backgroundColor: const Color(0xFFF8F9FA),
       body: SafeArea(
@@ -482,7 +722,7 @@ class _UserBrgyOfficialsPageState extends State<UserBrgyOfficialsPage> {
                       ),
                     ),
 
-                    // --- NESTED STREAMS (Copied Logic) ---
+                    // --- OFFICIALS STREAM ---
                     StreamBuilder<QuerySnapshot>(
                       stream: _officialsStream,
                       builder: (context, snapshot) {
@@ -510,10 +750,31 @@ class _UserBrgyOfficialsPageState extends State<UserBrgyOfficialsPage> {
                               ),
                             );
                           }
-                          return Center(
-                            child: Text(
-                              "No officials added yet",
-                              style: TextStyle(color: Colors.grey[500]),
+                          // Empty Placeholder
+                          return Container(
+                            width: double.infinity,
+                            padding: const EdgeInsets.all(24),
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(16),
+                              border: Border.all(color: Colors.grey.shade200),
+                            ),
+                            child: Column(
+                              children: [
+                                Icon(
+                                  Icons.people_outline,
+                                  size: 40,
+                                  color: Colors.grey.shade300,
+                                ),
+                                const SizedBox(height: 12),
+                                Text(
+                                  "No officials added yet",
+                                  style: TextStyle(
+                                    color: Colors.grey.shade500,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                              ],
                             ),
                           );
                         }
@@ -616,14 +877,26 @@ class _UserBrgyOfficialsPageState extends State<UserBrgyOfficialsPage> {
       bottomNavigationBar: _buildBottomNavBar(),
     );
 
+    // WRAP FOR WEB: Keeps Exit Dialog inside the phone frame
     if (kIsWeb) {
-      return PhoneFrame(child: mobileContent);
+      return PhoneFrame(
+        child: MaterialApp(
+          debugShowCheckedModeBanner: false,
+          theme: ThemeData(
+            scaffoldBackgroundColor: const Color(0xFFF8F9FA),
+            primarySwatch: Colors.blue,
+            useMaterial3: true,
+          ),
+          home: mobileContent,
+        ),
+      );
     }
+
     return mobileContent;
   }
 }
 
-// --- PHONE FRAME ---
+// --- PHONE FRAME (Reusable) ---
 class PhoneFrame extends StatelessWidget {
   final Widget child;
   const PhoneFrame({super.key, required this.child});

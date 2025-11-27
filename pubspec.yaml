@@ -10,19 +10,14 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
-
-  # Icons
   cupertino_icons: ^1.0.8
-
-  # Firebase & Real-time Database
   firebase_core: ^4.2.1
   cloud_firestore: ^6.1.0
   firebase_storage: ^13.0.4
   firebase_auth: ^6.1.2
-
-  # Utilities
   url_launcher: ^6.3.2
   image_picker: ^1.0.4
+  google_fonts: ^6.1.0
 
 dev_dependencies:
   flutter_test:
@@ -33,3 +28,4 @@ flutter:
   uses-material-design: true
   assets:
     - assets/images/ibrgy_logo.jpg
+    - assets/images/ibrgy_logo_without_text.png

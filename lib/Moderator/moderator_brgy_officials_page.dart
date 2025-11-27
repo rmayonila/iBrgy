@@ -59,7 +59,6 @@ class _ModeratorBrgyOfficialsPageState
   }
 
   // --- HELPER: CONVERT IMAGE TO BASE64 STRING ---
-  // This solves the "Storage not working" issue by saving image data directly to Firestore text.
   Future<String> _imageToBase64(XFile imageFile) async {
     try {
       final bytes = await imageFile.readAsBytes();
@@ -78,6 +77,16 @@ class _ModeratorBrgyOfficialsPageState
     final nameController = TextEditingController(text: data['name'] ?? '');
     final categoryController = TextEditingController(
       text: data['category'] ?? '',
+    );
+    final nicknameController = TextEditingController(
+      text: data['nickname'] ?? '',
+    );
+    // 1. Added Age Controller
+    final ageController = TextEditingController(
+      text: data['age']?.toString() ?? '',
+    );
+    final addressController = TextEditingController(
+      text: data['address'] ?? '',
     );
 
     String? currentImageBase64 = data['imageUrl']; // Can be URL or Base64
@@ -114,12 +123,12 @@ class _ModeratorBrgyOfficialsPageState
     await showDialog(
       context: context,
       barrierDismissible: true,
+      useRootNavigator: false, // Ensures dialog stays within the app frame
       builder: (ctx) => StatefulBuilder(
         builder: (context, setDialogState) {
           // Helper to decide what image provider to show
           ImageProvider? getImageProvider() {
             if (pickedImageFile != null) {
-              // 1. User just picked a new photo from gallery
               if (kIsWeb) {
                 return NetworkImage(pickedImageFile!.path);
               } else {
@@ -127,9 +136,7 @@ class _ModeratorBrgyOfficialsPageState
               }
             } else if (currentImageBase64 != null &&
                 currentImageBase64!.isNotEmpty) {
-              // 2. Existing photo from database
               try {
-                // Check if it's a URL (http) or Base64 data
                 if (currentImageBase64!.startsWith('http')) {
                   return NetworkImage(currentImageBase64!);
                 } else {
@@ -183,14 +190,13 @@ class _ModeratorBrgyOfficialsPageState
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  // --- IMAGE PICKER (Gallery Access) ---
+                  // --- IMAGE PICKER ---
                   GestureDetector(
                     onTap: () async {
-                      // Opens the device's Photo Gallery/File Explorer
                       final XFile? image = await _picker.pickImage(
                         source: ImageSource.gallery,
-                        imageQuality: 50, // Low quality to save DB space
-                        maxWidth: 400, // Resize to keep string short
+                        imageQuality: 50,
+                        maxWidth: 400,
                       );
                       if (image != null) {
                         setDialogState(() {
@@ -288,6 +294,38 @@ class _ModeratorBrgyOfficialsPageState
                       Icons.person_outline_rounded,
                     ),
                   ),
+                  const SizedBox(height: 16),
+                  TextField(
+                    controller: nicknameController,
+                    style: const TextStyle(color: Colors.black87),
+                    decoration: buildDecoration(
+                      'Nickname / Alias',
+                      'e.g., Kap Juan',
+                      Icons.face_rounded,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  // 1. Added Age TextField below Nickname
+                  TextField(
+                    controller: ageController,
+                    style: const TextStyle(color: Colors.black87),
+                    keyboardType: TextInputType.number,
+                    decoration: buildDecoration(
+                      'Age',
+                      'e.g., 45',
+                      Icons.calendar_today_rounded,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  TextField(
+                    controller: addressController,
+                    style: const TextStyle(color: Colors.black87),
+                    decoration: buildDecoration(
+                      'Address',
+                      'e.g., Purok 1, Poblacion',
+                      Icons.location_on_outlined,
+                    ),
+                  ),
                 ],
               ),
             ),
@@ -307,40 +345,46 @@ class _ModeratorBrgyOfficialsPageState
                   final category = categoryController.text.trim();
                   final title = titleController.text.trim();
                   final name = nameController.text.trim();
+                  final nickname = nicknameController.text.trim();
+                  final age = ageController.text.trim();
+                  final address = addressController.text.trim();
 
                   if (category.isEmpty || title.isEmpty || name.isEmpty) {
                     _scaffoldMessengerKey.currentState?.showSnackBar(
                       const SnackBar(
-                        content: Text('Please fill all fields'),
+                        content: Text('Please fill all required fields'),
                         backgroundColor: Colors.red,
                       ),
                     );
                     return;
                   }
 
-                  Navigator.of(
-                    ctx,
-                  ).pop(); // Close dialog to show loading/result
+                  Navigator.of(ctx).pop(); // Close dialog
 
                   try {
                     // Handle Image Conversion
                     String finalImageString = currentImageBase64 ?? '';
                     if (pickedImageFile != null) {
-                      // Convert new image to Base64
                       finalImageString = await _imageToBase64(pickedImageFile!);
                     }
+
+                    final dataToSave = {
+                      'category': category,
+                      'title': title,
+                      'name': name,
+                      'nickname': nickname,
+                      'age': age, // Save age to backend
+                      'address': address,
+                      'imageUrl': finalImageString,
+                      if (!isEditing) 'createdAt': FieldValue.serverTimestamp(),
+                      if (isEditing) 'updatedAt': FieldValue.serverTimestamp(),
+                    };
 
                     if (isEditing) {
                       await _db
                           .collection('officials')
                           .doc(existingDoc.id)
-                          .update({
-                            'category': category,
-                            'title': title,
-                            'name': name,
-                            'imageUrl': finalImageString,
-                            'updatedAt': FieldValue.serverTimestamp(),
-                          });
+                          .update(dataToSave);
                       _scaffoldMessengerKey.currentState?.showSnackBar(
                         const SnackBar(
                           content: Text('Official updated'),
@@ -348,13 +392,7 @@ class _ModeratorBrgyOfficialsPageState
                         ),
                       );
                     } else {
-                      await _db.collection('officials').add({
-                        'category': category,
-                        'title': title,
-                        'name': name,
-                        'imageUrl': finalImageString,
-                        'createdAt': FieldValue.serverTimestamp(),
-                      });
+                      await _db.collection('officials').add(dataToSave);
                       _scaffoldMessengerKey.currentState?.showSnackBar(
                         const SnackBar(
                           content: Text('Official added'),
@@ -394,10 +432,11 @@ class _ModeratorBrgyOfficialsPageState
     );
   }
 
-  // DELETE Official
+  // --- DELETE Official ---
   Future<void> _deleteOfficial(String docId, String title) async {
     final confirmDelete = await showDialog<bool>(
       context: context,
+      useRootNavigator: false, // Inside frame
       builder: (ctx) => AlertDialog(
         title: const Text('Confirm Deletion'),
         content: Text('Are you sure you want to delete "$title"?'),
@@ -434,6 +473,215 @@ class _ModeratorBrgyOfficialsPageState
     }
   }
 
+  // --- SHOW DETAILS MODAL (Updated: "X" Close Button, Inside Frame) ---
+  void _showOfficialDetails(Map<String, dynamic> data) {
+    final title = data['title']?.toString() ?? '';
+    final name = data['name']?.toString() ?? '';
+    final nickname = data['nickname']?.toString() ?? '';
+    final age = data['age']?.toString() ?? ''; // Get Age
+    final address = data['address']?.toString() ?? '';
+    final category = data['category']?.toString() ?? '';
+    final imageUrl = data['imageUrl']?.toString() ?? '';
+
+    // Create Combined Position Title (CATEGORY + TITLE)
+    String combinedPosition = title;
+    if (category.isNotEmpty) {
+      combinedPosition = "$category $title";
+    }
+
+    // Helper for image in modal
+    ImageProvider? getProfileImage() {
+      if (imageUrl.isEmpty) return null;
+      try {
+        if (imageUrl.startsWith('http')) {
+          return NetworkImage(imageUrl);
+        } else {
+          return MemoryImage(base64Decode(imageUrl));
+        }
+      } catch (e) {
+        return null;
+      }
+    }
+
+    showDialog(
+      context: context,
+      useRootNavigator: false, // CRITICAL: Keeps modal inside the "phone frame"
+      builder: (ctx) => Dialog(
+        backgroundColor: Colors.transparent,
+        // Increased padding to make it look clearly "inside" the frame
+        insetPadding: const EdgeInsets.symmetric(horizontal: 30, vertical: 24),
+        child: Container(
+          clipBehavior: Clip.antiAlias,
+          // Limit width to ensure it doesn't stretch too wide on larger screens
+          constraints: const BoxConstraints(maxWidth: 340),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(24),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.25),
+                blurRadius: 25,
+                offset: const Offset(0, 10),
+              ),
+            ],
+          ),
+          child: Stack(
+            children: [
+              // MAIN CONTENT (Wrapped in ScrollView to ensure it fits)
+              SingleChildScrollView(
+                padding: const EdgeInsets.fromLTRB(24, 40, 24, 32),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    // Large Image
+                    Container(
+                      width: 130,
+                      height: 130,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: Colors.blue.shade50,
+                        border: Border.all(
+                          color: Colors.blue.shade100,
+                          width: 4,
+                        ),
+                        image: getProfileImage() != null
+                            ? DecorationImage(
+                                image: getProfileImage()!,
+                                fit: BoxFit.cover,
+                              )
+                            : null,
+                      ),
+                      child: getProfileImage() == null
+                          ? Icon(
+                              Icons.person,
+                              size: 65,
+                              color: Colors.blue.shade200,
+                            )
+                          : null,
+                    ),
+                    const SizedBox(height: 20),
+
+                    // Name & Nickname
+                    Text(
+                      name,
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(
+                        fontSize: 24,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.black87,
+                        letterSpacing: -0.5,
+                      ),
+                    ),
+                    if (nickname.isNotEmpty)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 6.0),
+                        child: Text(
+                          '"$nickname"',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontStyle: FontStyle.italic,
+                            color: Colors.blue.shade700,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ),
+
+                    const SizedBox(height: 24),
+                    const Divider(height: 1, thickness: 0.5),
+                    const SizedBox(height: 24),
+
+                    // Details List
+                    // Showing Combined Position
+                    _buildDetailRow(
+                      Icons.work_outline_rounded,
+                      "Position",
+                      combinedPosition.toUpperCase(),
+                    ),
+                    // 2. Display Age below Position
+                    if (age.isNotEmpty)
+                      _buildDetailRow(
+                        Icons.calendar_today_rounded,
+                        "Age",
+                        "$age years old",
+                      ),
+                    if (address.isNotEmpty)
+                      _buildDetailRow(
+                        Icons.location_on_outlined,
+                        "Address",
+                        address,
+                      ),
+                  ],
+                ),
+              ),
+
+              // CLOSE BUTTON ("X" at Upper Right)
+              Positioned(
+                top: 8,
+                right: 8,
+                child: IconButton(
+                  onPressed: () => Navigator.of(ctx).pop(),
+                  style: IconButton.styleFrom(
+                    backgroundColor: Colors.grey.shade100,
+                    highlightColor: Colors.grey.shade200,
+                  ),
+                  icon: Icon(Icons.close, color: Colors.grey.shade600),
+                  tooltip: 'Close',
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  // Helper widget for the details modal
+  Widget _buildDetailRow(IconData icon, String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 16.0),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: Colors.blue.shade50,
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Icon(icon, size: 20, color: Colors.blue.shade700),
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  label,
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Colors.grey.shade500,
+                    fontWeight: FontWeight.w600,
+                    letterSpacing: 0.5,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  value,
+                  style: const TextStyle(
+                    fontSize: 16,
+                    color: Colors.black87,
+                    fontWeight: FontWeight.w400,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   // EDIT Contact Info
   Future<void> _editContactInfo(
     String category,
@@ -445,6 +693,7 @@ class _ModeratorBrgyOfficialsPageState
 
     final result = await showDialog<String>(
       context: context,
+      useRootNavigator: false, // Inside frame
       builder: (ctx) => AlertDialog(
         title: Text('Edit $label'),
         content: TextField(
@@ -625,6 +874,7 @@ class _ModeratorBrgyOfficialsPageState
     );
   }
 
+  // --- OFFICIAL CARD (Clean Design: Hidden Nickname/Address) ---
   Widget _buildOfficialCard(DocumentSnapshot doc) {
     final data = doc.data() as Map<String, dynamic>;
     final docId = doc.id;
@@ -639,7 +889,6 @@ class _ModeratorBrgyOfficialsPageState
         if (imageUrl.startsWith('http')) {
           return NetworkImage(imageUrl);
         } else {
-          // It's a base64 string
           return MemoryImage(base64Decode(imageUrl));
         }
       } catch (e) {
@@ -649,7 +898,6 @@ class _ModeratorBrgyOfficialsPageState
 
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
-      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
@@ -662,94 +910,122 @@ class _ModeratorBrgyOfficialsPageState
           ),
         ],
       ),
-      child: Row(
-        children: [
-          // Profile Image
-          CircleAvatar(
-            radius: 24,
-            backgroundColor: Colors.blue.shade50,
-            backgroundImage: getProfileImage(),
-            child: getProfileImage() == null
-                ? Text(
-                    name.isNotEmpty ? name.substring(0, 1).toUpperCase() : '?',
-                    style: TextStyle(
-                      color: Colors.blue.shade700,
-                      fontWeight: FontWeight.bold,
-                      fontSize: 18,
-                    ),
-                  )
-                : null,
-          ),
-          const SizedBox(width: 16),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(16),
+          onTap: () {
+            // Open Details Modal (Shows Nickname/Address)
+            _showOfficialDetails(data);
+          },
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Row(
               children: [
-                Text(
-                  title,
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                    color: Colors.blue.shade700,
-                    letterSpacing: 0.5,
+                // Profile Image
+                CircleAvatar(
+                  radius: 28,
+                  backgroundColor: Colors.blue.shade50,
+                  backgroundImage: getProfileImage(),
+                  child: getProfileImage() == null
+                      ? Text(
+                          name.isNotEmpty
+                              ? name.substring(0, 1).toUpperCase()
+                              : '?',
+                          style: TextStyle(
+                            color: Colors.blue.shade700,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 20,
+                          ),
+                        )
+                      : null,
+                ),
+                const SizedBox(width: 16),
+
+                // Info Column (Clean: No nickname/address here)
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Title Badge
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 2,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.blue.shade50,
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: Text(
+                          title.toUpperCase(),
+                          style: TextStyle(
+                            fontSize: 10,
+                            fontWeight: FontWeight.w700,
+                            color: Colors.blue.shade800,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+
+                      // Full Name
+                      Text(
+                        name,
+                        style: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.black87,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
-                const SizedBox(height: 4),
-                Text(
-                  name,
-                  style: const TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.black87,
-                  ),
+
+                // MENU BUTTON
+                PopupMenuButton<String>(
+                  onSelected: (value) {
+                    if (value == 'edit') {
+                      _showOfficialDialog(existingDoc: doc);
+                    } else if (value == 'delete') {
+                      _deleteOfficial(docId, title);
+                    }
+                  },
+                  itemBuilder: (context) => [
+                    PopupMenuItem(
+                      value: 'edit',
+                      child: Row(
+                        children: [
+                          Icon(
+                            Icons.edit_rounded,
+                            size: 20,
+                            color: Colors.blue.shade700,
+                          ),
+                          const SizedBox(width: 8),
+                          const Text('Edit'),
+                        ],
+                      ),
+                    ),
+                    const PopupMenuItem(
+                      value: 'delete',
+                      child: Row(
+                        children: [
+                          Icon(
+                            Icons.delete_outline_rounded,
+                            size: 20,
+                            color: Colors.red,
+                          ),
+                          const SizedBox(width: 8),
+                          Text('Delete', style: TextStyle(color: Colors.red)),
+                        ],
+                      ),
+                    ),
+                  ],
+                  icon: Icon(Icons.more_vert, color: Colors.grey.shade400),
                 ),
               ],
             ),
           ),
-          // MENU BUTTON (Edit/Delete)
-          PopupMenuButton<String>(
-            onSelected: (value) {
-              if (value == 'edit') {
-                // 1. Open the Full Edit Dialog
-                _showOfficialDialog(existingDoc: doc);
-              } else if (value == 'delete') {
-                // 2. Delete
-                _deleteOfficial(docId, title);
-              }
-            },
-            itemBuilder: (context) => [
-              PopupMenuItem(
-                value: 'edit',
-                child: Row(
-                  children: [
-                    Icon(
-                      Icons.edit_rounded,
-                      size: 20,
-                      color: Colors.blue.shade700,
-                    ),
-                    const SizedBox(width: 8),
-                    const Text('Edit'),
-                  ],
-                ),
-              ),
-              const PopupMenuItem(
-                value: 'delete',
-                child: Row(
-                  children: [
-                    Icon(
-                      Icons.delete_outline_rounded,
-                      size: 20,
-                      color: Colors.red,
-                    ),
-                    const SizedBox(width: 8),
-                    Text('Delete', style: TextStyle(color: Colors.red)),
-                  ],
-                ),
-              ),
-            ],
-            icon: Icon(Icons.more_vert, color: Colors.grey.shade400),
-          ),
-        ],
+        ),
       ),
     );
   }

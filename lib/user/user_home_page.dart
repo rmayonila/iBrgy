@@ -2,19 +2,16 @@ import 'package:flutter/foundation.dart'; // For web check
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'dart:async';
 import '../splash_screen.dart';
 
-// Category colors and icons mapping (Synced with Moderator Page)
+// --- CONFIG: Synced with Moderator Page ---
 const Map<String, Map<String, dynamic>> categoryConfig = {
   'Health & Welfare': {'color': Color(0xFF4CAF50), 'icon': Icons.favorite},
   'Brgy Clearance/Permit Process': {
     'color': Color(0xFFFFA726),
     'icon': Icons.assignment,
   },
-  'Brgy Hall Schedule': {'color': Color(0xFF29B6F6), 'icon': Icons.schedule},
-  'Emergency Services': {'color': Color(0xFFEF5350), 'icon': Icons.emergency},
-  'Events & Announcements': {'color': Color(0xFF7E57C2), 'icon': Icons.event},
+  'Cedula': {'color': Color(0xFF29B6F6), 'icon': Icons.schedule},
   'Community Programs': {'color': Color(0xFF26A69A), 'icon': Icons.groups},
   'Other': {'color': Color(0xFF9E9E9E), 'icon': Icons.info},
 };
@@ -34,10 +31,10 @@ class _UserHomePageState extends State<UserHomePage> {
   final TextEditingController _searchController = TextEditingController();
   String _searchQuery = '';
 
-  // Track expanded states for service cards using Document IDs
+  // Track expanded states
   final Map<String, bool> _expandedStates = {};
 
-  // Stream for Barangay Services (Same collection as Moderator)
+  // Stream
   final Stream<QuerySnapshot> _servicesStream = FirebaseFirestore.instance
       .collection('barangay_services')
       .orderBy('createdAt', descending: true)
@@ -61,7 +58,7 @@ class _UserHomePageState extends State<UserHomePage> {
         await _auth.signInAnonymously();
       }
     } catch (_) {
-      // ignore auth errors here
+      // ignore auth errors
     }
   }
 
@@ -72,7 +69,6 @@ class _UserHomePageState extends State<UserHomePage> {
   }
 
   void _onItemTapped(BuildContext context, int index) {
-    // Navigation logic from original User Home Page
     if (index == 1) {
       Navigator.pushReplacementNamed(context, '/user-emergency-hotline');
       return;
@@ -91,15 +87,15 @@ class _UserHomePageState extends State<UserHomePage> {
     });
   }
 
-  // --- EXIT MODAL (Kept from Original User Page) ---
+  // --- EXIT MODAL ---
   Future<void> _handleBackOrLogout() async {
     final shouldExit = await showDialog<bool>(
       context: context,
+      useRootNavigator: false, // Keep inside phone frame
       builder: (context) => AlertDialog(
         backgroundColor: Colors.white,
-        elevation: 10,
-        insetPadding: const EdgeInsets.symmetric(horizontal: 60),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        surfaceTintColor: Colors.white,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         title: const Text(
           'Exit',
           textAlign: TextAlign.center,
@@ -131,6 +127,7 @@ class _UserHomePageState extends State<UserHomePage> {
         ],
       ),
     );
+
     if (shouldExit == true) {
       try {
         await FirebaseAuth.instance.signOut();
@@ -143,248 +140,6 @@ class _UserHomePageState extends State<UserHomePage> {
         (r) => false,
       );
     }
-  }
-
-  // --- SERVICE CARD (Adapted from Moderator, Read-Only) ---
-  Widget _buildServiceCard(DocumentSnapshot doc) {
-    final data = doc.data() as Map<String, dynamic>;
-    final docId = doc.id;
-    final title = data['title'] ?? 'Service';
-    final category = data['category'] ?? 'Other';
-    final steps = data['steps'] ?? '';
-    final config =
-        categoryConfig[category] ??
-        {'color': const Color(0xFF9E9E9E), 'icon': Icons.info};
-
-    final isExpanded = _expandedStates[docId] ?? false;
-
-    return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Column(
-        children: [
-          // Service Header (Tile)
-          ListTile(
-            leading: Container(
-              height: 40,
-              width: 40,
-              decoration: BoxDecoration(
-                color: (config['color'] as Color).withOpacity(0.1),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Icon(
-                config['icon'] as IconData,
-                color: config['color'] as Color,
-                size: 20,
-              ),
-            ),
-            title: Text(
-              title,
-              style: const TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.w600,
-                color: Colors.black87,
-              ),
-            ),
-            subtitle: Text(
-              category,
-              style: TextStyle(fontSize: 12, color: Colors.grey.shade500),
-            ),
-            // REMOVED: Edit/Delete Buttons
-            // KEPT: Expand Icon only
-            trailing: Icon(
-              isExpanded ? Icons.expand_less : Icons.expand_more,
-              color: Colors.grey.shade600,
-            ),
-            onTap: () {
-              setState(() {
-                _expandedStates[docId] = !isExpanded;
-              });
-            },
-          ),
-
-          if (isExpanded)
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: Colors.grey.shade50,
-                borderRadius: const BorderRadius.only(
-                  bottomLeft: Radius.circular(12),
-                  bottomRight: Radius.circular(12),
-                ),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    'Steps / Requirements:',
-                    style: TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 14,
-                      color: Colors.black87,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    steps,
-                    style: TextStyle(
-                      fontSize: 14,
-                      color: Colors.grey.shade700,
-                      height: 1.5,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-        ],
-      ),
-    );
-  }
-
-  // --- PLACEHOLDER ---
-  Widget _buildEmptyState() {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.symmetric(vertical: 40),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.grey.shade200),
-      ),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(
-            Icons.assignment_outlined,
-            size: 48,
-            color: Colors.grey.shade300,
-          ),
-          const SizedBox(height: 12),
-          Text(
-            'No services available yet',
-            style: TextStyle(
-              color: Colors.grey.shade500,
-              fontSize: 14,
-              fontWeight: FontWeight.w500,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    Widget mobileContent = Scaffold(
-      backgroundColor: const Color(0xFFF8F9FA),
-      body: SafeArea(
-        child: Column(
-          children: [
-            // --- HEADER (Kept from User Home Page) ---
-            _buildHeader(),
-
-            // --- BODY ---
-            Expanded(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.all(20),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    _buildSearchBar(),
-                    const SizedBox(height: 24),
-                    const Text(
-                      "Barangay Services",
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.black87,
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-
-                    // --- STREAM BUILDER (Listening to Moderator's data) ---
-                    StreamBuilder<QuerySnapshot>(
-                      stream: _servicesStream,
-                      builder: (context, snapshot) {
-                        if (snapshot.connectionState ==
-                            ConnectionState.waiting) {
-                          return const Center(
-                            child: Padding(
-                              padding: EdgeInsets.all(20),
-                              child: CircularProgressIndicator(),
-                            ),
-                          );
-                        }
-                        if (snapshot.hasError) {
-                          return const Text("Error loading services");
-                        }
-
-                        final docs = snapshot.data?.docs ?? [];
-
-                        // Search Filter Logic
-                        final filteredDocs = _searchQuery.isEmpty
-                            ? docs
-                            : docs.where((doc) {
-                                final data = doc.data() as Map<String, dynamic>;
-                                final title = (data['title'] ?? '')
-                                    .toString()
-                                    .toLowerCase();
-                                final category = (data['category'] ?? '')
-                                    .toString()
-                                    .toLowerCase();
-                                return title.contains(_searchQuery) ||
-                                    category.contains(_searchQuery);
-                              }).toList();
-
-                        if (filteredDocs.isEmpty) {
-                          if (_searchQuery.isNotEmpty) {
-                            return Center(
-                              child: Padding(
-                                padding: const EdgeInsets.only(top: 40),
-                                child: Text(
-                                  "No matching services found",
-                                  style: TextStyle(color: Colors.grey.shade500),
-                                ),
-                              ),
-                            );
-                          }
-                          return _buildEmptyState();
-                        }
-
-                        return Column(
-                          children: filteredDocs
-                              .map((doc) => _buildServiceCard(doc))
-                              .toList(),
-                        );
-                      },
-                    ),
-
-                    const SizedBox(height: 40), // Bottom padding
-                  ],
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-      bottomNavigationBar: _buildBottomNavBar(),
-    );
-
-    if (kIsWeb) {
-      return PhoneFrame(child: mobileContent);
-    }
-    return mobileContent;
   }
 
   // --- WIDGET BUILDERS ---
@@ -446,7 +201,6 @@ class _UserHomePageState extends State<UserHomePage> {
             ),
           ),
           const Spacer(),
-          // Exit Button Preserved
           IconButton(
             onPressed: _handleBackOrLogout,
             icon: const Icon(Icons.logout, color: Colors.red),
@@ -475,7 +229,7 @@ class _UserHomePageState extends State<UserHomePage> {
         onChanged: _updateSearch,
         style: const TextStyle(color: Colors.black),
         decoration: InputDecoration(
-          hintText: "Search services, forms...",
+          hintText: "Search services...",
           hintStyle: TextStyle(color: Colors.grey.shade400, fontSize: 14),
           prefixIcon: Icon(Icons.search, color: Colors.grey.shade400),
           border: InputBorder.none,
@@ -488,59 +242,283 @@ class _UserHomePageState extends State<UserHomePage> {
     );
   }
 
-  Widget _buildBottomNavBar() {
+  // --- SERVICE CARD (Read-Only) ---
+  Widget _buildServiceCard(DocumentSnapshot doc) {
+    final data = doc.data() as Map<String, dynamic>;
+    final docId = doc.id;
+    final title = data['title'] ?? 'Service';
+    final category = data['category'] ?? 'Other';
+    final steps = data['steps'] ?? '';
+
+    // Config Lookup
+    final config =
+        categoryConfig[category] ??
+        {'color': const Color(0xFF9E9E9E), 'icon': Icons.info};
+
+    final isExpanded = _expandedStates[docId] ?? false;
+
     return Container(
+      margin: const EdgeInsets.only(bottom: 12),
       decoration: BoxDecoration(
         color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withOpacity(0.05),
-            blurRadius: 10,
-            offset: const Offset(0, -5),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
           ),
         ],
       ),
-      child: BottomNavigationBar(
-        currentIndex: _selectedIndex,
-        type: BottomNavigationBarType.fixed,
-        selectedItemColor: Colors.blue,
-        unselectedItemColor: Colors.grey.shade400,
-        backgroundColor: Colors.white,
-        showSelectedLabels: true,
-        showUnselectedLabels: true,
-        selectedLabelStyle: const TextStyle(
-          fontWeight: FontWeight.w600,
-          fontSize: 12,
-        ),
-        unselectedLabelStyle: const TextStyle(
-          fontWeight: FontWeight.w500,
-          fontSize: 12,
-        ),
-        elevation: 0,
-        onTap: (index) => _onItemTapped(context, index),
-        items: const [
-          BottomNavigationBarItem(
-            icon: Icon(Icons.home_rounded),
-            label: 'Home',
+      child: Column(
+        children: [
+          // Header Tile
+          ListTile(
+            leading: Container(
+              height: 40,
+              width: 40,
+              decoration: BoxDecoration(
+                color: (config['color'] as Color).withOpacity(0.1),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Icon(
+                config['icon'] as IconData,
+                color: config['color'] as Color,
+                size: 20,
+              ),
+            ),
+            title: Text(
+              title,
+              style: const TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w600,
+                color: Colors.black87,
+              ),
+            ),
+            subtitle: Text(
+              category,
+              style: TextStyle(fontSize: 12, color: Colors.grey.shade500),
+            ),
+            trailing: Icon(
+              isExpanded ? Icons.expand_less : Icons.expand_more,
+              color: Colors.grey.shade600,
+            ),
+            onTap: () {
+              setState(() {
+                _expandedStates[docId] = !isExpanded;
+              });
+            },
           ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.phone_rounded),
-            label: 'Emergency',
+
+          // Expanded Content
+          if (isExpanded)
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.grey.shade50,
+                borderRadius: const BorderRadius.only(
+                  bottomLeft: Radius.circular(12),
+                  bottomRight: Radius.circular(12),
+                ),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Steps / Requirements:',
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 14,
+                      color: Colors.black87,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    steps,
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: Colors.grey.shade700,
+                      height: 1.5,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildEmptyState() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(vertical: 40),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.grey.shade200),
+      ),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(
+            Icons.assignment_outlined,
+            size: 48,
+            color: Colors.grey.shade300,
           ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.campaign_rounded),
-            label: 'Updates',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.people_alt_rounded),
-            label: 'People',
+          const SizedBox(height: 12),
+          Text(
+            'No services found',
+            style: TextStyle(
+              color: Colors.grey.shade500,
+              fontSize: 14,
+              fontWeight: FontWeight.w500,
+            ),
           ),
         ],
       ),
     );
   }
+
+  @override
+  Widget build(BuildContext context) {
+    Widget mobileContent = Scaffold(
+      backgroundColor: const Color(0xFFF8F9FA),
+      body: SafeArea(
+        child: Column(
+          children: [
+            _buildHeader(),
+            Expanded(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.all(20),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _buildSearchBar(),
+                    const SizedBox(height: 24),
+                    const Text(
+                      "Barangay Services",
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.black87,
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    StreamBuilder<QuerySnapshot>(
+                      stream: _servicesStream,
+                      builder: (context, snapshot) {
+                        if (snapshot.connectionState ==
+                            ConnectionState.waiting) {
+                          return const Center(
+                            child: Padding(
+                              padding: EdgeInsets.all(20),
+                              child: CircularProgressIndicator(),
+                            ),
+                          );
+                        }
+                        if (snapshot.hasError) {
+                          return const Text("Error loading services");
+                        }
+
+                        final docs = snapshot.data?.docs ?? [];
+                        final filteredDocs = _searchQuery.isEmpty
+                            ? docs
+                            : docs.where((doc) {
+                                final data = doc.data() as Map<String, dynamic>;
+                                final t = (data['title'] ?? '')
+                                    .toString()
+                                    .toLowerCase();
+                                final c = (data['category'] ?? '')
+                                    .toString()
+                                    .toLowerCase();
+                                return t.contains(_searchQuery) ||
+                                    c.contains(_searchQuery);
+                              }).toList();
+
+                        if (filteredDocs.isEmpty) {
+                          return _buildEmptyState();
+                        }
+
+                        return Column(
+                          children: filteredDocs
+                              .map((doc) => _buildServiceCard(doc))
+                              .toList(),
+                        );
+                      },
+                    ),
+                    const SizedBox(height: 40),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+      bottomNavigationBar: Container(
+        decoration: BoxDecoration(
+          color: Colors.white,
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.05),
+              blurRadius: 10,
+              offset: const Offset(0, -5),
+            ),
+          ],
+        ),
+        child: BottomNavigationBar(
+          currentIndex: _selectedIndex,
+          type: BottomNavigationBarType.fixed,
+          selectedItemColor: Colors.blue,
+          unselectedItemColor: Colors.grey.shade400,
+          backgroundColor: Colors.white,
+          showSelectedLabels: true,
+          showUnselectedLabels: true,
+          elevation: 0,
+          onTap: (index) => _onItemTapped(context, index),
+          items: const [
+            BottomNavigationBarItem(
+              icon: Icon(Icons.home_rounded),
+              label: 'Home',
+            ),
+            BottomNavigationBarItem(
+              icon: Icon(Icons.phone_rounded),
+              label: 'Emergency',
+            ),
+            BottomNavigationBarItem(
+              icon: Icon(Icons.campaign_rounded),
+              label: 'Updates',
+            ),
+            BottomNavigationBarItem(
+              icon: Icon(Icons.people_alt_rounded),
+              label: 'People',
+            ),
+          ],
+        ),
+      ),
+    );
+
+    // WRAP FOR WEB: Keeps Exit Dialog inside the phone frame
+    if (kIsWeb) {
+      return PhoneFrame(
+        child: MaterialApp(
+          debugShowCheckedModeBanner: false,
+          theme: ThemeData(
+            scaffoldBackgroundColor: const Color(0xFFF8F9FA),
+            primarySwatch: Colors.blue,
+            useMaterial3: true,
+          ),
+          home: mobileContent,
+        ),
+      );
+    }
+
+    return mobileContent;
+  }
 }
 
+// --- PHONE FRAME (Reusable) ---
 class PhoneFrame extends StatelessWidget {
   final Widget child;
   const PhoneFrame({super.key, required this.child});

@@ -14,19 +14,23 @@ class UserAnnouncementPage extends StatefulWidget {
 }
 
 class _UserAnnouncementPageState extends State<UserAnnouncementPage> {
-  // 1. Stream for Regular Announcements (Same as Moderator)
+  // 1. Stream for Regular Announcements
   final Stream<QuerySnapshot> _announcementsStream = FirebaseFirestore.instance
       .collection('announcements')
       .orderBy('createdAt', descending: true)
       .snapshots();
 
-  // 2. Stream for Important Reminders (Same as Moderator)
+  // 2. Stream for Important Reminders
   final Stream<QuerySnapshot> _remindersStream = FirebaseFirestore.instance
       .collection('important_reminders')
       .orderBy('createdAt', descending: true)
       .snapshots();
 
   final TextEditingController _searchController = TextEditingController();
+
+  // Key to force Snackbars/Dialogs to show INSIDE the phone frame if needed
+  final GlobalKey<ScaffoldMessengerState> _scaffoldMessengerKey =
+      GlobalKey<ScaffoldMessengerState>();
 
   @override
   void dispose() {
@@ -53,15 +57,15 @@ class _UserAnnouncementPageState extends State<UserAnnouncementPage> {
     return 'recently';
   }
 
-  // --- EXIT / LOGOUT FUNCTION (Kept from User Page) ---
+  // --- EXIT / LOGOUT FUNCTION ---
   Future<void> _handleBackOrLogout() async {
     final shouldExit = await showDialog<bool>(
       context: context,
+      useRootNavigator: false, // Keep inside phone frame
       builder: (context) => AlertDialog(
         backgroundColor: Colors.white,
-        elevation: 10,
-        insetPadding: const EdgeInsets.symmetric(horizontal: 60),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        surfaceTintColor: Colors.white,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         title: const Text(
           'Exit',
           textAlign: TextAlign.center,
@@ -105,6 +109,45 @@ class _UserAnnouncementPageState extends State<UserAnnouncementPage> {
         (r) => false,
       );
     }
+  }
+
+  // --- HELPER: SHOW FULL IMAGE MODAL ---
+  void _showFullImageDialog(BuildContext context, ImageProvider imageProvider) {
+    showDialog(
+      context: context,
+      useRootNavigator: false, // Keep inside PhoneFrame
+      builder: (ctx) => Dialog(
+        backgroundColor: Colors.transparent,
+        insetPadding: EdgeInsets.zero, // Full screen inside the frame
+        child: Stack(
+          alignment: Alignment.center,
+          children: [
+            // InteractiveViewer allows zooming/panning
+            InteractiveViewer(
+              minScale: 0.5,
+              maxScale: 4.0,
+              child: Image(image: imageProvider, fit: BoxFit.contain),
+            ),
+            // Close Button
+            Positioned(
+              top: 20,
+              right: 20,
+              child: GestureDetector(
+                onTap: () => Navigator.of(ctx).pop(),
+                child: Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: const BoxDecoration(
+                    color: Colors.black54,
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(Icons.close, color: Colors.white, size: 24),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   // --- WIDGET BUILDERS ---
@@ -166,7 +209,6 @@ class _UserAnnouncementPageState extends State<UserAnnouncementPage> {
             ),
           ),
           const Spacer(),
-          // EXIT BUTTON (Kept as requested)
           IconButton(
             onPressed: _handleBackOrLogout,
             icon: const Icon(Icons.logout, color: Colors.red),
@@ -192,8 +234,8 @@ class _UserAnnouncementPageState extends State<UserAnnouncementPage> {
       ),
       child: TextField(
         controller: _searchController,
-        // We will trigger a rebuild when text changes to filter the lists
         onChanged: (val) => setState(() {}),
+        style: const TextStyle(color: Colors.black),
         decoration: InputDecoration(
           hintText: "Search updates...",
           hintStyle: TextStyle(color: Colors.grey.shade400, fontSize: 14),
@@ -208,7 +250,6 @@ class _UserAnnouncementPageState extends State<UserAnnouncementPage> {
     );
   }
 
-  // --- SECTION HEADER (Simplified for User - No Add Button) ---
   Widget _buildSectionTitle(String title) {
     return Padding(
       padding: const EdgeInsets.only(left: 4, bottom: 12, top: 8),
@@ -224,7 +265,7 @@ class _UserAnnouncementPageState extends State<UserAnnouncementPage> {
     );
   }
 
-  // --- IMPORTANT REMINDER CARD (View Only) ---
+  // --- IMPORTANT REMINDER CARD (User View) ---
   Widget _buildImportantReminderCard(DocumentSnapshot doc) {
     final data = doc.data() as Map<String, dynamic>;
     return Container(
@@ -280,7 +321,6 @@ class _UserAnnouncementPageState extends State<UserAnnouncementPage> {
                     ],
                   ),
                 ),
-                // REMOVED: PopupMenuButton (Edit/Delete)
               ],
             ),
             const SizedBox(height: 12),
@@ -306,6 +346,13 @@ class _UserAnnouncementPageState extends State<UserAnnouncementPage> {
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: Colors.grey.shade200),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.02),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
       ),
       child: Column(
         children: [
@@ -328,7 +375,7 @@ class _UserAnnouncementPageState extends State<UserAnnouncementPage> {
     );
   }
 
-  // --- RECENT UPDATE CARD (View Only - With Image Support) ---
+  // --- RECENT UPDATE CARD (User View - With Expandable Text & Image) ---
   Widget _buildPostCard(DocumentSnapshot doc) {
     final data = doc.data() as Map<String, dynamic>;
     final imageUrl = data['imageUrl']?.toString() ?? '';
@@ -410,32 +457,34 @@ class _UserAnnouncementPageState extends State<UserAnnouncementPage> {
                     ],
                   ),
                 ),
-                // REMOVED: PopupMenuButton (Edit/Delete)
               ],
             ),
             const SizedBox(height: 12),
-            Text(
-              data['content']?.toString() ?? '',
-              style: TextStyle(
-                fontSize: 14,
-                height: 1.5,
-                color: Colors.black87.withOpacity(0.8),
-              ),
-            ),
-            // Display Image if available
+
+            // 1. Expandable Text Feature
+            _ExpandableText(text: data['content']?.toString() ?? ''),
+
+            // 2. Full Image Viewer Feature
             if (getPostImage() != null) ...[
               const SizedBox(height: 12),
-              Container(
-                width: double.infinity,
-                height: 180,
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(12),
-                  color: Colors.grey.shade100,
-                  image: DecorationImage(
-                    image: getPostImage()!,
-                    fit: BoxFit.cover,
-                  ),
-                ),
+              Builder(
+                builder: (context) {
+                  return GestureDetector(
+                    onTap: () => _showFullImageDialog(context, getPostImage()!),
+                    child: Container(
+                      width: double.infinity,
+                      height: 180,
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(12),
+                        color: Colors.grey.shade100,
+                        image: DecorationImage(
+                          image: getPostImage()!,
+                          fit: BoxFit.cover,
+                        ),
+                      ),
+                    ),
+                  );
+                },
               ),
             ],
           ],
@@ -444,7 +493,6 @@ class _UserAnnouncementPageState extends State<UserAnnouncementPage> {
     );
   }
 
-  // --- USER NAVBAR (Kept as requested) ---
   Widget _buildBottomNavBar() {
     return Container(
       decoration: BoxDecoration(
@@ -465,14 +513,6 @@ class _UserAnnouncementPageState extends State<UserAnnouncementPage> {
         backgroundColor: Colors.white,
         showSelectedLabels: true,
         showUnselectedLabels: true,
-        selectedLabelStyle: const TextStyle(
-          fontWeight: FontWeight.w600,
-          fontSize: 12,
-        ),
-        unselectedLabelStyle: const TextStyle(
-          fontWeight: FontWeight.w500,
-          fontSize: 12,
-        ),
         elevation: 0,
         onTap: (index) => _onItemTapped(context, index),
         items: const [
@@ -485,7 +525,7 @@ class _UserAnnouncementPageState extends State<UserAnnouncementPage> {
             label: 'Emergency',
           ),
           BottomNavigationBarItem(
-            icon: ContainerIcon(icon: Icons.campaign_rounded),
+            icon: Icon(Icons.campaign_rounded),
             label: 'Updates',
           ),
           BottomNavigationBarItem(
@@ -499,177 +539,253 @@ class _UserAnnouncementPageState extends State<UserAnnouncementPage> {
 
   @override
   Widget build(BuildContext context) {
-    Widget mobileContent = Scaffold(
-      backgroundColor: const Color(0xFFF8F9FA),
-      body: SafeArea(
-        child: Column(
-          children: [
-            _buildHeader(),
-            Expanded(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.all(20),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    _buildSearchBar(),
-                    const SizedBox(height: 24),
-                    const Text(
-                      'Barangay Updates',
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.black87,
+    Widget mobileContent = ScaffoldMessenger(
+      key: _scaffoldMessengerKey,
+      child: Scaffold(
+        backgroundColor: const Color(0xFFF8F9FA),
+        body: SafeArea(
+          child: Column(
+            children: [
+              _buildHeader(),
+              Expanded(
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.all(20),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _buildSearchBar(),
+                      const SizedBox(height: 24),
+                      const Text(
+                        'Barangay Updates',
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.black87,
+                        ),
                       ),
-                    ),
-                    const SizedBox(height: 16),
+                      const SizedBox(height: 16),
 
-                    // --- SECTION 1: IMPORTANT REMINDERS (Dynamic Stream) ---
-                    _buildSectionTitle("IMPORTANT REMINDERS"),
-                    StreamBuilder<QuerySnapshot>(
-                      stream: _remindersStream,
-                      builder: (context, snapshot) {
-                        if (snapshot.connectionState ==
-                            ConnectionState.waiting) {
-                          return const Center(
-                            child: Padding(
-                              padding: EdgeInsets.all(8.0),
-                              child: CircularProgressIndicator(),
-                            ),
-                          );
-                        }
-                        if (snapshot.hasError) {
-                          return const Text('Something went wrong');
-                        }
+                      // --- SECTION 1: IMPORTANT REMINDERS ---
+                      _buildSectionTitle("IMPORTANT REMINDERS"),
+                      StreamBuilder<QuerySnapshot>(
+                        stream: _remindersStream,
+                        builder: (context, snapshot) {
+                          if (snapshot.connectionState ==
+                              ConnectionState.waiting) {
+                            return const Center(
+                              child: Padding(
+                                padding: EdgeInsets.all(8.0),
+                                child: CircularProgressIndicator(),
+                              ),
+                            );
+                          }
+                          if (snapshot.hasError) {
+                            return const Text('Something went wrong');
+                          }
 
-                        final docs = snapshot.data?.docs ?? [];
-                        if (docs.isEmpty) {
-                          return _buildEmptyRemindersPlaceholder();
-                        }
+                          final docs = snapshot.data?.docs ?? [];
+                          if (docs.isEmpty) {
+                            return _buildEmptyRemindersPlaceholder();
+                          }
 
-                        // Filter by search query
-                        final searchQuery = _searchController.text
-                            .toLowerCase();
-                        final filteredDocs = docs.where((doc) {
-                          final data = doc.data() as Map<String, dynamic>;
-                          final title = (data['title'] ?? '')
-                              .toString()
+                          // Filter by search query
+                          final searchQuery = _searchController.text
                               .toLowerCase();
-                          final content = (data['content'] ?? '')
-                              .toString()
+                          final filteredDocs = docs.where((doc) {
+                            final data = doc.data() as Map<String, dynamic>;
+                            final title = (data['title'] ?? '')
+                                .toString()
+                                .toLowerCase();
+                            final content = (data['content'] ?? '')
+                                .toString()
+                                .toLowerCase();
+                            return title.contains(searchQuery) ||
+                                content.contains(searchQuery);
+                          }).toList();
+
+                          if (filteredDocs.isEmpty && searchQuery.isNotEmpty) {
+                            return const Center(
+                              child: Text(
+                                "No reminders found",
+                                style: TextStyle(color: Colors.grey),
+                              ),
+                            );
+                          }
+
+                          return Column(
+                            children: filteredDocs
+                                .map((doc) => _buildImportantReminderCard(doc))
+                                .toList(),
+                          );
+                        },
+                      ),
+
+                      const SizedBox(height: 24),
+
+                      // --- SECTION 2: RECENT UPDATES ---
+                      _buildSectionTitle("RECENT UPDATES"),
+                      StreamBuilder<QuerySnapshot>(
+                        stream: _announcementsStream,
+                        builder: (context, snapshot) {
+                          if (snapshot.connectionState ==
+                              ConnectionState.waiting) {
+                            return const Padding(
+                              padding: EdgeInsets.all(20),
+                              child: Center(child: CircularProgressIndicator()),
+                            );
+                          }
+                          final docs = snapshot.data?.docs ?? [];
+                          if (docs.isEmpty) {
+                            return const Center(
+                              child: Text(
+                                "No recent updates",
+                                style: TextStyle(color: Colors.grey),
+                              ),
+                            );
+                          }
+
+                          // Filter by search query
+                          final searchQuery = _searchController.text
                               .toLowerCase();
-                          return title.contains(searchQuery) ||
-                              content.contains(searchQuery);
-                        }).toList();
+                          final filteredDocs = docs.where((doc) {
+                            final data = doc.data() as Map<String, dynamic>;
+                            final content = (data['content'] ?? '')
+                                .toString()
+                                .toLowerCase();
+                            return content.contains(searchQuery);
+                          }).toList();
 
-                        if (filteredDocs.isEmpty && searchQuery.isNotEmpty) {
-                          return const Center(
-                            child: Text(
-                              "No reminders found",
-                              style: TextStyle(color: Colors.grey),
-                            ),
+                          if (filteredDocs.isEmpty && searchQuery.isNotEmpty) {
+                            return const Center(
+                              child: Text(
+                                "No updates found",
+                                style: TextStyle(color: Colors.grey),
+                              ),
+                            );
+                          }
+
+                          return Column(
+                            children: filteredDocs.map((doc) {
+                              return _buildPostCard(doc);
+                            }).toList(),
                           );
-                        }
-
-                        return Column(
-                          children: filteredDocs
-                              .map((doc) => _buildImportantReminderCard(doc))
-                              .toList(),
-                        );
-                      },
-                    ),
-
-                    const SizedBox(height: 24),
-
-                    // --- SECTION 2: RECENT UPDATES (Dynamic Stream) ---
-                    _buildSectionTitle("RECENT UPDATES"),
-                    StreamBuilder<QuerySnapshot>(
-                      stream: _announcementsStream,
-                      builder: (context, snapshot) {
-                        if (snapshot.connectionState ==
-                            ConnectionState.waiting) {
-                          return const Padding(
-                            padding: EdgeInsets.all(20),
-                            child: Center(child: CircularProgressIndicator()),
-                          );
-                        }
-                        final docs = snapshot.data?.docs ?? [];
-                        if (docs.isEmpty) {
-                          return const Center(
-                            child: Text(
-                              "No recent updates",
-                              style: TextStyle(color: Colors.grey),
-                            ),
-                          );
-                        }
-
-                        // Filter by search query
-                        final searchQuery = _searchController.text
-                            .toLowerCase();
-                        final filteredDocs = docs.where((doc) {
-                          final data = doc.data() as Map<String, dynamic>;
-                          final content = (data['content'] ?? '')
-                              .toString()
-                              .toLowerCase();
-                          return content.contains(searchQuery);
-                        }).toList();
-
-                        if (filteredDocs.isEmpty && searchQuery.isNotEmpty) {
-                          return const Center(
-                            child: Text(
-                              "No updates found",
-                              style: TextStyle(color: Colors.grey),
-                            ),
-                          );
-                        }
-
-                        return Column(
-                          children: filteredDocs.map((doc) {
-                            return _buildPostCard(doc);
-                          }).toList(),
-                        );
-                      },
-                    ),
-                    const SizedBox(height: 40),
-                  ],
+                        },
+                      ),
+                      const SizedBox(height: 40),
+                    ],
+                  ),
                 ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
+        bottomNavigationBar: _buildBottomNavBar(),
       ),
-      bottomNavigationBar: _buildBottomNavBar(),
     );
 
     if (kIsWeb) {
-      return PhoneFrame(child: mobileContent);
+      return PhoneFrame(
+        child: MaterialApp(
+          debugShowCheckedModeBanner: false,
+          theme: ThemeData(
+            scaffoldBackgroundColor: const Color(0xFFF8F9FA),
+            primarySwatch: Colors.blue,
+            useMaterial3: true,
+          ),
+          home: mobileContent,
+        ),
+      );
     }
     return mobileContent;
   }
 }
 
-// --- HELPER CLASS FOR CUSTOM ICON ---
-class ContainerIcon extends StatelessWidget {
-  final IconData icon;
-  const ContainerIcon({super.key, required this.icon});
+// --- HELPER WIDGET FOR "SEE MORE / SEE LESS" ---
+class _ExpandableText extends StatefulWidget {
+  final String text;
+  const _ExpandableText({required this.text});
+
+  @override
+  State<_ExpandableText> createState() => _ExpandableTextState();
+}
+
+class _ExpandableTextState extends State<_ExpandableText> {
+  bool isExpanded = false;
+  static const int maxLines = 3;
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(4),
-      decoration: BoxDecoration(
-        color: Colors.blue.shade50,
-        shape: BoxShape.circle,
-      ),
-      child: Icon(icon, size: 24, color: Colors.blue),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final span = TextSpan(
+          text: widget.text,
+          style: TextStyle(
+            fontSize: 14,
+            height: 1.5,
+            color: Colors.black87.withOpacity(0.8),
+          ),
+        );
+
+        final tp = TextPainter(
+          text: span,
+          maxLines: maxLines,
+          textDirection: TextDirection.ltr,
+        );
+        tp.layout(maxWidth: constraints.maxWidth);
+
+        if (tp.didExceedMaxLines) {
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                widget.text,
+                maxLines: isExpanded ? null : maxLines,
+                overflow: isExpanded
+                    ? TextOverflow.visible
+                    : TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontSize: 14,
+                  height: 1.5,
+                  color: Colors.black87.withOpacity(0.8),
+                ),
+              ),
+              const SizedBox(height: 4),
+              GestureDetector(
+                onTap: () {
+                  setState(() {
+                    isExpanded = !isExpanded;
+                  });
+                },
+                child: Text(
+                  isExpanded ? "See Less" : "See More",
+                  style: const TextStyle(
+                    color: Colors.blue,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 13,
+                  ),
+                ),
+              ),
+            ],
+          );
+        } else {
+          return Text(
+            widget.text,
+            style: TextStyle(
+              fontSize: 14,
+              height: 1.5,
+              color: Colors.black87.withOpacity(0.8),
+            ),
+          );
+        }
+      },
     );
   }
 }
 
-// --- PHONE FRAME ---
+// --- PHONE FRAME WRAPPER ---
 class PhoneFrame extends StatelessWidget {
   final Widget child;
   const PhoneFrame({super.key, required this.child});
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(

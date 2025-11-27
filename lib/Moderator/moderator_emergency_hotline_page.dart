@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart'; // For web check
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'moderator_nav.dart';
@@ -16,6 +17,10 @@ class _ModeratorEmergencyHotlinePageState
   final FirebaseFirestore _db = FirebaseFirestore.instance;
   final TextEditingController _searchController = TextEditingController();
   String _searchQuery = '';
+
+  // Global Key for Snackbars to ensure they show inside the PhoneFrame
+  final GlobalKey<ScaffoldMessengerState> _scaffoldMessengerKey =
+      GlobalKey<ScaffoldMessengerState>();
 
   // Stream to listen to changes in real-time
   final Stream<QuerySnapshot> _hotlinesStream = FirebaseFirestore.instance
@@ -57,6 +62,21 @@ class _ModeratorEmergencyHotlinePageState
     });
   }
 
+  // --- HELPER: Show Snackbar inside Frame ---
+  void _showSnackBar(String message, Color color) {
+    _scaffoldMessengerKey.currentState?.showSnackBar(
+      SnackBar(
+        content: Text(message, style: const TextStyle(color: Colors.white)),
+        backgroundColor: color,
+        behavior: SnackBarBehavior.floating,
+        margin: const EdgeInsets.all(16),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+      ),
+    );
+  }
+
+  // --- DIALOGS ---
+
   // Enhanced Add Hotline Dialog
   Future<void> _showAddHotlineDialog({String? presetType}) async {
     final nameController = TextEditingController();
@@ -64,12 +84,22 @@ class _ModeratorEmergencyHotlinePageState
     String selectedType = presetType ?? 'national';
     bool isUrgent = false;
 
-    final entered = await showDialog<Map<String, dynamic>>(
+    await showDialog(
       context: context,
+      useRootNavigator: false, // Keep inside Phone Frame
       builder: (ctx) => StatefulBuilder(
         builder: (context, setDialogState) {
           return AlertDialog(
-            title: const Text('Add Emergency Hotline'),
+            backgroundColor: Colors.white,
+            surfaceTintColor: Colors.white,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(20),
+            ),
+            title: _buildDialogTitle(
+              Icons.add_call,
+              'Add Hotline',
+              Colors.blue,
+            ),
             content: SingleChildScrollView(
               child: Padding(
                 padding: EdgeInsets.only(
@@ -77,38 +107,44 @@ class _ModeratorEmergencyHotlinePageState
                 ),
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    TextField(
+                    _buildTextField(
                       controller: nameController,
-                      decoration: const InputDecoration(
-                        labelText: 'Name / Service',
-                      ),
+                      label: 'Name / Service',
+                      icon: Icons.label_outline,
                     ),
                     const SizedBox(height: 12),
-                    TextField(
+                    _buildTextField(
                       controller: numberController,
-                      decoration: const InputDecoration(
-                        labelText: 'Phone Number',
-                      ),
-                      keyboardType: TextInputType.phone,
+                      label: 'Phone Number',
+                      icon: Icons.phone_outlined,
+                      inputType: TextInputType.phone,
                     ),
                     const SizedBox(height: 16),
                     const Text(
-                      'Select Hotline Type:',
+                      'Hotline Type:',
                       style: TextStyle(
                         fontWeight: FontWeight.bold,
                         fontSize: 14,
+                        color: Colors.black87,
                       ),
                     ),
                     const SizedBox(height: 8),
                     Wrap(
                       spacing: 8,
                       children: ['national', 'local', 'barangay'].map((type) {
+                        final isSelected = selectedType == type;
                         return ChoiceChip(
                           label: Text(
                             type[0].toUpperCase() + type.substring(1),
+                            style: TextStyle(
+                              color: isSelected ? Colors.white : Colors.black87,
+                            ),
                           ),
-                          selected: selectedType == type,
+                          selected: isSelected,
+                          selectedColor: Colors.blue,
+                          backgroundColor: Colors.grey.shade100,
                           onSelected: (selected) {
                             setDialogState(() {
                               selectedType = type;
@@ -122,13 +158,17 @@ class _ModeratorEmergencyHotlinePageState
                       children: [
                         Checkbox(
                           value: isUrgent,
+                          activeColor: Colors.red,
                           onChanged: (value) {
                             setDialogState(() {
                               isUrgent = value ?? false;
                             });
                           },
                         ),
-                        const Text('Mark as urgent'),
+                        const Text(
+                          'Mark as urgent',
+                          style: TextStyle(color: Colors.black87),
+                        ),
                       ],
                     ),
                   ],
@@ -137,18 +177,30 @@ class _ModeratorEmergencyHotlinePageState
             ),
             actions: [
               TextButton(
-                onPressed: () => Navigator.of(ctx).pop(null),
-                child: const Text('Cancel'),
+                onPressed: () => Navigator.of(ctx).pop(),
+                child: const Text(
+                  'Cancel',
+                  style: TextStyle(color: Colors.grey),
+                ),
               ),
-              TextButton(
-                onPressed: () {
-                  Navigator.of(ctx).pop({
-                    'name': nameController.text.trim(),
-                    'number': numberController.text.trim(),
-                    'type': selectedType,
-                    'isUrgent': isUrgent,
-                  });
+              ElevatedButton(
+                onPressed: () async {
+                  if (nameController.text.isEmpty ||
+                      numberController.text.isEmpty) {
+                    return;
+                  }
+                  await _addHotline(
+                    nameController.text,
+                    numberController.text,
+                    selectedType,
+                    isUrgent,
+                  );
+                  Navigator.of(ctx).pop();
                 },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.blue,
+                  foregroundColor: Colors.white,
+                ),
                 child: const Text('Save'),
               ),
             ],
@@ -156,41 +208,25 @@ class _ModeratorEmergencyHotlinePageState
         },
       ),
     );
+  }
 
-    nameController.dispose();
-    numberController.dispose();
-
-    if (entered != null) {
-      if (!mounted) return;
-      final scaffold = ScaffoldMessenger.of(context);
-      final name = entered['name']?.toString().trim() ?? '';
-      final number = entered['number']?.toString().trim() ?? '';
-      final type = entered['type']?.toString() ?? 'national';
-      final isUrgentValue = entered['isUrgent'] == true;
-
-      if (name.isEmpty || number.isEmpty) {
-        scaffold.showSnackBar(
-          const SnackBar(content: Text('Please fill all fields')),
-        );
-        return;
-      }
-
-      try {
-        // Just add to DB, StreamBuilder will update UI automatically
-        await _db.collection('hotlines').add({
-          'name': name,
-          'number': number,
-          'type': type,
-          'isUrgent': isUrgentValue,
-          'createdAt': FieldValue.serverTimestamp(),
-        });
-
-        scaffold.showSnackBar(const SnackBar(content: Text('Hotline added')));
-      } catch (e) {
-        scaffold.showSnackBar(
-          SnackBar(content: Text('Failed to add hotline: $e')),
-        );
-      }
+  Future<void> _addHotline(
+    String name,
+    String number,
+    String type,
+    bool isUrgent,
+  ) async {
+    try {
+      await _db.collection('hotlines').add({
+        'name': name.trim(),
+        'number': number.trim(),
+        'type': type,
+        'isUrgent': isUrgent,
+        'createdAt': FieldValue.serverTimestamp(),
+      });
+      _showSnackBar('Hotline Added Successfully', Colors.green);
+    } catch (e) {
+      _showSnackBar('Failed to add hotline: $e', Colors.red);
     }
   }
 
@@ -200,13 +236,24 @@ class _ModeratorEmergencyHotlinePageState
     final numberController = TextEditingController(text: hotline['number']);
     String selectedType = hotline['type'] ?? 'national';
     bool isUrgent = hotline['isUrgent'] == true;
+    final hotlineId = hotline['id'];
 
-    final entered = await showDialog<Map<String, dynamic>>(
+    await showDialog(
       context: context,
+      useRootNavigator: false,
       builder: (ctx) => StatefulBuilder(
         builder: (context, setDialogState) {
           return AlertDialog(
-            title: const Text('Edit Hotline'),
+            backgroundColor: Colors.white,
+            surfaceTintColor: Colors.white,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(20),
+            ),
+            title: _buildDialogTitle(
+              Icons.edit_rounded,
+              'Edit Hotline',
+              Colors.orange,
+            ),
             content: SingleChildScrollView(
               child: Padding(
                 padding: EdgeInsets.only(
@@ -214,20 +261,19 @@ class _ModeratorEmergencyHotlinePageState
                 ),
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    TextField(
+                    _buildTextField(
                       controller: nameController,
-                      decoration: const InputDecoration(
-                        labelText: 'Name / Service',
-                      ),
+                      label: 'Name / Service',
+                      icon: Icons.label_outline,
                     ),
                     const SizedBox(height: 12),
-                    TextField(
+                    _buildTextField(
                       controller: numberController,
-                      decoration: const InputDecoration(
-                        labelText: 'Phone Number',
-                      ),
-                      keyboardType: TextInputType.phone,
+                      label: 'Phone Number',
+                      icon: Icons.phone_outlined,
+                      inputType: TextInputType.phone,
                     ),
                     const SizedBox(height: 16),
                     const Text(
@@ -235,17 +281,24 @@ class _ModeratorEmergencyHotlinePageState
                       style: TextStyle(
                         fontWeight: FontWeight.bold,
                         fontSize: 14,
+                        color: Colors.black87,
                       ),
                     ),
                     const SizedBox(height: 8),
                     Wrap(
                       spacing: 8,
                       children: ['national', 'local', 'barangay'].map((type) {
+                        final isSelected = selectedType == type;
                         return ChoiceChip(
                           label: Text(
                             type[0].toUpperCase() + type.substring(1),
+                            style: TextStyle(
+                              color: isSelected ? Colors.white : Colors.black87,
+                            ),
                           ),
-                          selected: selectedType == type,
+                          selected: isSelected,
+                          selectedColor: Colors.orange,
+                          backgroundColor: Colors.grey.shade100,
                           onSelected: (selected) {
                             setDialogState(() {
                               selectedType = type;
@@ -259,13 +312,17 @@ class _ModeratorEmergencyHotlinePageState
                       children: [
                         Checkbox(
                           value: isUrgent,
+                          activeColor: Colors.red,
                           onChanged: (value) {
                             setDialogState(() {
                               isUrgent = value ?? false;
                             });
                           },
                         ),
-                        const Text('Mark as urgent'),
+                        const Text(
+                          'Mark as urgent',
+                          style: TextStyle(color: Colors.black87),
+                        ),
                       ],
                     ),
                   ],
@@ -274,82 +331,92 @@ class _ModeratorEmergencyHotlinePageState
             ),
             actions: [
               TextButton(
-                onPressed: () => Navigator.of(ctx).pop(null),
-                child: const Text('Cancel'),
+                onPressed: () => Navigator.of(ctx).pop(),
+                child: const Text(
+                  'Cancel',
+                  style: TextStyle(color: Colors.grey),
+                ),
               ),
-              TextButton(
-                onPressed: () {
-                  Navigator.of(ctx).pop({
-                    'name': nameController.text.trim(),
-                    'number': numberController.text.trim(),
-                    'type': selectedType,
-                    'isUrgent': isUrgent,
-                  });
+              ElevatedButton(
+                onPressed: () async {
+                  if (nameController.text.isEmpty ||
+                      numberController.text.isEmpty) {
+                    return;
+                  }
+                  await _updateHotline(
+                    hotlineId,
+                    nameController.text,
+                    numberController.text,
+                    selectedType,
+                    isUrgent,
+                  );
+                  Navigator.of(ctx).pop();
                 },
-                child: const Text('Save'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.orange,
+                  foregroundColor: Colors.white,
+                ),
+                child: const Text('Update'),
               ),
             ],
           );
         },
       ),
     );
+  }
 
-    nameController.dispose();
-    numberController.dispose();
-
-    if (entered != null) {
-      if (!mounted) return;
-      final scaffold = ScaffoldMessenger.of(context);
-      final newName = entered['name']?.toString().trim() ?? '';
-      final newNumber = entered['number']?.toString().trim() ?? '';
-      final newType = entered['type']?.toString() ?? 'national';
-      final newIsUrgent = entered['isUrgent'] == true;
-      final hotlineId = hotline['id'];
-
-      if (newName.isEmpty || newNumber.isEmpty) {
-        scaffold.showSnackBar(
-          const SnackBar(content: Text('Please fill all fields')),
-        );
-        return;
-      }
-
-      try {
-        // Just update DB, StreamBuilder updates UI
-        await _db.collection('hotlines').doc(hotlineId).update({
-          'name': newName,
-          'number': newNumber,
-          'type': newType,
-          'isUrgent': newIsUrgent,
-          'updatedAt': FieldValue.serverTimestamp(),
-        });
-
-        scaffold.showSnackBar(const SnackBar(content: Text('Hotline updated')));
-      } catch (e) {
-        scaffold.showSnackBar(
-          SnackBar(content: Text('Failed to update hotline: $e')),
-        );
-      }
+  Future<void> _updateHotline(
+    String id,
+    String name,
+    String number,
+    String type,
+    bool isUrgent,
+  ) async {
+    try {
+      await _db.collection('hotlines').doc(id).update({
+        'name': name.trim(),
+        'number': number.trim(),
+        'type': type,
+        'isUrgent': isUrgent,
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+      _showSnackBar('Hotline Updated Successfully', Colors.green);
+    } catch (e) {
+      _showSnackBar('Failed to update: $e', Colors.red);
     }
   }
 
   // Delete Hotline
   Future<void> _deleteHotline(Map<String, dynamic> hotline) async {
     final id = hotline['id'];
-    final scaffold = ScaffoldMessenger.of(context);
 
     final confirmDelete = await showDialog<bool>(
       context: context,
+      useRootNavigator: false,
       builder: (ctx) => AlertDialog(
-        title: const Text('Confirm Deletion'),
-        content: Text('Are you sure you want to delete "${hotline['name']}"?'),
+        backgroundColor: Colors.white,
+        surfaceTintColor: Colors.white,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text(
+          'Confirm Deletion',
+          style: TextStyle(fontWeight: FontWeight.bold),
+        ),
+        content: Text(
+          'Are you sure you want to delete "${hotline['name']}"?',
+          style: const TextStyle(color: Colors.black87),
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(false),
-            child: const Text('Cancel'),
+            child: const Text('Cancel', style: TextStyle(color: Colors.grey)),
           ),
-          TextButton(
+          ElevatedButton(
             onPressed: () => Navigator.of(ctx).pop(true),
-            child: const Text('Delete', style: TextStyle(color: Colors.red)),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red,
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('Delete'),
           ),
         ],
       ),
@@ -357,16 +424,78 @@ class _ModeratorEmergencyHotlinePageState
 
     if (confirmDelete == true && id != null) {
       try {
-        // Just delete from DB, StreamBuilder updates UI
         await _db.collection('hotlines').doc(id).delete();
-        scaffold.showSnackBar(const SnackBar(content: Text('Hotline deleted')));
+        _showSnackBar('Hotline Deleted', Colors.red);
       } catch (e) {
-        scaffold.showSnackBar(SnackBar(content: Text('Failed to delete: $e')));
+        _showSnackBar('Failed to delete: $e', Colors.red);
       }
     }
   }
 
-  // Widget Builders
+  // --- WIDGET BUILDERS ---
+
+  Widget _buildDialogTitle(IconData icon, String title, MaterialColor color) {
+    return Row(
+      children: [
+        Container(
+          padding: const EdgeInsets.all(8),
+          decoration: BoxDecoration(
+            color: color.shade50,
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Icon(icon, color: color.shade700, size: 28),
+        ),
+        const SizedBox(width: 16),
+        Text(
+          title,
+          style: const TextStyle(
+            color: Colors.black87,
+            fontSize: 22,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildTextField({
+    required TextEditingController controller,
+    required String label,
+    IconData? icon,
+    TextInputType inputType = TextInputType.text,
+  }) {
+    return TextField(
+      controller: controller,
+      style: const TextStyle(color: Colors.black87),
+      keyboardType: inputType,
+      decoration: InputDecoration(
+        labelText: label,
+        filled: true,
+        fillColor: Colors.grey.shade50,
+        prefixIcon: icon != null
+            ? Icon(icon, color: Colors.blue.shade700)
+            : null,
+        labelStyle: TextStyle(color: Colors.grey.shade700),
+        contentPadding: const EdgeInsets.symmetric(
+          vertical: 16,
+          horizontal: 20,
+        ),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide(color: Colors.grey.shade300),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide(color: Colors.grey.shade200),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide(color: Colors.blue.shade700, width: 2),
+        ),
+      ),
+    );
+  }
+
   Widget _buildHeader() {
     return Container(
       decoration: BoxDecoration(
@@ -444,6 +573,8 @@ class _ModeratorEmergencyHotlinePageState
       child: TextField(
         controller: _searchController,
         onChanged: _updateSearch,
+        // Fixed: Black text color
+        style: const TextStyle(color: Colors.black),
         decoration: InputDecoration(
           hintText: "Search hotline...",
           hintStyle: TextStyle(color: Colors.grey.shade400, fontSize: 14),
@@ -477,13 +608,24 @@ class _ModeratorEmergencyHotlinePageState
             ),
           ),
           const Spacer(),
-          IconButton(
-            onPressed: () => _showAddHotlineDialog(presetType: presetType),
-            icon: const Icon(Icons.add, size: 20),
-            color: Colors.blue,
-            tooltip: addTooltip,
-            padding: EdgeInsets.zero,
-            constraints: const BoxConstraints(),
+          // Fixed: Tooltip inside frame with white background and black text
+          Tooltip(
+            message: addTooltip ?? "Add",
+            textStyle: const TextStyle(color: Colors.black, fontSize: 12),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(8),
+              boxShadow: [
+                BoxShadow(color: Colors.black.withOpacity(0.1), blurRadius: 4),
+              ],
+            ),
+            child: IconButton(
+              onPressed: () => _showAddHotlineDialog(presetType: presetType),
+              icon: const Icon(Icons.add, size: 20),
+              color: Colors.blue,
+              padding: EdgeInsets.zero,
+              constraints: const BoxConstraints(),
+            ),
           ),
         ],
       ),
@@ -546,6 +688,7 @@ class _ModeratorEmergencyHotlinePageState
           ),
         ),
         trailing: PopupMenuButton<String>(
+          color: Colors.white, // Fixed: White background
           onSelected: (value) {
             if (value == 'edit') {
               _showEditHotlineDialog(item);
@@ -558,9 +701,10 @@ class _ModeratorEmergencyHotlinePageState
               value: 'edit',
               child: Row(
                 children: [
-                  Icon(Icons.edit, size: 20),
+                  Icon(Icons.edit, size: 20, color: Colors.grey),
                   SizedBox(width: 8),
-                  Text('Edit'),
+                  // Fixed: Black text for Edit
+                  Text('Edit', style: TextStyle(color: Colors.black)),
                 ],
               ),
             ),
@@ -617,207 +761,273 @@ class _ModeratorEmergencyHotlinePageState
     );
   }
 
-  Widget _buildBottomNavBar() {
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 10,
-            offset: const Offset(0, -5),
+  @override
+  Widget build(BuildContext context) {
+    // 1. Mobile Content Wrapped in ScaffoldMessenger for Snackbars
+    Widget mobileContent = ScaffoldMessenger(
+      key: _scaffoldMessengerKey,
+      child: Scaffold(
+        backgroundColor: const Color(0xFFF8F9FA),
+        body: SafeArea(
+          child: Column(
+            children: [
+              _buildHeader(),
+              Expanded(
+                child: StreamBuilder<QuerySnapshot>(
+                  stream: _hotlinesStream,
+                  builder: (context, snapshot) {
+                    if (snapshot.connectionState == ConnectionState.waiting) {
+                      return const Center(
+                        child: Padding(
+                          padding: EdgeInsets.all(40.0),
+                          child: CircularProgressIndicator(),
+                        ),
+                      );
+                    }
+                    if (snapshot.hasError) {
+                      return Center(child: Text("Error: ${snapshot.error}"));
+                    }
+
+                    final docs = snapshot.data?.docs ?? [];
+                    final allItems = docs.map((d) {
+                      final data = d.data() as Map<String, dynamic>;
+                      return {
+                        'id': d.id,
+                        'name': (data['name'] ?? '').toString(),
+                        'number': (data['number'] ?? '').toString(),
+                        'type': (data['type'] ?? 'national').toString(),
+                        'isUrgent': data['isUrgent'] == true,
+                        'icon': _getIconForType(
+                          (data['type'] ?? 'national').toString(),
+                        ),
+                      };
+                    }).toList();
+
+                    // Apply Search Filter
+                    final filteredItems = _searchQuery.isEmpty
+                        ? allItems
+                        : allItems.where((h) {
+                            final name = h['name'].toString().toLowerCase();
+                            final num = h['number'].toString().toLowerCase();
+                            return name.contains(_searchQuery) ||
+                                num.contains(_searchQuery);
+                          }).toList();
+
+                    final nationalHotlines = filteredItems
+                        .where((i) => i['type'] == 'national')
+                        .toList();
+                    final localHotlines = filteredItems
+                        .where((i) => i['type'] == 'local')
+                        .toList();
+                    final barangayHotlines = filteredItems
+                        .where((i) => i['type'] == 'barangay')
+                        .toList();
+
+                    // If searching and everything is empty, show "No results"
+                    if (_searchQuery.isNotEmpty && filteredItems.isEmpty) {
+                      return Center(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(
+                              Icons.search_off,
+                              size: 50,
+                              color: Colors.grey.shade300,
+                            ),
+                            const SizedBox(height: 16),
+                            Text(
+                              "No hotlines found for \"$_searchQuery\"",
+                              style: TextStyle(color: Colors.grey.shade500),
+                            ),
+                          ],
+                        ),
+                      );
+                    }
+
+                    // Build UI
+                    return SingleChildScrollView(
+                      padding: const EdgeInsets.all(20),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          _buildSearchBar(),
+                          const SizedBox(height: 24),
+                          const Text(
+                            "Emergency Hotlines",
+                            style: TextStyle(
+                              fontSize: 20,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.black87,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            "Manage emergency contact numbers",
+                            style: TextStyle(
+                              color: Colors.grey.shade500,
+                              fontSize: 13,
+                            ),
+                          ),
+                          const SizedBox(height: 20),
+
+                          // Sections (Hide header if searching and empty)
+                          if (_searchQuery.isEmpty ||
+                              nationalHotlines.isNotEmpty) ...[
+                            _buildSectionTitle(
+                              "NATIONAL EMERGENCY",
+                              addTooltip: "Add National Hotline",
+                              presetType: "national",
+                            ),
+                            if (nationalHotlines.isEmpty)
+                              _buildEmptyState(
+                                "No national hotlines added yet",
+                                "national",
+                              )
+                            else
+                              ...nationalHotlines.map(
+                                (h) => _buildHotlineCard(h),
+                              ),
+                            const SizedBox(height: 20),
+                          ],
+
+                          if (_searchQuery.isEmpty ||
+                              localHotlines.isNotEmpty) ...[
+                            _buildSectionTitle(
+                              "LOCAL HOTLINES",
+                              addTooltip: "Add Local Hotline",
+                              presetType: "local",
+                            ),
+                            if (localHotlines.isEmpty)
+                              _buildEmptyState(
+                                "No local hotlines added yet",
+                                "local",
+                              )
+                            else
+                              ...localHotlines.map((h) => _buildHotlineCard(h)),
+                            const SizedBox(height: 20),
+                          ],
+
+                          if (_searchQuery.isEmpty ||
+                              barangayHotlines.isNotEmpty) ...[
+                            _buildSectionTitle(
+                              "BARANGAY HOTLINES",
+                              addTooltip: "Add Barangay Hotline",
+                              presetType: "barangay",
+                            ),
+                            if (barangayHotlines.isEmpty)
+                              _buildEmptyState(
+                                "No barangay hotlines added yet",
+                                "barangay",
+                              )
+                            else
+                              ...barangayHotlines.map(
+                                (h) => _buildHotlineCard(h),
+                              ),
+                            const SizedBox(height: 20),
+                          ],
+                        ],
+                      ),
+                    );
+                  },
+                ),
+              ),
+            ],
           ),
-        ],
-      ),
-      child: BottomNavigationBar(
-        currentIndex: 1,
-        type: BottomNavigationBarType.fixed,
-        selectedItemColor: Colors.blue,
-        unselectedItemColor: Colors.grey.shade400,
-        backgroundColor: Colors.white,
-        showSelectedLabels: true,
-        showUnselectedLabels: true,
-        selectedLabelStyle: const TextStyle(
-          fontWeight: FontWeight.w600,
-          fontSize: 12,
         ),
-        unselectedLabelStyle: const TextStyle(
-          fontWeight: FontWeight.w500,
-          fontSize: 12,
+        bottomNavigationBar: Container(
+          decoration: BoxDecoration(
+            color: Colors.white,
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.05),
+                blurRadius: 10,
+                offset: const Offset(0, -5),
+              ),
+            ],
+          ),
+          child: BottomNavigationBar(
+            currentIndex: 1,
+            type: BottomNavigationBarType.fixed,
+            selectedItemColor: Colors.blue,
+            unselectedItemColor: Colors.grey.shade400,
+            backgroundColor: Colors.white,
+            onTap: _onItemTapped,
+            items: const [
+              BottomNavigationBarItem(
+                icon: Icon(Icons.home_rounded),
+                label: 'Home',
+              ),
+              BottomNavigationBarItem(
+                icon: Icon(Icons.phone_rounded),
+                label: 'Emergency',
+              ),
+              BottomNavigationBarItem(
+                icon: Icon(Icons.campaign_rounded),
+                label: 'Updates',
+              ),
+              BottomNavigationBarItem(
+                icon: Icon(Icons.people_alt_rounded),
+                label: 'People',
+              ),
+              BottomNavigationBarItem(
+                icon: Icon(Icons.person_rounded),
+                label: 'Profile',
+              ),
+            ],
+          ),
         ),
-        elevation: 0,
-        onTap: _onItemTapped,
-        items: const [
-          BottomNavigationBarItem(
-            icon: Icon(Icons.home_rounded),
-            label: 'Home',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.phone_rounded),
-            label: 'Emergency',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.campaign_rounded),
-            label: 'Updates',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.people_alt_rounded),
-            label: 'People',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.person_rounded),
-            label: 'Profile',
-          ),
-        ],
       ),
     );
-  }
 
+    // 2. Wrap for Web to constrain Dialogs/Overlays inside Phone Frame
+    if (kIsWeb) {
+      return PhoneFrame(
+        child: MaterialApp(
+          debugShowCheckedModeBanner: false,
+          theme: ThemeData(
+            scaffoldBackgroundColor: const Color(0xFFF8F9FA),
+            primarySwatch: Colors.blue,
+            useMaterial3: true,
+          ),
+          home: mobileContent,
+        ),
+      );
+    }
+
+    return mobileContent;
+  }
+}
+
+// --- PHONE FRAME (For Web Preview) ---
+class PhoneFrame extends StatelessWidget {
+  final Widget child;
+  const PhoneFrame({super.key, required this.child});
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF8F9FA),
-      body: SafeArea(
-        child: Column(
-          children: [
-            _buildHeader(),
-            Expanded(
-              child: StreamBuilder<QuerySnapshot>(
-                stream: _hotlinesStream,
-                builder: (context, snapshot) {
-                  // 1. LOADING STATE: Show loader (not empty state)
-                  if (snapshot.connectionState == ConnectionState.waiting) {
-                    return const Center(
-                      child: Padding(
-                        padding: EdgeInsets.all(40.0),
-                        child: CircularProgressIndicator(),
-                      ),
-                    );
-                  }
-
-                  // 2. ERROR STATE
-                  if (snapshot.hasError) {
-                    return Center(child: Text("Error: ${snapshot.error}"));
-                  }
-
-                  // 3. LOADED STATE: Process Data
-                  final docs = snapshot.data?.docs ?? [];
-                  final allItems = docs.map((d) {
-                    final data = d.data() as Map<String, dynamic>;
-                    return {
-                      'id': d.id,
-                      'name': (data['name'] ?? '').toString(),
-                      'number': (data['number'] ?? '').toString(),
-                      'type': (data['type'] ?? 'national').toString(),
-                      'isUrgent': data['isUrgent'] == true,
-                      'icon': _getIconForType(
-                        (data['type'] ?? 'national').toString(),
-                      ),
-                    };
-                  }).toList();
-
-                  // Apply search filter
-                  final filteredItems = _searchQuery.isEmpty
-                      ? allItems
-                      : allItems.where((h) {
-                          final name = h['name'].toString().toLowerCase();
-                          final num = h['number'].toString().toLowerCase();
-                          return name.contains(_searchQuery) ||
-                              num.contains(_searchQuery);
-                        }).toList();
-
-                  // Categorize
-                  final nationalHotlines = filteredItems
-                      .where((i) => i['type'] == 'national')
-                      .toList();
-                  final localHotlines = filteredItems
-                      .where((i) => i['type'] == 'local')
-                      .toList();
-                  final barangayHotlines = filteredItems
-                      .where((i) => i['type'] == 'barangay')
-                      .toList();
-
-                  // 4. BUILD UI
-                  return SingleChildScrollView(
-                    padding: const EdgeInsets.all(20),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        _buildSearchBar(),
-                        const SizedBox(height: 24),
-                        const Text(
-                          "Emergency Hotlines",
-                          style: TextStyle(
-                            fontSize: 20,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.black87,
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          "Manage emergency contact numbers",
-                          style: TextStyle(
-                            color: Colors.grey.shade500,
-                            fontSize: 13,
-                          ),
-                        ),
-                        const SizedBox(height: 20),
-
-                        // NATIONAL
-                        _buildSectionTitle(
-                          "NATIONAL EMERGENCY",
-                          addTooltip: "Add National Hotline",
-                          presetType: "national",
-                        ),
-                        if (nationalHotlines.isEmpty)
-                          _buildEmptyState(
-                            "No national hotlines added yet",
-                            "national",
-                          )
-                        else
-                          ...nationalHotlines.map((h) => _buildHotlineCard(h)),
-                        const SizedBox(height: 20),
-
-                        // LOCAL
-                        _buildSectionTitle(
-                          "LOCAL HOTLINES",
-                          addTooltip: "Add Local Hotline",
-                          presetType: "local",
-                        ),
-                        if (localHotlines.isEmpty)
-                          _buildEmptyState(
-                            "No local hotlines added yet",
-                            "local",
-                          )
-                        else
-                          ...localHotlines.map((h) => _buildHotlineCard(h)),
-                        const SizedBox(height: 20),
-
-                        // BARANGAY
-                        _buildSectionTitle(
-                          "BARANGAY HOTLINES",
-                          addTooltip: "Add Barangay Hotline",
-                          presetType: "barangay",
-                        ),
-                        if (barangayHotlines.isEmpty)
-                          _buildEmptyState(
-                            "No barangay hotlines added yet",
-                            "barangay",
-                          )
-                        else
-                          ...barangayHotlines.map((h) => _buildHotlineCard(h)),
-
-                        const SizedBox(height: 20),
-                      ],
-                    ),
-                  );
-                },
+      backgroundColor: const Color(0xFFF2F2F7),
+      body: Center(
+        child: Container(
+          width: 375,
+          height: 812,
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(40),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.1),
+                blurRadius: 30,
+                spreadRadius: 5,
+                offset: const Offset(0, 10),
               ),
-            ),
-          ],
+            ],
+          ),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(40),
+            child: child,
+          ),
         ),
       ),
-      bottomNavigationBar: _buildBottomNavBar(),
     );
   }
 }

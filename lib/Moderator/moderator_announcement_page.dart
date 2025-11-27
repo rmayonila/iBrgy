@@ -22,7 +22,7 @@ class _ModeratorAnnouncementPageState extends State<ModeratorAnnouncementPage> {
   final TextEditingController _searchController = TextEditingController();
   final ImagePicker _picker = ImagePicker();
 
-  // Key to force SnackBars to show INSIDE the phone frame
+  // Key to force Snackbars to show INSIDE the phone frame
   final GlobalKey<ScaffoldMessengerState> _scaffoldMessengerKey =
       GlobalKey<ScaffoldMessengerState>();
 
@@ -71,6 +71,19 @@ class _ModeratorAnnouncementPageState extends State<ModeratorAnnouncementPage> {
     return 'recently';
   }
 
+  // --- HELPER: Show Snackbar inside Frame ---
+  void _showSnackBar(String message, Color color) {
+    _scaffoldMessengerKey.currentState?.showSnackBar(
+      SnackBar(
+        content: Text(message, style: const TextStyle(color: Colors.white)),
+        backgroundColor: color,
+        behavior: SnackBarBehavior.floating,
+        margin: const EdgeInsets.all(16),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+      ),
+    );
+  }
+
   // --- HELPER: CONVERT IMAGE TO BASE64 ---
   Future<String> _imageToBase64(XFile imageFile) async {
     try {
@@ -79,6 +92,46 @@ class _ModeratorAnnouncementPageState extends State<ModeratorAnnouncementPage> {
     } catch (e) {
       return '';
     }
+  }
+
+  // --- HELPER: SHOW FULL IMAGE MODAL ---
+  // Updated to accept context so it opens inside the specific navigator (PhoneFrame)
+  void _showFullImageDialog(BuildContext context, ImageProvider imageProvider) {
+    showDialog(
+      context: context, // Use the context passed from Builder
+      useRootNavigator: false, // Keep inside PhoneFrame
+      builder: (ctx) => Dialog(
+        backgroundColor: Colors.transparent,
+        insetPadding: EdgeInsets.zero, // Full screen inside the frame
+        child: Stack(
+          alignment: Alignment.center,
+          children: [
+            // InteractiveViewer allows zooming/panning
+            InteractiveViewer(
+              minScale: 0.5,
+              maxScale: 4.0,
+              child: Image(image: imageProvider, fit: BoxFit.contain),
+            ),
+            // Close Button
+            Positioned(
+              top: 20,
+              right: 20,
+              child: GestureDetector(
+                onTap: () => Navigator.of(ctx).pop(),
+                child: Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: const BoxDecoration(
+                    color: Colors.black54,
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(Icons.close, color: Colors.white, size: 24),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   // --- CRUD: IMPORTANT REMINDERS ---
@@ -126,6 +179,7 @@ class _ModeratorAnnouncementPageState extends State<ModeratorAnnouncementPage> {
 
     await showDialog(
       context: context,
+      useRootNavigator: false,
       builder: (ctx) => AlertDialog(
         backgroundColor: Colors.white,
         surfaceTintColor: Colors.white,
@@ -202,9 +256,7 @@ class _ModeratorAnnouncementPageState extends State<ModeratorAnnouncementPage> {
               final content = contentController.text.trim();
 
               if (title.isEmpty || content.isEmpty) {
-                _scaffoldMessengerKey.currentState?.showSnackBar(
-                  const SnackBar(content: Text('Please fill all fields')),
-                );
+                _showSnackBar('Please fill all fields', Colors.red);
                 return;
               }
 
@@ -221,9 +273,7 @@ class _ModeratorAnnouncementPageState extends State<ModeratorAnnouncementPage> {
                         'content': content,
                         'updatedAt': FieldValue.serverTimestamp(),
                       });
-                  _scaffoldMessengerKey.currentState?.showSnackBar(
-                    const SnackBar(content: Text('Reminder updated')),
-                  );
+                  _showSnackBar('Reminder Updated Successfully', Colors.green);
                 } else {
                   await _db.collection('important_reminders').add({
                     'title': title,
@@ -231,14 +281,10 @@ class _ModeratorAnnouncementPageState extends State<ModeratorAnnouncementPage> {
                     'createdAt': FieldValue.serverTimestamp(),
                     'author': 'Admin',
                   });
-                  _scaffoldMessengerKey.currentState?.showSnackBar(
-                    const SnackBar(content: Text('Reminder added')),
-                  );
+                  _showSnackBar('Reminder Added Successfully', Colors.green);
                 }
               } catch (e) {
-                _scaffoldMessengerKey.currentState?.showSnackBar(
-                  SnackBar(content: Text('Error: $e')),
-                );
+                _showSnackBar('Error: $e', Colors.red);
               }
             },
             style: ElevatedButton.styleFrom(
@@ -262,17 +308,30 @@ class _ModeratorAnnouncementPageState extends State<ModeratorAnnouncementPage> {
   Future<void> _deleteReminder(String docId) async {
     final confirm = await showDialog<bool>(
       context: context,
+      useRootNavigator: false,
       builder: (ctx) => AlertDialog(
-        title: const Text('Delete Reminder'),
-        content: const Text('Are you sure you want to delete this reminder?'),
+        backgroundColor: Colors.white,
+        surfaceTintColor: Colors.white,
+        title: const Text(
+          'Delete Reminder',
+          style: TextStyle(fontWeight: FontWeight.bold),
+        ),
+        content: const Text(
+          'Are you sure you want to delete this reminder?',
+          style: TextStyle(color: Colors.black87),
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(false),
-            child: const Text('Cancel'),
+            child: const Text('Cancel', style: TextStyle(color: Colors.grey)),
           ),
-          TextButton(
+          ElevatedButton(
             onPressed: () => Navigator.of(ctx).pop(true),
-            child: const Text('Delete', style: TextStyle(color: Colors.red)),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red,
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('Delete'),
           ),
         ],
       ),
@@ -280,9 +339,7 @@ class _ModeratorAnnouncementPageState extends State<ModeratorAnnouncementPage> {
 
     if (confirm == true) {
       await _db.collection('important_reminders').doc(docId).delete();
-      _scaffoldMessengerKey.currentState?.showSnackBar(
-        const SnackBar(content: Text('Reminder deleted')),
-      );
+      _showSnackBar('Reminder Deleted', Colors.red);
     }
   }
 
@@ -311,6 +368,8 @@ class _ModeratorAnnouncementPageState extends State<ModeratorAnnouncementPage> {
         filled: true,
         fillColor: Colors.grey.shade50,
         contentPadding: const EdgeInsets.all(16),
+        labelStyle: TextStyle(color: Colors.grey.shade700),
+        hintStyle: TextStyle(color: Colors.grey.shade400),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
           borderSide: BorderSide(color: Colors.grey.shade300),
@@ -328,6 +387,7 @@ class _ModeratorAnnouncementPageState extends State<ModeratorAnnouncementPage> {
 
     await showDialog(
       context: context,
+      useRootNavigator: false,
       builder: (ctx) => StatefulBuilder(
         builder: (context, setDialogState) {
           // Helper to show selected image
@@ -421,6 +481,7 @@ class _ModeratorAnnouncementPageState extends State<ModeratorAnnouncementPage> {
                     style: const TextStyle(
                       fontWeight: FontWeight.bold,
                       fontSize: 20,
+                      color: Colors.black87,
                     ),
                   ),
                 ),
@@ -434,7 +495,7 @@ class _ModeratorAnnouncementPageState extends State<ModeratorAnnouncementPage> {
                   TextField(
                     controller: contentController,
                     maxLines: 5,
-                    style: const TextStyle(fontSize: 15),
+                    style: const TextStyle(fontSize: 15, color: Colors.black87),
                     decoration: buildBlueDecoration(
                       label: 'Content',
                       hint: "What's happening in the barangay?",
@@ -446,7 +507,6 @@ class _ModeratorAnnouncementPageState extends State<ModeratorAnnouncementPage> {
             actions: [
               Row(
                 children: [
-                  // --- ADD PHOTO BUTTON (Bottom Left) ---
                   IconButton(
                     onPressed: () async {
                       final XFile? image = await _picker.pickImage(
@@ -483,8 +543,6 @@ class _ModeratorAnnouncementPageState extends State<ModeratorAnnouncementPage> {
                       if (content.isEmpty &&
                           pickedImageFile == null &&
                           currentImageBase64 == null) {
-                        // Allow post if only image exists, or only text exists
-                        // But reject if both empty
                         return;
                       }
 
@@ -493,7 +551,6 @@ class _ModeratorAnnouncementPageState extends State<ModeratorAnnouncementPage> {
                       try {
                         await _ensureSignedIn();
 
-                        // Handle Image
                         String finalImageString = currentImageBase64 ?? '';
                         if (pickedImageFile != null) {
                           finalImageString = await _imageToBase64(
@@ -510,11 +567,9 @@ class _ModeratorAnnouncementPageState extends State<ModeratorAnnouncementPage> {
                                 'imageUrl': finalImageString,
                                 'updatedAt': FieldValue.serverTimestamp(),
                               });
-                          _scaffoldMessengerKey.currentState?.showSnackBar(
-                            const SnackBar(
-                              content: Text('Update edited successfully'),
-                              backgroundColor: Colors.green,
-                            ),
+                          _showSnackBar(
+                            'Update Edited Successfully',
+                            Colors.green,
                           );
                         } else {
                           await _db.collection('announcements').add({
@@ -523,20 +578,10 @@ class _ModeratorAnnouncementPageState extends State<ModeratorAnnouncementPage> {
                             'imageUrl': finalImageString,
                             'createdAt': FieldValue.serverTimestamp(),
                           });
-                          _scaffoldMessengerKey.currentState?.showSnackBar(
-                            const SnackBar(
-                              content: Text('Posted successfully'),
-                              backgroundColor: Colors.green,
-                            ),
-                          );
+                          _showSnackBar('Posted Successfully', Colors.green);
                         }
                       } catch (e) {
-                        _scaffoldMessengerKey.currentState?.showSnackBar(
-                          const SnackBar(
-                            content: Text('Error posting update'),
-                            backgroundColor: Colors.red,
-                          ),
-                        );
+                        _showSnackBar('Error posting update', Colors.red);
                       }
                     },
                     style: ElevatedButton.styleFrom(
@@ -565,17 +610,30 @@ class _ModeratorAnnouncementPageState extends State<ModeratorAnnouncementPage> {
   Future<void> _deleteUpdate(String docId) async {
     final confirm = await showDialog<bool>(
       context: context,
+      useRootNavigator: false,
       builder: (ctx) => AlertDialog(
-        title: const Text('Delete Update'),
-        content: const Text('Are you sure you want to delete this post?'),
+        backgroundColor: Colors.white,
+        surfaceTintColor: Colors.white,
+        title: const Text(
+          'Delete Update',
+          style: TextStyle(fontWeight: FontWeight.bold),
+        ),
+        content: const Text(
+          'Are you sure you want to delete this post?',
+          style: TextStyle(color: Colors.black87),
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(false),
-            child: const Text('Cancel'),
+            child: const Text('Cancel', style: TextStyle(color: Colors.grey)),
           ),
-          TextButton(
+          ElevatedButton(
             onPressed: () => Navigator.of(ctx).pop(true),
-            child: const Text('Delete', style: TextStyle(color: Colors.red)),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red,
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('Delete'),
           ),
         ],
       ),
@@ -583,12 +641,7 @@ class _ModeratorAnnouncementPageState extends State<ModeratorAnnouncementPage> {
 
     if (confirm == true) {
       await _db.collection('announcements').doc(docId).delete();
-      _scaffoldMessengerKey.currentState?.showSnackBar(
-        const SnackBar(
-          content: Text('Post deleted'),
-          backgroundColor: Colors.green,
-        ),
-      );
+      _showSnackBar('Post Deleted', Colors.red);
     }
   }
 
@@ -650,21 +703,12 @@ class _ModeratorAnnouncementPageState extends State<ModeratorAnnouncementPage> {
               ],
             ),
           ),
-          const Spacer(),
-          IconButton(
-            onPressed: () {},
-            icon: const Icon(
-              Icons.notifications_none_rounded,
-              color: Colors.black87,
-            ),
-          ),
         ],
       ),
     );
   }
 
   // --- SECTION HEADER ---
-  // Used for both "IMPORTANT REMINDERS" and "RECENT UPDATES"
   Widget _buildSectionTitle(String title, VoidCallback? onAdd) {
     final isReminder = title.contains("REMINDERS");
     final color = isReminder ? Colors.orange.shade800 : Colors.blue;
@@ -684,15 +728,10 @@ class _ModeratorAnnouncementPageState extends State<ModeratorAnnouncementPage> {
           ),
           const Spacer(),
           if (onAdd != null)
-            // Both buttons now use the same style: Icon only
             IconButton(
               onPressed: onAdd,
-              icon: Icon(
-                Icons.add, // Consistent icon style
-                size: 28,
-                color: color,
-              ),
-              tooltip: 'Add Item',
+              icon: Icon(Icons.add, size: 28, color: color),
+              tooltip: 'Add Post',
               padding: EdgeInsets.zero,
               constraints: const BoxConstraints(),
             ),
@@ -772,16 +811,9 @@ class _ModeratorAnnouncementPageState extends State<ModeratorAnnouncementPage> {
                       value: 'edit',
                       child: Row(
                         children: [
-                          Icon(
-                            Icons.edit,
-                            size: 18,
-                            color: Colors.black87,
-                          ), // Black icon
+                          Icon(Icons.edit, size: 18, color: Colors.black87),
                           SizedBox(width: 8),
-                          Text(
-                            'Edit',
-                            style: TextStyle(color: Colors.black87),
-                          ), // Black text
+                          Text('Edit', style: TextStyle(color: Colors.black87)),
                         ],
                       ),
                     ),
@@ -932,10 +964,10 @@ class _ModeratorAnnouncementPageState extends State<ModeratorAnnouncementPage> {
                     ],
                   ),
                 ),
-                // 6. & 7. THREE-DOT MENU FOR EDIT/DELETE
                 PopupMenuButton<String>(
                   padding: EdgeInsets.zero,
                   icon: Icon(Icons.more_horiz, color: Colors.grey.shade400),
+                  color: Colors.white,
                   onSelected: (value) {
                     if (value == 'edit') {
                       _showUpdateDialog(existingDoc: doc);
@@ -969,28 +1001,28 @@ class _ModeratorAnnouncementPageState extends State<ModeratorAnnouncementPage> {
               ],
             ),
             const SizedBox(height: 12),
-            Text(
-              data['content']?.toString() ?? '',
-              style: TextStyle(
-                fontSize: 14,
-                height: 1.5,
-                color: Colors.black87.withOpacity(0.8),
-              ),
-            ),
-            // Display Image if available
+            _ExpandableText(text: data['content']?.toString() ?? ''),
             if (getPostImage() != null) ...[
               const SizedBox(height: 12),
-              Container(
-                width: double.infinity,
-                height: 180,
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(12),
-                  color: Colors.grey.shade100,
-                  image: DecorationImage(
-                    image: getPostImage()!,
-                    fit: BoxFit.cover,
-                  ),
-                ),
+              // Use Builder to get a context inside the PhoneFrame structure
+              Builder(
+                builder: (context) {
+                  return GestureDetector(
+                    onTap: () => _showFullImageDialog(context, getPostImage()!),
+                    child: Container(
+                      width: double.infinity,
+                      height: 180,
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(12),
+                        color: Colors.grey.shade100,
+                        image: DecorationImage(
+                          image: getPostImage()!,
+                          fit: BoxFit.cover,
+                        ),
+                      ),
+                    ),
+                  );
+                },
               ),
             ],
           ],
@@ -1049,7 +1081,7 @@ class _ModeratorAnnouncementPageState extends State<ModeratorAnnouncementPage> {
 
   @override
   Widget build(BuildContext context) {
-    return ScaffoldMessenger(
+    Widget mobileContent = ScaffoldMessenger(
       key: _scaffoldMessengerKey,
       child: Scaffold(
         backgroundColor: const Color(0xFFF8F9FA),
@@ -1063,7 +1095,6 @@ class _ModeratorAnnouncementPageState extends State<ModeratorAnnouncementPage> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      // Search Bar
                       Container(
                         decoration: BoxDecoration(
                           color: Colors.white,
@@ -1078,6 +1109,7 @@ class _ModeratorAnnouncementPageState extends State<ModeratorAnnouncementPage> {
                         ),
                         child: TextField(
                           controller: _searchController,
+                          style: const TextStyle(color: Colors.black),
                           decoration: InputDecoration(
                             hintText: "Search updates...",
                             hintStyle: TextStyle(
@@ -1107,7 +1139,6 @@ class _ModeratorAnnouncementPageState extends State<ModeratorAnnouncementPage> {
                       ),
                       const SizedBox(height: 16),
 
-                      // --- SECTION 1: IMPORTANT REMINDERS (Dynamic Stream) ---
                       _buildSectionTitle(
                         "IMPORTANT REMINDERS",
                         () => _showAddReminderDialog(),
@@ -1144,7 +1175,6 @@ class _ModeratorAnnouncementPageState extends State<ModeratorAnnouncementPage> {
 
                       const SizedBox(height: 24),
 
-                      // --- SECTION 2: RECENT UPDATES (Dynamic Stream) ---
                       _buildSectionTitle(
                         "RECENT UPDATES",
                         () => _showUpdateDialog(),
@@ -1195,6 +1225,137 @@ class _ModeratorAnnouncementPageState extends State<ModeratorAnnouncementPage> {
           ),
         ),
         bottomNavigationBar: _buildBottomNavBar(),
+      ),
+    );
+
+    if (kIsWeb) {
+      return PhoneFrame(
+        child: MaterialApp(
+          debugShowCheckedModeBanner: false,
+          theme: ThemeData(
+            scaffoldBackgroundColor: const Color(0xFFF8F9FA),
+            primarySwatch: Colors.blue,
+            useMaterial3: true,
+          ),
+          home: mobileContent,
+        ),
+      );
+    }
+    return mobileContent;
+  }
+}
+
+// --- HELPER WIDGET FOR "SEE MORE / SEE LESS" ---
+class _ExpandableText extends StatefulWidget {
+  final String text;
+  const _ExpandableText({required this.text});
+
+  @override
+  State<_ExpandableText> createState() => _ExpandableTextState();
+}
+
+class _ExpandableTextState extends State<_ExpandableText> {
+  bool isExpanded = false;
+  static const int maxLines = 3;
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final span = TextSpan(
+          text: widget.text,
+          style: TextStyle(
+            fontSize: 14,
+            height: 1.5,
+            color: Colors.black87.withOpacity(0.8),
+          ),
+        );
+
+        final tp = TextPainter(
+          text: span,
+          maxLines: maxLines,
+          textDirection: TextDirection.ltr,
+        );
+        tp.layout(maxWidth: constraints.maxWidth);
+
+        if (tp.didExceedMaxLines) {
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                widget.text,
+                maxLines: isExpanded ? null : maxLines,
+                overflow: isExpanded
+                    ? TextOverflow.visible
+                    : TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontSize: 14,
+                  height: 1.5,
+                  color: Colors.black87.withOpacity(0.8),
+                ),
+              ),
+              const SizedBox(height: 4),
+              GestureDetector(
+                onTap: () {
+                  setState(() {
+                    isExpanded = !isExpanded;
+                  });
+                },
+                child: Text(
+                  isExpanded ? "See Less" : "See More",
+                  style: const TextStyle(
+                    color: Colors.blue,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 13,
+                  ),
+                ),
+              ),
+            ],
+          );
+        } else {
+          return Text(
+            widget.text,
+            style: TextStyle(
+              fontSize: 14,
+              height: 1.5,
+              color: Colors.black87.withOpacity(0.8),
+            ),
+          );
+        }
+      },
+    );
+  }
+}
+
+// --- PHONE FRAME WRAPPER ---
+class PhoneFrame extends StatelessWidget {
+  final Widget child;
+  const PhoneFrame({super.key, required this.child});
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: const Color(0xFFF2F2F7),
+      body: Center(
+        child: Container(
+          width: 375,
+          height: 812,
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(40),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.1),
+                blurRadius: 30,
+                spreadRadius: 5,
+                offset: const Offset(0, 10),
+              ),
+            ],
+          ),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(40),
+            child: child,
+          ),
+        ),
       ),
     );
   }
