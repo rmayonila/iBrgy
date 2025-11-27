@@ -2,10 +2,10 @@ import 'package:flutter/foundation.dart'; // For web check
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'dart:async'; // ADD THIS IMPORT
-import '../splash_screen.dart'; // ADD THIS IMPORT
+import 'dart:async';
+import '../splash_screen.dart';
 
-// Category colors and icons mapping (same as moderator page)
+// Category colors and icons mapping (Synced with Moderator Page)
 const Map<String, Map<String, dynamic>> categoryConfig = {
   'Health & Welfare': {'color': Color(0xFF4CAF50), 'icon': Icons.favorite},
   'Brgy Clearance/Permit Process': {
@@ -16,6 +16,7 @@ const Map<String, Map<String, dynamic>> categoryConfig = {
   'Emergency Services': {'color': Color(0xFFEF5350), 'icon': Icons.emergency},
   'Events & Announcements': {'color': Color(0xFF7E57C2), 'icon': Icons.event},
   'Community Programs': {'color': Color(0xFF26A69A), 'icon': Icons.groups},
+  'Other': {'color': Color(0xFF9E9E9E), 'icon': Icons.info},
 };
 
 class UserHomePage extends StatefulWidget {
@@ -27,14 +28,32 @@ class UserHomePage extends StatefulWidget {
 
 class _UserHomePageState extends State<UserHomePage> {
   int _selectedIndex = 0;
-  List<Map<String, String>> infoItems = [];
-  final FirebaseFirestore _db = FirebaseFirestore.instance;
   final FirebaseAuth _auth = FirebaseAuth.instance;
 
-  // track expanded indices for inline post expansion
-  final Set<int> _expanded = {};
-  StreamSubscription<QuerySnapshot>? _subscription;
-  bool _isLoading = true;
+  // Search State
+  final TextEditingController _searchController = TextEditingController();
+  String _searchQuery = '';
+
+  // Track expanded states for service cards using Document IDs
+  final Map<String, bool> _expandedStates = {};
+
+  // Stream for Barangay Services (Same collection as Moderator)
+  final Stream<QuerySnapshot> _servicesStream = FirebaseFirestore.instance
+      .collection('barangay_services')
+      .orderBy('createdAt', descending: true)
+      .snapshots();
+
+  @override
+  void initState() {
+    super.initState();
+    _ensureSignedIn();
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
 
   Future<void> _ensureSignedIn() async {
     try {
@@ -46,67 +65,14 @@ class _UserHomePageState extends State<UserHomePage> {
     }
   }
 
-  @override
-  void initState() {
-    super.initState();
-    _setupRealTimeListener();
-  }
-
-  @override
-  void dispose() {
-    _subscription?.cancel();
-    super.dispose();
-  }
-
-  void _setupRealTimeListener() {
+  void _updateSearch(String query) {
     setState(() {
-      _isLoading = true;
+      _searchQuery = query.toLowerCase();
     });
-
-    _subscription = _db
-        .collection('infoItems')
-        .orderBy('createdAt', descending: true)
-        .snapshots()
-        .listen(
-          (QuerySnapshot snapshot) {
-            if (mounted) {
-              final items = snapshot.docs.map((d) {
-                final data = d.data() as Map<String, dynamic>;
-                return {
-                  'id': d.id,
-                  'title': (data['title'] ?? '').toString(),
-                  'category': (data['category'] ?? '').toString(),
-                  'description': (data['description'] ?? '').toString(),
-                  'lastUpdated': data['createdAt'] != null
-                      ? _formatTimestamp(data['createdAt'])
-                      : 'recently',
-                };
-              }).toList();
-
-              setState(() {
-                infoItems = items;
-                _isLoading = false;
-              });
-            }
-          },
-          onError: (error) {
-            print("Error listening to posts: $error");
-            setState(() {
-              _isLoading = false;
-            });
-          },
-        );
-  }
-
-  String _formatTimestamp(dynamic timestamp) {
-    if (timestamp is Timestamp) {
-      final date = timestamp.toDate();
-      return "${date.month}/${date.day}/${date.year}";
-    }
-    return 'recently';
   }
 
   void _onItemTapped(BuildContext context, int index) {
+    // Navigation logic from original User Home Page
     if (index == 1) {
       Navigator.pushReplacementNamed(context, '/user-emergency-hotline');
       return;
@@ -125,22 +91,20 @@ class _UserHomePageState extends State<UserHomePage> {
     });
   }
 
-  // --- UPDATED EXIT MODAL (Smaller & Black Text) ---
+  // --- EXIT MODAL (Kept from Original User Page) ---
   Future<void> _handleBackOrLogout() async {
     final shouldExit = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
         backgroundColor: Colors.white,
         elevation: 10,
-        // This creates the "Smaller" look by adding padding around the modal
         insetPadding: const EdgeInsets.symmetric(horizontal: 60),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-
         title: const Text(
           'Exit',
           textAlign: TextAlign.center,
           style: TextStyle(
-            color: Colors.black, // Visible Black
+            color: Colors.black,
             fontWeight: FontWeight.bold,
             fontSize: 18,
           ),
@@ -148,12 +112,9 @@ class _UserHomePageState extends State<UserHomePage> {
         content: const Text(
           'Are you sure you want to exit?',
           textAlign: TextAlign.center,
-          style: TextStyle(
-            color: Colors.black87, // Visible Dark Grey/Black
-            fontSize: 14,
-          ),
+          style: TextStyle(color: Colors.black87, fontSize: 14),
         ),
-        actionsAlignment: MainAxisAlignment.center, // Center the buttons
+        actionsAlignment: MainAxisAlignment.center,
         actionsPadding: const EdgeInsets.only(bottom: 16, left: 8, right: 8),
         actions: [
           TextButton(
@@ -171,13 +132,11 @@ class _UserHomePageState extends State<UserHomePage> {
       ),
     );
     if (shouldExit == true) {
-      // Sign out to ensure session is cleared
       try {
         await FirebaseAuth.instance.signOut();
       } catch (_) {}
 
       if (!mounted) return;
-      // Go back to Splash/Login
       Navigator.pushAndRemoveUntil(
         context,
         MaterialPageRoute(builder: (_) => const SplashScreen()),
@@ -186,183 +145,138 @@ class _UserHomePageState extends State<UserHomePage> {
     }
   }
 
-  // This list displays the actual items added by moderators via Firestore
-  Widget _buildBarangayServicesList() {
-    if (_isLoading) {
-      return Center(
-        child: Padding(
-          padding: const EdgeInsets.all(20.0),
-          child: Column(
-            children: [
-              SizedBox(
-                width: 40,
-                height: 40,
-                child: CircularProgressIndicator(color: Colors.blue.shade700),
-              ),
-              const SizedBox(height: 12),
-              Text(
-                "Loading services...",
-                style: TextStyle(color: Colors.grey.shade600),
-              ),
-            ],
-          ),
-        ),
-      );
-    }
-
-    if (infoItems.isEmpty) {
-      return Center(
-        child: Padding(
-          padding: const EdgeInsets.all(20.0),
-          child: Column(
-            children: [
-              Icon(Icons.post_add, size: 48, color: Colors.grey.shade300),
-              const SizedBox(height: 8),
-              Text(
-                "No barangay services yet",
-                style: TextStyle(color: Colors.grey.shade400),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                "Services will appear here when moderators add them",
-                style: TextStyle(color: Colors.grey.shade400, fontSize: 12),
-                textAlign: TextAlign.center,
-              ),
-            ],
-          ),
-        ),
-      );
-    }
-
-    return ListView.builder(
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      itemCount: infoItems.length,
-      itemBuilder: (context, index) {
-        return _buildEnhancedInfoCard(context, infoItems[index], index: index);
-      },
-    );
-  }
-
-  Widget _buildEnhancedInfoCard(
-    BuildContext context,
-    Map<String, String> info, {
-    int? index,
-  }) {
-    final category = info['category'] ?? 'Community Info';
+  // --- SERVICE CARD (Adapted from Moderator, Read-Only) ---
+  Widget _buildServiceCard(DocumentSnapshot doc) {
+    final data = doc.data() as Map<String, dynamic>;
+    final docId = doc.id;
+    final title = data['title'] ?? 'Service';
+    final category = data['category'] ?? 'Other';
+    final steps = data['steps'] ?? '';
     final config =
-        categoryConfig[category] ?? {'color': Colors.grey, 'icon': Icons.info};
+        categoryConfig[category] ??
+        {'color': const Color(0xFF9E9E9E), 'icon': Icons.info};
+
+    final isExpanded = _expandedStates[docId] ?? false;
 
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(12),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.02),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
           ),
         ],
       ),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Header
-          Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: (config['color'] as Color).withOpacity(0.1),
-              borderRadius: const BorderRadius.only(
-                topLeft: Radius.circular(16),
-                topRight: Radius.circular(16),
+          // Service Header (Tile)
+          ListTile(
+            leading: Container(
+              height: 40,
+              width: 40,
+              decoration: BoxDecoration(
+                color: (config['color'] as Color).withOpacity(0.1),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Icon(
+                config['icon'] as IconData,
+                color: config['color'] as Color,
+                size: 20,
               ),
             ),
-            child: Row(
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    shape: BoxShape.circle,
-                  ),
-                  child: Icon(
-                    config['icon'] as IconData,
-                    color: config['color'] as Color,
-                    size: 20,
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        info['title'] ?? '',
-                        style: const TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.black87,
-                        ),
-                      ),
-                      Text(
-                        'Updated ${info['lastUpdated']}',
-                        style: TextStyle(fontSize: 11, color: Colors.grey[600]),
-                      ),
-                    ],
-                  ),
-                ),
-                // User can only view, not edit/delete
-                Icon(Icons.visibility, color: Colors.grey.shade400, size: 20),
-              ],
+            title: Text(
+              title,
+              style: const TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w600,
+                color: Colors.black87,
+              ),
             ),
+            subtitle: Text(
+              category,
+              style: TextStyle(fontSize: 12, color: Colors.grey.shade500),
+            ),
+            // REMOVED: Edit/Delete Buttons
+            // KEPT: Expand Icon only
+            trailing: Icon(
+              isExpanded ? Icons.expand_less : Icons.expand_more,
+              color: Colors.grey.shade600,
+            ),
+            onTap: () {
+              setState(() {
+                _expandedStates[docId] = !isExpanded;
+              });
+            },
           ),
 
-          // Content
-          Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  info['description'] ?? '',
-                  maxLines: (index != null && _expanded.contains(index))
-                      ? null
-                      : 3,
-                  overflow: (index != null && _expanded.contains(index))
-                      ? TextOverflow.visible
-                      : TextOverflow.ellipsis,
-                  style: TextStyle(
-                    fontSize: 13,
-                    color: Colors.grey[700],
-                    height: 1.5,
-                  ),
+          if (isExpanded)
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.grey.shade50,
+                borderRadius: const BorderRadius.only(
+                  bottomLeft: Radius.circular(12),
+                  bottomRight: Radius.circular(12),
                 ),
-                const SizedBox(height: 12),
-                if ((info['description']?.length ?? 0) > 100)
-                  GestureDetector(
-                    onTap: () {
-                      if (index != null) {
-                        setState(() {
-                          if (_expanded.contains(index)) {
-                            _expanded.remove(index);
-                          } else {
-                            _expanded.add(index);
-                          }
-                        });
-                      }
-                    },
-                    child: Text(
-                      _expanded.contains(index) ? "Show Less" : "Read More",
-                      style: TextStyle(
-                        color: config['color'] as Color,
-                        fontWeight: FontWeight.w600,
-                        fontSize: 13,
-                      ),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Steps / Requirements:',
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 14,
+                      color: Colors.black87,
                     ),
                   ),
-              ],
+                  const SizedBox(height: 8),
+                  Text(
+                    steps,
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: Colors.grey.shade700,
+                      height: 1.5,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  // --- PLACEHOLDER ---
+  Widget _buildEmptyState() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(vertical: 40),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.grey.shade200),
+      ),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(
+            Icons.assignment_outlined,
+            size: 48,
+            color: Colors.grey.shade300,
+          ),
+          const SizedBox(height: 12),
+          Text(
+            'No services available yet',
+            style: TextStyle(
+              color: Colors.grey.shade500,
+              fontSize: 14,
+              fontWeight: FontWeight.w500,
             ),
           ),
         ],
@@ -377,10 +291,10 @@ class _UserHomePageState extends State<UserHomePage> {
       body: SafeArea(
         child: Column(
           children: [
-            // --- HEADER ---
+            // --- HEADER (Kept from User Home Page) ---
             _buildHeader(),
 
-            // --- SCROLLABLE BODY ---
+            // --- BODY ---
             Expanded(
               child: SingleChildScrollView(
                 padding: const EdgeInsets.all(20),
@@ -388,24 +302,75 @@ class _UserHomePageState extends State<UserHomePage> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     _buildSearchBar(),
-
                     const SizedBox(height: 24),
-
-                    _buildSectionTitle("Barangay Services"),
-                    const SizedBox(height: 16),
-                    _buildServicesGrid(),
-
-                    const SizedBox(height: 24),
-
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        _buildSectionTitle("My Requests"),
-                        Icon(Icons.tune, color: Colors.grey[400], size: 20),
-                      ],
+                    const Text(
+                      "Barangay Services",
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.black87,
+                      ),
                     ),
                     const SizedBox(height: 16),
-                    _buildRecentActivityList(),
+
+                    // --- STREAM BUILDER (Listening to Moderator's data) ---
+                    StreamBuilder<QuerySnapshot>(
+                      stream: _servicesStream,
+                      builder: (context, snapshot) {
+                        if (snapshot.connectionState ==
+                            ConnectionState.waiting) {
+                          return const Center(
+                            child: Padding(
+                              padding: EdgeInsets.all(20),
+                              child: CircularProgressIndicator(),
+                            ),
+                          );
+                        }
+                        if (snapshot.hasError) {
+                          return const Text("Error loading services");
+                        }
+
+                        final docs = snapshot.data?.docs ?? [];
+
+                        // Search Filter Logic
+                        final filteredDocs = _searchQuery.isEmpty
+                            ? docs
+                            : docs.where((doc) {
+                                final data = doc.data() as Map<String, dynamic>;
+                                final title = (data['title'] ?? '')
+                                    .toString()
+                                    .toLowerCase();
+                                final category = (data['category'] ?? '')
+                                    .toString()
+                                    .toLowerCase();
+                                return title.contains(_searchQuery) ||
+                                    category.contains(_searchQuery);
+                              }).toList();
+
+                        if (filteredDocs.isEmpty) {
+                          if (_searchQuery.isNotEmpty) {
+                            return Center(
+                              child: Padding(
+                                padding: const EdgeInsets.only(top: 40),
+                                child: Text(
+                                  "No matching services found",
+                                  style: TextStyle(color: Colors.grey.shade500),
+                                ),
+                              ),
+                            );
+                          }
+                          return _buildEmptyState();
+                        }
+
+                        return Column(
+                          children: filteredDocs
+                              .map((doc) => _buildServiceCard(doc))
+                              .toList(),
+                        );
+                      },
+                    ),
+
+                    const SizedBox(height: 40), // Bottom padding
                   ],
                 ),
               ),
@@ -481,14 +446,10 @@ class _UserHomePageState extends State<UserHomePage> {
             ),
           ),
           const Spacer(),
-
-          // --- EXIT / BACK ICON (REPLACED NOTIFICATION) ---
+          // Exit Button Preserved
           IconButton(
             onPressed: _handleBackOrLogout,
-            icon: const Icon(
-              Icons.logout, // This icon looks like "➜]"
-              color: Colors.red,
-            ),
+            icon: const Icon(Icons.logout, color: Colors.red),
             tooltip: "Exit",
           ),
         ],
@@ -510,11 +471,13 @@ class _UserHomePageState extends State<UserHomePage> {
         ],
       ),
       child: TextField(
+        controller: _searchController,
+        onChanged: _updateSearch,
+        style: const TextStyle(color: Colors.black),
         decoration: InputDecoration(
           hintText: "Search services, forms...",
           hintStyle: TextStyle(color: Colors.grey.shade400, fontSize: 14),
           prefixIcon: Icon(Icons.search, color: Colors.grey.shade400),
-          suffixIcon: Icon(Icons.qr_code_scanner, color: Colors.blue.shade700),
           border: InputBorder.none,
           contentPadding: const EdgeInsets.symmetric(
             horizontal: 20,
@@ -522,208 +485,6 @@ class _UserHomePageState extends State<UserHomePage> {
           ),
         ),
       ),
-    );
-  }
-
-  Widget _buildSectionTitle(String title) {
-    return Text(
-      title,
-      style: const TextStyle(
-        fontSize: 18,
-        fontWeight: FontWeight.bold,
-        color: Colors.black87,
-      ),
-    );
-  }
-
-  Widget _buildServicesGrid() {
-    final services = [
-      {
-        'icon': Icons.description_outlined,
-        'label': 'Clearance',
-        'color': 0xFFFFE0B2,
-      },
-      {
-        'icon': Icons.badge_outlined,
-        'label': 'Barangay ID',
-        'color': 0xFFBBDEFB,
-      },
-      {
-        'icon': Icons.storefront_outlined,
-        'label': 'Business',
-        'color': 0xFFC8E6C9,
-      },
-      {
-        'icon': Icons.gavel_outlined,
-        'label': 'Complaints',
-        'color': 0xFFE1BEE7,
-      },
-    ];
-
-    return GridView.builder(
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 4,
-        childAspectRatio: 0.8,
-        crossAxisSpacing: 12,
-        mainAxisSpacing: 12,
-      ),
-      itemCount: services.length,
-      itemBuilder: (context, index) {
-        final item = services[index];
-        return Column(
-          children: [
-            Expanded(
-              child: Container(
-                width: double.infinity,
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(16),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withOpacity(0.02),
-                      blurRadius: 8,
-                      offset: const Offset(0, 2),
-                    ),
-                  ],
-                ),
-                child: Center(
-                  child: Container(
-                    height: 45,
-                    width: 45,
-                    decoration: BoxDecoration(
-                      color: Color(item['color'] as int).withOpacity(0.4),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Icon(
-                      item['icon'] as IconData,
-                      color: Colors.black87,
-                      size: 24,
-                    ),
-                  ),
-                ),
-              ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              item['label'] as String,
-              style: const TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.w600,
-                color: Colors.black87,
-              ),
-              textAlign: TextAlign.center,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-            ),
-          ],
-        );
-      },
-    );
-  }
-
-  Widget _buildRecentActivityList() {
-    final requests = [
-      {
-        'id': '#REQ-2024-001',
-        'type': 'Barangay Clearance',
-        'status': 'Pending',
-        'date': 'Today',
-      },
-      {
-        'id': '#REQ-2024-002',
-        'type': 'Indigency',
-        'status': 'Completed',
-        'date': 'Yesterday',
-      },
-    ];
-
-    if (requests.isEmpty) {
-      return Center(
-        child: Text(
-          "No recent activity",
-          style: TextStyle(color: Colors.grey[400]),
-        ),
-      );
-    }
-
-    return ListView.builder(
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      itemCount: requests.length,
-      itemBuilder: (context, index) {
-        final item = requests[index];
-        bool isCompleted = item['status'] == 'Completed';
-
-        return Container(
-          margin: const EdgeInsets.only(bottom: 12),
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(16),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withOpacity(0.02),
-                blurRadius: 10,
-                offset: const Offset(0, 4),
-              ),
-            ],
-          ),
-          child: Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(10),
-                decoration: BoxDecoration(
-                  color: isCompleted
-                      ? Colors.green.shade50
-                      : Colors.orange.shade50,
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Icon(
-                  Icons.folder_open_rounded,
-                  color: isCompleted ? Colors.green : Colors.orange,
-                  size: 22,
-                ),
-              ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      item['id']!,
-                      style: const TextStyle(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 15,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      item['type']!,
-                      style: TextStyle(
-                        color: Colors.grey.shade500,
-                        fontSize: 13,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  Text(
-                    item['date']!,
-                    style: TextStyle(color: Colors.grey.shade400, fontSize: 12),
-                  ),
-                  const SizedBox(height: 4),
-                  Icon(Icons.more_vert, color: Colors.grey.shade300, size: 20),
-                ],
-              ),
-            ],
-          ),
-        );
-      },
     );
   }
 

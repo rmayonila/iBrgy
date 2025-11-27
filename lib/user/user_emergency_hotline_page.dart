@@ -21,9 +21,7 @@ class _UserEmergencyHotlinePageState extends State<UserEmergencyHotlinePage> {
   bool _showToast = false;
   String _copiedNumber = '';
 
-  List<Map<String, dynamic>> _nationalHotlines = [];
-  List<Map<String, dynamic>> _localHotlines = [];
-  List<Map<String, dynamic>> _barangayHotlines = [];
+  // --- SEARCH STATE ---
   String _searchQuery = '';
   final TextEditingController _searchController = TextEditingController();
 
@@ -38,57 +36,9 @@ class _UserEmergencyHotlinePageState extends State<UserEmergencyHotlinePage> {
   }
 
   @override
-  void initState() {
-    super.initState();
-    _loadHotlines();
-  }
-
-  @override
   void dispose() {
     _searchController.dispose();
     super.dispose();
-  }
-
-  Future<void> _loadHotlines() async {
-    try {
-      final snap = await _db
-          .collection('hotlines')
-          .orderBy('createdAt', descending: true)
-          .get();
-
-      final List<Map<String, dynamic>> nationalItems = [];
-      final List<Map<String, dynamic>> localItems = [];
-      final List<Map<String, dynamic>> barangayItems = [];
-
-      for (final doc in snap.docs) {
-        final data = doc.data();
-        final hotline = {
-          'id': doc.id,
-          'name': (data['name'] ?? '').toString(),
-          'number': (data['number'] ?? '').toString(),
-          'type': (data['type'] ?? 'local').toString(),
-          'isUrgent': data['isUrgent'] == true,
-          'icon': _getIconForType((data['type'] ?? 'local').toString()),
-        };
-
-        if (hotline['type'] == 'national') {
-          nationalItems.add(hotline);
-        } else if (hotline['type'] == 'barangay') {
-          barangayItems.add(hotline);
-        } else {
-          localItems.add(hotline);
-        }
-      }
-
-      if (!mounted) return;
-      setState(() {
-        _nationalHotlines = nationalItems;
-        _localHotlines = localItems;
-        _barangayHotlines = barangayItems;
-      });
-    } catch (e) {
-      // ignore
-    }
   }
 
   IconData _getIconForType(String type) {
@@ -112,31 +62,6 @@ class _UserEmergencyHotlinePageState extends State<UserEmergencyHotlinePage> {
     setState(() {
       _searchQuery = query.toLowerCase();
     });
-  }
-
-  // --- HELPERS TO FILTER LISTS ---
-  List<Map<String, dynamic>> get _filteredNational {
-    if (_searchQuery.isEmpty) return _nationalHotlines;
-    return _nationalHotlines.where((h) {
-      return h['name'].toLowerCase().contains(_searchQuery) ||
-          h['number'].toLowerCase().contains(_searchQuery);
-    }).toList();
-  }
-
-  List<Map<String, dynamic>> get _filteredLocal {
-    if (_searchQuery.isEmpty) return _localHotlines;
-    return _localHotlines.where((h) {
-      return h['name'].toLowerCase().contains(_searchQuery) ||
-          h['number'].toLowerCase().contains(_searchQuery);
-    }).toList();
-  }
-
-  List<Map<String, dynamic>> get _filteredBarangay {
-    if (_searchQuery.isEmpty) return _barangayHotlines;
-    return _barangayHotlines.where((h) {
-      return h['name'].toLowerCase().contains(_searchQuery) ||
-          h['number'].toLowerCase().contains(_searchQuery);
-    }).toList();
   }
 
   // --- FUNCTION TO COPY NUMBER ---
@@ -168,7 +93,6 @@ class _UserEmergencyHotlinePageState extends State<UserEmergencyHotlinePage> {
         elevation: 10,
         insetPadding: const EdgeInsets.symmetric(horizontal: 60),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-
         title: const Text(
           'Exit',
           textAlign: TextAlign.center,
@@ -331,8 +255,6 @@ class _UserEmergencyHotlinePageState extends State<UserEmergencyHotlinePage> {
             ),
           ),
           const Spacer(),
-
-          // --- EXIT ICON ---
           IconButton(
             onPressed: _handleBackOrLogout,
             icon: const Icon(Icons.logout, color: Colors.red),
@@ -564,98 +486,129 @@ class _UserEmergencyHotlinePageState extends State<UserEmergencyHotlinePage> {
               children: [
                 _buildHeader(),
                 Expanded(
-                  child: SingleChildScrollView(
-                    padding: const EdgeInsets.all(20),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        _buildSearchBar(),
-                        const SizedBox(height: 24),
-                        const Text(
-                          "Emergency Hotlines",
-                          style: TextStyle(
-                            fontSize: 20,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.black87,
+                  // Use StreamBuilder for real-time, instant updates
+                  child: StreamBuilder<QuerySnapshot>(
+                    stream: _db
+                        .collection('hotlines')
+                        .orderBy('createdAt', descending: true)
+                        .snapshots(),
+                    builder: (context, snapshot) {
+                      // 1. If still waiting for connection and no cached data, show nothing (per request)
+                      if (snapshot.connectionState == ConnectionState.waiting) {
+                        return const SizedBox.shrink();
+                      }
+
+                      // 2. Prepare Data
+                      final docs = snapshot.data?.docs ?? [];
+
+                      final List<Map<String, dynamic>> nationalItems = [];
+                      final List<Map<String, dynamic>> localItems = [];
+                      final List<Map<String, dynamic>> barangayItems = [];
+
+                      for (final doc in docs) {
+                        final data = doc.data() as Map<String, dynamic>;
+                        final hotline = {
+                          'id': doc.id,
+                          'name': (data['name'] ?? '').toString(),
+                          'number': (data['number'] ?? '').toString(),
+                          'type': (data['type'] ?? 'local').toString(),
+                          'isUrgent': data['isUrgent'] == true,
+                          'icon': _getIconForType(
+                            (data['type'] ?? 'local').toString(),
                           ),
+                        };
+
+                        // Filter by search query immediately
+                        final search = _searchQuery;
+                        final matchesSearch =
+                            search.isEmpty ||
+                            hotline['name'].toString().toLowerCase().contains(
+                              search,
+                            ) ||
+                            hotline['number'].toString().toLowerCase().contains(
+                              search,
+                            );
+
+                        if (matchesSearch) {
+                          if (hotline['type'] == 'national') {
+                            nationalItems.add(hotline);
+                          } else if (hotline['type'] == 'barangay') {
+                            barangayItems.add(hotline);
+                          } else {
+                            localItems.add(hotline);
+                          }
+                        }
+                      }
+
+                      // 3. Build UI with Data
+                      return SingleChildScrollView(
+                        padding: const EdgeInsets.all(20),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            _buildSearchBar(),
+                            const SizedBox(height: 24),
+                            const Text(
+                              "Emergency Hotlines",
+                              style: TextStyle(
+                                fontSize: 20,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.black87,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              "Tap to copy the number",
+                              style: TextStyle(
+                                color: Colors.grey.shade500,
+                                fontSize: 13,
+                              ),
+                            ),
+                            const SizedBox(height: 20),
+
+                            // NATIONAL
+                            _buildSectionTitle("NATIONAL EMERGENCY"),
+                            if (nationalItems.isEmpty && _searchQuery.isEmpty)
+                              _buildEmptyState("national")
+                            else if (nationalItems.isEmpty &&
+                                _searchQuery.isNotEmpty)
+                              _buildNoMatchText()
+                            else
+                              ...nationalItems.map((h) => _buildHotlineCard(h)),
+
+                            const SizedBox(height: 20),
+
+                            // LOCAL
+                            _buildSectionTitle("LOCAL HOTLINES"),
+                            if (localItems.isEmpty && _searchQuery.isEmpty)
+                              _buildEmptyState("local")
+                            else if (localItems.isEmpty &&
+                                _searchQuery.isNotEmpty)
+                              _buildNoMatchText()
+                            else
+                              ...localItems.map((h) => _buildHotlineCard(h)),
+
+                            const SizedBox(height: 20), // Spacing as per image
+                            // BARANGAY
+                            _buildSectionTitle("BARANGAY HOTLINES"),
+                            if (barangayItems.isEmpty && _searchQuery.isEmpty)
+                              _buildEmptyState("barangay")
+                            else if (barangayItems.isEmpty &&
+                                _searchQuery.isNotEmpty)
+                              _buildNoMatchText()
+                            else
+                              ...barangayItems.map((h) => _buildHotlineCard(h)),
+
+                            const SizedBox(height: 20),
+                          ],
                         ),
-                        const SizedBox(height: 4),
-                        Text(
-                          "Tap to copy the number",
-                          style: TextStyle(
-                            color: Colors.grey.shade500,
-                            fontSize: 13,
-                          ),
-                        ),
-                        const SizedBox(height: 20),
-
-                        // NATIONAL EMERGENCY SECTION
-                        _buildSectionTitle("NATIONAL EMERGENCY"),
-                        if (_filteredNational.isEmpty && _searchQuery.isEmpty)
-                          _buildEmptyState("national")
-                        else if (_filteredNational.isEmpty &&
-                            _searchQuery.isNotEmpty)
-                          Padding(
-                            padding: const EdgeInsets.all(16.0),
-                            child: Center(
-                              child: Text(
-                                "No matching national numbers",
-                                style: TextStyle(color: Colors.grey.shade400),
-                              ),
-                            ),
-                          )
-                        else
-                          ..._filteredNational.map((h) => _buildHotlineCard(h)),
-
-                        const SizedBox(height: 20),
-
-                        // LOCAL HOTLINES SECTION
-                        _buildSectionTitle("LOCAL HOTLINES"),
-                        if (_filteredLocal.isEmpty && _searchQuery.isEmpty)
-                          _buildEmptyState("local")
-                        else if (_filteredLocal.isEmpty &&
-                            _searchQuery.isNotEmpty)
-                          Padding(
-                            padding: const EdgeInsets.all(16.0),
-                            child: Center(
-                              child: Text(
-                                "No matching local numbers",
-                                style: TextStyle(color: Colors.grey.shade400),
-                              ),
-                            ),
-                          )
-                        else
-                          ..._filteredLocal.map((h) => _buildHotlineCard(h)),
-                        const SizedBox(height: 80),
-
-                        // BARANGAY HOTLINES SECTION
-                        _buildSectionTitle("BARANGAY HOTLINES"),
-                        if (_filteredBarangay.isEmpty && _searchQuery.isEmpty)
-                          _buildEmptyState("barangay")
-                        else if (_filteredBarangay.isEmpty &&
-                            _searchQuery.isNotEmpty)
-                          Padding(
-                            padding: const EdgeInsets.all(16.0),
-                            child: Center(
-                              child: Text(
-                                "No matching barangay numbers",
-                                style: TextStyle(color: Colors.grey.shade400),
-                              ),
-                            ),
-                          )
-                        else
-                          ..._filteredBarangay.map((h) => _buildHotlineCard(h)),
-                        const SizedBox(
-                          height: 20,
-                        ), // Padding for toast visibility
-                      ],
-                    ),
+                      );
+                    },
                   ),
                 ),
               ],
             ),
 
-            // Notification Layer (Fixed Minimalist Toast)
             _buildToast(),
           ],
         ),
@@ -668,9 +621,20 @@ class _UserEmergencyHotlinePageState extends State<UserEmergencyHotlinePage> {
     }
     return mobileContent;
   }
+
+  Widget _buildNoMatchText() {
+    return Padding(
+      padding: const EdgeInsets.all(16.0),
+      child: Center(
+        child: Text(
+          "No matching numbers",
+          style: TextStyle(color: Colors.grey.shade400),
+        ),
+      ),
+    );
+  }
 }
 
-// --- PHONE FRAME ---
 class PhoneFrame extends StatelessWidget {
   final Widget child;
   const PhoneFrame({super.key, required this.child});

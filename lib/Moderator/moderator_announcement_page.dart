@@ -1,6 +1,10 @@
+import 'dart:convert';
+import 'dart:io';
+import 'package:flutter/foundation.dart'; // For kIsWeb check
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:image_picker/image_picker.dart'; // Required
 import 'moderator_nav.dart';
 
 class ModeratorAnnouncementPage extends StatefulWidget {
@@ -16,6 +20,11 @@ class _ModeratorAnnouncementPageState extends State<ModeratorAnnouncementPage> {
   final FirebaseFirestore _db = FirebaseFirestore.instance;
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final TextEditingController _searchController = TextEditingController();
+  final ImagePicker _picker = ImagePicker();
+
+  // Key to force SnackBars to show INSIDE the phone frame
+  final GlobalKey<ScaffoldMessengerState> _scaffoldMessengerKey =
+      GlobalKey<ScaffoldMessengerState>();
 
   // 1. Stream for Regular Announcements
   final Stream<QuerySnapshot> _announcementsStream = FirebaseFirestore.instance
@@ -62,6 +71,16 @@ class _ModeratorAnnouncementPageState extends State<ModeratorAnnouncementPage> {
     return 'recently';
   }
 
+  // --- HELPER: CONVERT IMAGE TO BASE64 ---
+  Future<String> _imageToBase64(XFile imageFile) async {
+    try {
+      final bytes = await imageFile.readAsBytes();
+      return base64Encode(bytes);
+    } catch (e) {
+      return '';
+    }
+  }
+
   // --- CRUD: IMPORTANT REMINDERS ---
 
   Future<void> _showAddReminderDialog({DocumentSnapshot? existingDoc}) async {
@@ -73,7 +92,6 @@ class _ModeratorAnnouncementPageState extends State<ModeratorAnnouncementPage> {
       text: isEditing ? existingDoc['content'] : '',
     );
 
-    // Reusable Decoration
     InputDecoration buildInputDecoration({
       required String label,
       required String hint,
@@ -184,13 +202,13 @@ class _ModeratorAnnouncementPageState extends State<ModeratorAnnouncementPage> {
               final content = contentController.text.trim();
 
               if (title.isEmpty || content.isEmpty) {
-                ScaffoldMessenger.of(context).showSnackBar(
+                _scaffoldMessengerKey.currentState?.showSnackBar(
                   const SnackBar(content: Text('Please fill all fields')),
                 );
                 return;
               }
 
-              Navigator.of(ctx).pop(); // Close dialog
+              Navigator.of(ctx).pop();
 
               try {
                 await _ensureSignedIn();
@@ -203,11 +221,9 @@ class _ModeratorAnnouncementPageState extends State<ModeratorAnnouncementPage> {
                         'content': content,
                         'updatedAt': FieldValue.serverTimestamp(),
                       });
-                  if (mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Reminder updated')),
-                    );
-                  }
+                  _scaffoldMessengerKey.currentState?.showSnackBar(
+                    const SnackBar(content: Text('Reminder updated')),
+                  );
                 } else {
                   await _db.collection('important_reminders').add({
                     'title': title,
@@ -215,16 +231,14 @@ class _ModeratorAnnouncementPageState extends State<ModeratorAnnouncementPage> {
                     'createdAt': FieldValue.serverTimestamp(),
                     'author': 'Admin',
                   });
-                  if (mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Reminder added')),
-                    );
-                  }
+                  _scaffoldMessengerKey.currentState?.showSnackBar(
+                    const SnackBar(content: Text('Reminder added')),
+                  );
                 }
               } catch (e) {
-                ScaffoldMessenger.of(
-                  context,
-                ).showSnackBar(SnackBar(content: Text('Error: $e')));
+                _scaffoldMessengerKey.currentState?.showSnackBar(
+                  SnackBar(content: Text('Error: $e')),
+                );
               }
             },
             style: ElevatedButton.styleFrom(
@@ -266,19 +280,26 @@ class _ModeratorAnnouncementPageState extends State<ModeratorAnnouncementPage> {
 
     if (confirm == true) {
       await _db.collection('important_reminders').doc(docId).delete();
-      if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(const SnackBar(content: Text('Reminder deleted')));
-      }
+      _scaffoldMessengerKey.currentState?.showSnackBar(
+        const SnackBar(content: Text('Reminder deleted')),
+      );
     }
   }
 
-  // --- CRUD: REGULAR ANNOUNCEMENTS ---
+  // --- CRUD: REGULAR UPDATES (With Image) ---
 
-  Future<void> _showAddAnnouncementDialog() async {
-    final contentController = TextEditingController();
-    // Reuse the same decoration logic but blue
+  Future<void> _showUpdateDialog({DocumentSnapshot? existingDoc}) async {
+    final isEditing = existingDoc != null;
+    final data = isEditing ? existingDoc.data() as Map<String, dynamic> : {};
+
+    final contentController = TextEditingController(
+      text: data['content'] ?? '',
+    );
+
+    String? currentImageBase64 = data['imageUrl'];
+    XFile? pickedImageFile;
+
+    // Reusable Decoration
     InputDecoration buildBlueDecoration({
       required String label,
       required String hint,
@@ -286,71 +307,288 @@ class _ModeratorAnnouncementPageState extends State<ModeratorAnnouncementPage> {
       return InputDecoration(
         labelText: label,
         hintText: hint,
-        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
         alignLabelWithHint: true,
+        filled: true,
+        fillColor: Colors.grey.shade50,
+        contentPadding: const EdgeInsets.all(16),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide(color: Colors.grey.shade300),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide(color: Colors.grey.shade200),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(color: Colors.blue, width: 2),
+        ),
       );
     }
 
-    final entered = await showDialog<Map<String, String>>(
+    await showDialog(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Create Announcement'),
-        content: SingleChildScrollView(
-          child: Padding(
-            padding: EdgeInsets.only(
-              bottom: MediaQuery.of(ctx).viewInsets.bottom,
+      builder: (ctx) => StatefulBuilder(
+        builder: (context, setDialogState) {
+          // Helper to show selected image
+          Widget buildImagePreview() {
+            ImageProvider? provider;
+            if (pickedImageFile != null) {
+              if (kIsWeb) {
+                provider = NetworkImage(pickedImageFile!.path);
+              } else {
+                provider = FileImage(File(pickedImageFile!.path));
+              }
+            } else if (currentImageBase64 != null &&
+                currentImageBase64!.isNotEmpty) {
+              try {
+                provider = MemoryImage(base64Decode(currentImageBase64!));
+              } catch (e) {
+                // ignore error
+              }
+            }
+
+            if (provider != null) {
+              return Stack(
+                children: [
+                  Container(
+                    height: 150,
+                    width: double.infinity,
+                    margin: const EdgeInsets.only(bottom: 16),
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: Colors.grey.shade300),
+                      image: DecorationImage(
+                        image: provider,
+                        fit: BoxFit.cover,
+                      ),
+                    ),
+                  ),
+                  Positioned(
+                    top: 8,
+                    right: 8,
+                    child: GestureDetector(
+                      onTap: () {
+                        setDialogState(() {
+                          pickedImageFile = null;
+                          currentImageBase64 = null;
+                        });
+                      },
+                      child: Container(
+                        padding: const EdgeInsets.all(4),
+                        decoration: const BoxDecoration(
+                          color: Colors.black54,
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(
+                          Icons.close,
+                          color: Colors.white,
+                          size: 16,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              );
+            }
+            return const SizedBox.shrink();
+          }
+
+          return AlertDialog(
+            backgroundColor: Colors.white,
+            surfaceTintColor: Colors.white,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(20),
             ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
+            title: Row(
               children: [
-                TextField(
-                  controller: contentController,
-                  maxLines: 5,
-                  decoration: buildBlueDecoration(
-                    label: 'Content',
-                    hint: "What's happening in the barangay?",
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: Colors.blue.shade50,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Icon(
+                    isEditing ? Icons.edit_rounded : Icons.campaign_rounded,
+                    color: Colors.blue,
+                    size: 28,
+                  ),
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Text(
+                    isEditing ? 'Edit Update' : 'Create Update',
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 20,
+                    ),
                   ),
                 ),
               ],
             ),
-          ),
-        ),
+            content: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  buildImagePreview(),
+                  TextField(
+                    controller: contentController,
+                    maxLines: 5,
+                    style: const TextStyle(fontSize: 15),
+                    decoration: buildBlueDecoration(
+                      label: 'Content',
+                      hint: "What's happening in the barangay?",
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            actions: [
+              Row(
+                children: [
+                  // --- ADD PHOTO BUTTON (Bottom Left) ---
+                  IconButton(
+                    onPressed: () async {
+                      final XFile? image = await _picker.pickImage(
+                        source: ImageSource.gallery,
+                        imageQuality: 50,
+                        maxWidth: 600,
+                      );
+                      if (image != null) {
+                        setDialogState(() {
+                          pickedImageFile = image;
+                        });
+                      }
+                    },
+                    icon: const Icon(
+                      Icons.add_photo_alternate_rounded,
+                      color: Colors.blue,
+                      size: 28,
+                    ),
+                    tooltip: 'Add Photo',
+                  ),
+                  const Spacer(),
+                  TextButton(
+                    onPressed: () => Navigator.of(ctx).pop(),
+                    style: TextButton.styleFrom(foregroundColor: Colors.grey),
+                    child: const Text(
+                      'Cancel',
+                      style: TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  ElevatedButton(
+                    onPressed: () async {
+                      final content = contentController.text.trim();
+                      if (content.isEmpty &&
+                          pickedImageFile == null &&
+                          currentImageBase64 == null) {
+                        // Allow post if only image exists, or only text exists
+                        // But reject if both empty
+                        return;
+                      }
+
+                      Navigator.of(ctx).pop();
+
+                      try {
+                        await _ensureSignedIn();
+
+                        // Handle Image
+                        String finalImageString = currentImageBase64 ?? '';
+                        if (pickedImageFile != null) {
+                          finalImageString = await _imageToBase64(
+                            pickedImageFile!,
+                          );
+                        }
+
+                        if (isEditing) {
+                          await _db
+                              .collection('announcements')
+                              .doc(existingDoc.id)
+                              .update({
+                                'content': content,
+                                'imageUrl': finalImageString,
+                                'updatedAt': FieldValue.serverTimestamp(),
+                              });
+                          _scaffoldMessengerKey.currentState?.showSnackBar(
+                            const SnackBar(
+                              content: Text('Update edited successfully'),
+                              backgroundColor: Colors.green,
+                            ),
+                          );
+                        } else {
+                          await _db.collection('announcements').add({
+                            'author': 'Barangay Office',
+                            'content': content,
+                            'imageUrl': finalImageString,
+                            'createdAt': FieldValue.serverTimestamp(),
+                          });
+                          _scaffoldMessengerKey.currentState?.showSnackBar(
+                            const SnackBar(
+                              content: Text('Posted successfully'),
+                              backgroundColor: Colors.green,
+                            ),
+                          );
+                        }
+                      } catch (e) {
+                        _scaffoldMessengerKey.currentState?.showSnackBar(
+                          const SnackBar(
+                            content: Text('Error posting update'),
+                            backgroundColor: Colors.red,
+                          ),
+                        );
+                      }
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.blue,
+                      foregroundColor: Colors.white,
+                      shape: const StadiumBorder(),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 20,
+                        vertical: 10,
+                      ),
+                    ),
+                    child: Text(
+                      isEditing ? 'Save' : 'Post',
+                      style: const TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  Future<void> _deleteUpdate(String docId) async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Delete Update'),
+        content: const Text('Are you sure you want to delete this post?'),
         actions: [
           TextButton(
-            onPressed: () => Navigator.of(ctx).pop(null),
+            onPressed: () => Navigator.of(ctx).pop(false),
             child: const Text('Cancel'),
           ),
           TextButton(
-            onPressed: () {
-              Navigator.of(ctx).pop({'content': contentController.text.trim()});
-            },
-            child: const Text('Post'),
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text('Delete', style: TextStyle(color: Colors.red)),
           ),
         ],
       ),
     );
-    contentController.dispose();
 
-    if (entered != null) {
-      if (!mounted) return;
-      final content = entered['content'] ?? '';
-      if (content.isEmpty) return;
-
-      try {
-        await _ensureSignedIn();
-        await _db.collection('announcements').add({
-          'author': 'Barangay Office',
-          'content': content,
-          'createdAt': FieldValue.serverTimestamp(),
-        });
-        if (mounted) {
-          ScaffoldMessenger.of(
-            context,
-          ).showSnackBar(const SnackBar(content: Text('Announcement posted')));
-        }
-      } catch (e) {
-        // handle error
-      }
+    if (confirm == true) {
+      await _db.collection('announcements').doc(docId).delete();
+      _scaffoldMessengerKey.currentState?.showSnackBar(
+        const SnackBar(
+          content: Text('Post deleted'),
+          backgroundColor: Colors.green,
+        ),
+      );
     }
   }
 
@@ -425,9 +663,12 @@ class _ModeratorAnnouncementPageState extends State<ModeratorAnnouncementPage> {
     );
   }
 
-  // --- SECTION HEADER WIDGET ---
-  // Handles the title and the optional "Add" button
+  // --- SECTION HEADER ---
+  // Used for both "IMPORTANT REMINDERS" and "RECENT UPDATES"
   Widget _buildSectionTitle(String title, VoidCallback? onAdd) {
+    final isReminder = title.contains("REMINDERS");
+    final color = isReminder ? Colors.orange.shade800 : Colors.blue;
+
     return Padding(
       padding: const EdgeInsets.only(left: 4, bottom: 12, top: 8),
       child: Row(
@@ -442,17 +683,14 @@ class _ModeratorAnnouncementPageState extends State<ModeratorAnnouncementPage> {
             ),
           ),
           const Spacer(),
-          // This renders the Plus button if a callback is provided
           if (onAdd != null)
+            // Both buttons now use the same style: Icon only
             IconButton(
               onPressed: onAdd,
               icon: Icon(
-                Icons.add_circle_rounded,
+                Icons.add, // Consistent icon style
                 size: 28,
-                // Orange for Reminders, Blue for Updates
-                color: title.contains("REMINDERS")
-                    ? Colors.orange.shade800
-                    : Colors.blue,
+                color: color,
               ),
               tooltip: 'Add Item',
               padding: EdgeInsets.zero,
@@ -463,14 +701,12 @@ class _ModeratorAnnouncementPageState extends State<ModeratorAnnouncementPage> {
     );
   }
 
-  // --- CREAM CARD DESIGN FOR REMINDERS ---
   Widget _buildImportantReminderCard(DocumentSnapshot doc) {
     final data = doc.data() as Map<String, dynamic>;
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       width: double.infinity,
       decoration: BoxDecoration(
-        // Cream/Yellowish background matching screenshot
         color: const Color(0xFFFFFBE6),
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: const Color(0xFFFFE58F), width: 1),
@@ -483,11 +719,10 @@ class _ModeratorAnnouncementPageState extends State<ModeratorAnnouncementPage> {
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Pin Icon Circle
                 Container(
                   padding: const EdgeInsets.all(10),
                   decoration: const BoxDecoration(
-                    color: Color(0xFFFFECB3), // Lighter orange
+                    color: Color(0xFFFFECB3),
                     shape: BoxShape.circle,
                   ),
                   child: Icon(
@@ -497,7 +732,6 @@ class _ModeratorAnnouncementPageState extends State<ModeratorAnnouncementPage> {
                   ),
                 ),
                 const SizedBox(width: 12),
-                // Title & Subtitle
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -522,7 +756,6 @@ class _ModeratorAnnouncementPageState extends State<ModeratorAnnouncementPage> {
                     ],
                   ),
                 ),
-                // Three-dot Menu for Edit/Delete
                 PopupMenuButton<String>(
                   padding: EdgeInsets.zero,
                   icon: Icon(Icons.more_horiz, color: Colors.grey.shade500),
@@ -539,9 +772,16 @@ class _ModeratorAnnouncementPageState extends State<ModeratorAnnouncementPage> {
                       value: 'edit',
                       child: Row(
                         children: [
-                          Icon(Icons.edit, size: 18),
+                          Icon(
+                            Icons.edit,
+                            size: 18,
+                            color: Colors.black87,
+                          ), // Black icon
                           SizedBox(width: 8),
-                          Text('Edit'),
+                          Text(
+                            'Edit',
+                            style: TextStyle(color: Colors.black87),
+                          ), // Black text
                         ],
                       ),
                     ),
@@ -560,7 +800,6 @@ class _ModeratorAnnouncementPageState extends State<ModeratorAnnouncementPage> {
               ],
             ),
             const SizedBox(height: 12),
-            // Reminder Content
             Text(
               data['content'] ?? '',
               style: TextStyle(
@@ -612,8 +851,20 @@ class _ModeratorAnnouncementPageState extends State<ModeratorAnnouncementPage> {
     );
   }
 
-  Widget _buildPostCard(Map<String, dynamic> post) {
-    // This is for the dynamic feed (Regular Updates)
+  Widget _buildPostCard(DocumentSnapshot doc) {
+    final data = doc.data() as Map<String, dynamic>;
+    final imageUrl = data['imageUrl']?.toString() ?? '';
+
+    // Helper to decode image string
+    ImageProvider? getPostImage() {
+      if (imageUrl.isEmpty) return null;
+      try {
+        return MemoryImage(base64Decode(imageUrl));
+      } catch (e) {
+        return null;
+      }
+    }
+
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
       decoration: BoxDecoration(
@@ -643,7 +894,7 @@ class _ModeratorAnnouncementPageState extends State<ModeratorAnnouncementPage> {
                   ),
                   child: Center(
                     child: Text(
-                      (post['author']?.toString() ?? 'U')
+                      (data['author']?.toString() ?? 'U')
                           .substring(0, 1)
                           .toUpperCase(),
                       style: const TextStyle(
@@ -660,7 +911,7 @@ class _ModeratorAnnouncementPageState extends State<ModeratorAnnouncementPage> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        post['author']?.toString() ?? 'Unknown',
+                        data['author']?.toString() ?? 'Unknown',
                         style: const TextStyle(
                           fontSize: 15,
                           fontWeight: FontWeight.w700,
@@ -669,7 +920,9 @@ class _ModeratorAnnouncementPageState extends State<ModeratorAnnouncementPage> {
                       ),
                       const SizedBox(height: 2),
                       Text(
-                        post['time']?.toString() ?? '',
+                        data['createdAt'] != null
+                            ? _formatTimestamp(data['createdAt'])
+                            : 'recently',
                         style: TextStyle(
                           fontSize: 12,
                           color: Colors.grey.shade500,
@@ -679,18 +932,67 @@ class _ModeratorAnnouncementPageState extends State<ModeratorAnnouncementPage> {
                     ],
                   ),
                 ),
-                Icon(Icons.more_horiz_rounded, color: Colors.grey.shade300),
+                // 6. & 7. THREE-DOT MENU FOR EDIT/DELETE
+                PopupMenuButton<String>(
+                  padding: EdgeInsets.zero,
+                  icon: Icon(Icons.more_horiz, color: Colors.grey.shade400),
+                  onSelected: (value) {
+                    if (value == 'edit') {
+                      _showUpdateDialog(existingDoc: doc);
+                    } else if (value == 'delete') {
+                      _deleteUpdate(doc.id);
+                    }
+                  },
+                  itemBuilder: (context) => [
+                    const PopupMenuItem(
+                      value: 'edit',
+                      child: Row(
+                        children: [
+                          Icon(Icons.edit, size: 20, color: Colors.black87),
+                          SizedBox(width: 8),
+                          Text('Edit', style: TextStyle(color: Colors.black87)),
+                        ],
+                      ),
+                    ),
+                    const PopupMenuItem(
+                      value: 'delete',
+                      child: Row(
+                        children: [
+                          Icon(Icons.delete, size: 20, color: Colors.red),
+                          SizedBox(width: 8),
+                          Text('Delete', style: TextStyle(color: Colors.red)),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
               ],
             ),
             const SizedBox(height: 12),
             Text(
-              post['content']?.toString() ?? '',
+              data['content']?.toString() ?? '',
               style: TextStyle(
                 fontSize: 14,
                 height: 1.5,
                 color: Colors.black87.withOpacity(0.8),
               ),
             ),
+            // Display Image if available
+            if (getPostImage() != null) ...[
+              const SizedBox(height: 12),
+              Container(
+                width: double.infinity,
+                height: 180,
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(12),
+                  color: Colors.grey.shade100,
+                  image: DecorationImage(
+                    image: getPostImage()!,
+                    fit: BoxFit.cover,
+                  ),
+                ),
+              ),
+            ],
           ],
         ),
       ),
@@ -747,157 +1049,153 @@ class _ModeratorAnnouncementPageState extends State<ModeratorAnnouncementPage> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFFF8F9FA),
-      body: SafeArea(
-        child: Column(
-          children: [
-            _buildHeader(),
-            Expanded(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.all(20),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // Search Bar
-                    Container(
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(16),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withOpacity(0.03),
-                            blurRadius: 10,
-                            offset: const Offset(0, 4),
-                          ),
-                        ],
-                      ),
-                      child: TextField(
-                        controller: _searchController,
-                        decoration: InputDecoration(
-                          hintText: "Search updates...",
-                          hintStyle: TextStyle(
-                            color: Colors.grey.shade400,
-                            fontSize: 14,
-                          ),
-                          prefixIcon: Icon(
-                            Icons.search,
-                            color: Colors.grey.shade400,
-                          ),
-                          border: InputBorder.none,
-                          contentPadding: const EdgeInsets.symmetric(
-                            horizontal: 20,
-                            vertical: 14,
+    return ScaffoldMessenger(
+      key: _scaffoldMessengerKey,
+      child: Scaffold(
+        backgroundColor: const Color(0xFFF8F9FA),
+        body: SafeArea(
+          child: Column(
+            children: [
+              _buildHeader(),
+              Expanded(
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.all(20),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Search Bar
+                      Container(
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(16),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withOpacity(0.03),
+                              blurRadius: 10,
+                              offset: const Offset(0, 4),
+                            ),
+                          ],
+                        ),
+                        child: TextField(
+                          controller: _searchController,
+                          decoration: InputDecoration(
+                            hintText: "Search updates...",
+                            hintStyle: TextStyle(
+                              color: Colors.grey.shade400,
+                              fontSize: 14,
+                            ),
+                            prefixIcon: Icon(
+                              Icons.search,
+                              color: Colors.grey.shade400,
+                            ),
+                            border: InputBorder.none,
+                            contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 20,
+                              vertical: 14,
+                            ),
                           ),
                         ),
                       ),
-                    ),
-                    const SizedBox(height: 24),
-                    const Text(
-                      'Barangay Updates',
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.black87,
+                      const SizedBox(height: 24),
+                      const Text(
+                        'Barangay Updates',
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.black87,
+                        ),
                       ),
-                    ),
-                    const SizedBox(height: 16),
+                      const SizedBox(height: 16),
 
-                    // --- SECTION 1: IMPORTANT REMINDERS (Dynamic Stream) ---
-                    // The Plus Button is integrated here
-                    _buildSectionTitle(
-                      "IMPORTANT REMINDERS",
-                      () => _showAddReminderDialog(),
-                    ),
-                    StreamBuilder<QuerySnapshot>(
-                      stream: _remindersStream,
-                      builder: (context, snapshot) {
-                        if (snapshot.connectionState ==
-                            ConnectionState.waiting) {
-                          return const Center(
-                            child: Padding(
-                              padding: EdgeInsets.all(8.0),
-                              child: CircularProgressIndicator(),
-                            ),
+                      // --- SECTION 1: IMPORTANT REMINDERS (Dynamic Stream) ---
+                      _buildSectionTitle(
+                        "IMPORTANT REMINDERS",
+                        () => _showAddReminderDialog(),
+                      ),
+                      StreamBuilder<QuerySnapshot>(
+                        stream: _remindersStream,
+                        builder: (context, snapshot) {
+                          if (snapshot.connectionState ==
+                              ConnectionState.waiting) {
+                            return const Center(
+                              child: Padding(
+                                padding: EdgeInsets.all(8.0),
+                                child: CircularProgressIndicator(),
+                              ),
+                            );
+                          }
+                          if (snapshot.hasError) {
+                            return const Text('Something went wrong');
+                          }
+
+                          final docs = snapshot.data?.docs ?? [];
+
+                          if (docs.isEmpty) {
+                            return _buildEmptyRemindersPlaceholder();
+                          }
+
+                          return Column(
+                            children: docs
+                                .map((doc) => _buildImportantReminderCard(doc))
+                                .toList(),
                           );
-                        }
-                        if (snapshot.hasError) {
-                          return const Text('Something went wrong');
-                        }
+                        },
+                      ),
 
-                        final docs = snapshot.data?.docs ?? [];
+                      const SizedBox(height: 24),
 
-                        if (docs.isEmpty) {
-                          return _buildEmptyRemindersPlaceholder();
-                        }
+                      // --- SECTION 2: RECENT UPDATES (Dynamic Stream) ---
+                      _buildSectionTitle(
+                        "RECENT UPDATES",
+                        () => _showUpdateDialog(),
+                      ),
+                      StreamBuilder<QuerySnapshot>(
+                        stream: _announcementsStream,
+                        builder: (context, snapshot) {
+                          if (snapshot.connectionState ==
+                              ConnectionState.waiting) {
+                            return const Padding(
+                              padding: EdgeInsets.all(20),
+                              child: Center(child: CircularProgressIndicator()),
+                            );
+                          }
+                          final docs = snapshot.data?.docs ?? [];
+                          if (docs.isEmpty) {
+                            return const Center(
+                              child: Text(
+                                "No recent updates",
+                                style: TextStyle(color: Colors.grey),
+                              ),
+                            );
+                          }
 
-                        return Column(
-                          children: docs
-                              .map((doc) => _buildImportantReminderCard(doc))
-                              .toList(),
-                        );
-                      },
-                    ),
-
-                    const SizedBox(height: 24),
-
-                    // --- SECTION 2: RECENT UPDATES (Dynamic Stream) ---
-                    _buildSectionTitle(
-                      "RECENT UPDATES",
-                      _showAddAnnouncementDialog,
-                    ), // Plus button for updates
-                    StreamBuilder<QuerySnapshot>(
-                      stream: _announcementsStream,
-                      builder: (context, snapshot) {
-                        if (snapshot.connectionState ==
-                            ConnectionState.waiting) {
-                          return const Padding(
-                            padding: EdgeInsets.all(20),
-                            child: Center(child: CircularProgressIndicator()),
-                          );
-                        }
-                        final docs = snapshot.data?.docs ?? [];
-                        if (docs.isEmpty) {
-                          return const Center(
-                            child: Text(
-                              "No recent updates",
-                              style: TextStyle(color: Colors.grey),
-                            ),
-                          );
-                        }
-
-                        // Simple client-side search filtering for updates
-                        final searchQuery = _searchController.text
-                            .toLowerCase();
-                        final filteredDocs = docs.where((doc) {
-                          final data = doc.data() as Map<String, dynamic>;
-                          final content = (data['content'] ?? '')
-                              .toString()
+                          final searchQuery = _searchController.text
                               .toLowerCase();
-                          return content.contains(searchQuery);
-                        }).toList();
-
-                        return Column(
-                          children: filteredDocs.map((doc) {
+                          final filteredDocs = docs.where((doc) {
                             final data = doc.data() as Map<String, dynamic>;
-                            return _buildPostCard({
-                              'author': data['author'],
-                              'content': data['content'],
-                              'time': _formatTimestamp(data['createdAt']),
-                            });
-                          }).toList(),
-                        );
-                      },
-                    ),
-                    const SizedBox(height: 40),
-                  ],
+                            final content = (data['content'] ?? '')
+                                .toString()
+                                .toLowerCase();
+                            return content.contains(searchQuery);
+                          }).toList();
+
+                          return Column(
+                            children: filteredDocs.map((doc) {
+                              return _buildPostCard(doc);
+                            }).toList(),
+                          );
+                        },
+                      ),
+                      const SizedBox(height: 40),
+                    ],
+                  ),
                 ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
+        bottomNavigationBar: _buildBottomNavBar(),
       ),
-      bottomNavigationBar: _buildBottomNavBar(),
     );
   }
 }

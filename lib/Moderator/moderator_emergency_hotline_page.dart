@@ -17,58 +17,16 @@ class _ModeratorEmergencyHotlinePageState
   final TextEditingController _searchController = TextEditingController();
   String _searchQuery = '';
 
-  // All hotlines will be loaded from Firestore
-  List<Map<String, dynamic>> _nationalHotlines = [];
-  List<Map<String, dynamic>> _localHotlines = [];
-  List<Map<String, dynamic>> _barangayHotlines = [];
-
-  @override
-  void initState() {
-    super.initState();
-    _loadHotlines();
-  }
+  // Stream to listen to changes in real-time
+  final Stream<QuerySnapshot> _hotlinesStream = FirebaseFirestore.instance
+      .collection('hotlines')
+      .orderBy('createdAt', descending: true)
+      .snapshots();
 
   @override
   void dispose() {
     _searchController.dispose();
     super.dispose();
-  }
-
-  Future<void> _loadHotlines() async {
-    try {
-      final snap = await _db
-          .collection('hotlines')
-          .orderBy('createdAt', descending: true)
-          .get();
-
-      if (!mounted) return;
-
-      final items = snap.docs.map((d) {
-        final data = d.data();
-        return {
-          'id': d.id,
-          'name': (data['name'] ?? '').toString(),
-          'number': (data['number'] ?? '').toString(),
-          'type': (data['type'] ?? 'national').toString(),
-          'isUrgent': data['isUrgent'] == true,
-          'icon': _getIconForType((data['type'] ?? 'national').toString()),
-        };
-      }).toList();
-
-      setState(() {
-        _nationalHotlines = items
-            .where((item) => item['type'] == 'national')
-            .toList();
-        _localHotlines = items
-            .where((item) => item['type'] == 'local')
-            .toList();
-        _barangayHotlines = items
-            .where((item) => item['type'] == 'barangay')
-            .toList();
-      });
-    } catch (e) {
-      // ignore
-    }
   }
 
   IconData _getIconForType(String type) {
@@ -99,32 +57,7 @@ class _ModeratorEmergencyHotlinePageState
     });
   }
 
-  // Filter hotlines based on search query
-  List<Map<String, dynamic>> get _filteredNational {
-    if (_searchQuery.isEmpty) return _nationalHotlines;
-    return _nationalHotlines.where((h) {
-      return h['name'].toLowerCase().contains(_searchQuery) ||
-          h['number'].toLowerCase().contains(_searchQuery);
-    }).toList();
-  }
-
-  List<Map<String, dynamic>> get _filteredLocal {
-    if (_searchQuery.isEmpty) return _localHotlines;
-    return _localHotlines.where((h) {
-      return h['name'].toLowerCase().contains(_searchQuery) ||
-          h['number'].toLowerCase().contains(_searchQuery);
-    }).toList();
-  }
-
-  List<Map<String, dynamic>> get _filteredBarangay {
-    if (_searchQuery.isEmpty) return _barangayHotlines;
-    return _barangayHotlines.where((h) {
-      return h['name'].toLowerCase().contains(_searchQuery) ||
-          h['number'].toLowerCase().contains(_searchQuery);
-    }).toList();
-  }
-
-  // Enhanced Add Hotline Dialog with type selection
+  // Enhanced Add Hotline Dialog
   Future<void> _showAddHotlineDialog({String? presetType}) async {
     final nameController = TextEditingController();
     final numberController = TextEditingController();
@@ -243,33 +176,13 @@ class _ModeratorEmergencyHotlinePageState
       }
 
       try {
-        final docRef = await _db.collection('hotlines').add({
+        // Just add to DB, StreamBuilder will update UI automatically
+        await _db.collection('hotlines').add({
           'name': name,
           'number': number,
           'type': type,
           'isUrgent': isUrgentValue,
           'createdAt': FieldValue.serverTimestamp(),
-        });
-
-        if (!mounted) return;
-
-        final newHotline = {
-          'id': docRef.id,
-          'name': name,
-          'number': number,
-          'type': type,
-          'isUrgent': isUrgentValue,
-          'icon': _getIconForType(type),
-        };
-
-        setState(() {
-          if (type == 'national') {
-            _nationalHotlines.insert(0, newHotline);
-          } else if (type == 'local') {
-            _localHotlines.insert(0, newHotline);
-          } else if (type == 'barangay') {
-            _barangayHotlines.insert(0, newHotline);
-          }
         });
 
         scaffold.showSnackBar(const SnackBar(content: Text('Hotline added')));
@@ -401,39 +314,13 @@ class _ModeratorEmergencyHotlinePageState
       }
 
       try {
+        // Just update DB, StreamBuilder updates UI
         await _db.collection('hotlines').doc(hotlineId).update({
           'name': newName,
           'number': newNumber,
           'type': newType,
           'isUrgent': newIsUrgent,
           'updatedAt': FieldValue.serverTimestamp(),
-        });
-
-        if (!mounted) return;
-
-        setState(() {
-          // Remove from all lists
-          _nationalHotlines.removeWhere((item) => item['id'] == hotlineId);
-          _localHotlines.removeWhere((item) => item['id'] == hotlineId);
-          _barangayHotlines.removeWhere((item) => item['id'] == hotlineId);
-
-          // Add to appropriate list based on new type
-          final updatedHotline = {
-            ...hotline,
-            'name': newName,
-            'number': newNumber,
-            'type': newType,
-            'isUrgent': newIsUrgent,
-            'icon': _getIconForType(newType),
-          };
-
-          if (newType == 'national') {
-            _nationalHotlines.insert(0, updatedHotline);
-          } else if (newType == 'local') {
-            _localHotlines.insert(0, updatedHotline);
-          } else if (newType == 'barangay') {
-            _barangayHotlines.insert(0, updatedHotline);
-          }
         });
 
         scaffold.showSnackBar(const SnackBar(content: Text('Hotline updated')));
@@ -470,16 +357,8 @@ class _ModeratorEmergencyHotlinePageState
 
     if (confirmDelete == true && id != null) {
       try {
+        // Just delete from DB, StreamBuilder updates UI
         await _db.collection('hotlines').doc(id).delete();
-
-        if (!mounted) return;
-
-        setState(() {
-          _nationalHotlines.removeWhere((item) => item['id'] == id);
-          _localHotlines.removeWhere((item) => item['id'] == id);
-          _barangayHotlines.removeWhere((item) => item['id'] == id);
-        });
-
         scaffold.showSnackBar(const SnackBar(content: Text('Hotline deleted')));
       } catch (e) {
         scaffold.showSnackBar(SnackBar(content: Text('Failed to delete: $e')));
@@ -803,75 +682,136 @@ class _ModeratorEmergencyHotlinePageState
           children: [
             _buildHeader(),
             Expanded(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.all(20),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    _buildSearchBar(),
-                    const SizedBox(height: 24),
-                    const Text(
-                      "Emergency Hotlines",
-                      style: TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.black87,
+              child: StreamBuilder<QuerySnapshot>(
+                stream: _hotlinesStream,
+                builder: (context, snapshot) {
+                  // 1. LOADING STATE: Show loader (not empty state)
+                  if (snapshot.connectionState == ConnectionState.waiting) {
+                    return const Center(
+                      child: Padding(
+                        padding: EdgeInsets.all(40.0),
+                        child: CircularProgressIndicator(),
                       ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      "Manage emergency contact numbers",
-                      style: TextStyle(
-                        color: Colors.grey.shade500,
-                        fontSize: 13,
+                    );
+                  }
+
+                  // 2. ERROR STATE
+                  if (snapshot.hasError) {
+                    return Center(child: Text("Error: ${snapshot.error}"));
+                  }
+
+                  // 3. LOADED STATE: Process Data
+                  final docs = snapshot.data?.docs ?? [];
+                  final allItems = docs.map((d) {
+                    final data = d.data() as Map<String, dynamic>;
+                    return {
+                      'id': d.id,
+                      'name': (data['name'] ?? '').toString(),
+                      'number': (data['number'] ?? '').toString(),
+                      'type': (data['type'] ?? 'national').toString(),
+                      'isUrgent': data['isUrgent'] == true,
+                      'icon': _getIconForType(
+                        (data['type'] ?? 'national').toString(),
                       ),
-                    ),
-                    const SizedBox(height: 20),
+                    };
+                  }).toList();
 
-                    // NATIONAL EMERGENCY SECTION (Editable)
-                    _buildSectionTitle(
-                      "NATIONAL EMERGENCY",
-                      addTooltip: "Add National Hotline",
-                      presetType: "national",
-                    ),
-                    if (_filteredNational.isEmpty)
-                      _buildEmptyState(
-                        "No national hotlines added yet",
-                        "national",
-                      )
-                    else
-                      ..._filteredNational.map((h) => _buildHotlineCard(h)),
-                    const SizedBox(height: 20),
+                  // Apply search filter
+                  final filteredItems = _searchQuery.isEmpty
+                      ? allItems
+                      : allItems.where((h) {
+                          final name = h['name'].toString().toLowerCase();
+                          final num = h['number'].toString().toLowerCase();
+                          return name.contains(_searchQuery) ||
+                              num.contains(_searchQuery);
+                        }).toList();
 
-                    // LOCAL HOTLINES SECTION (Editable)
-                    _buildSectionTitle(
-                      "LOCAL HOTLINES",
-                      addTooltip: "Add Local Hotline",
-                      presetType: "local",
-                    ),
-                    if (_filteredLocal.isEmpty)
-                      _buildEmptyState("No local hotlines added yet", "local")
-                    else
-                      ..._filteredLocal.map((h) => _buildHotlineCard(h)),
-                    const SizedBox(height: 20),
+                  // Categorize
+                  final nationalHotlines = filteredItems
+                      .where((i) => i['type'] == 'national')
+                      .toList();
+                  final localHotlines = filteredItems
+                      .where((i) => i['type'] == 'local')
+                      .toList();
+                  final barangayHotlines = filteredItems
+                      .where((i) => i['type'] == 'barangay')
+                      .toList();
 
-                    // BARANGAY HOTLINES SECTION (Editable)
-                    _buildSectionTitle(
-                      "BARANGAY HOTLINES",
-                      addTooltip: "Add Barangay Hotline",
-                      presetType: "barangay",
-                    ),
-                    if (_filteredBarangay.isEmpty)
-                      _buildEmptyState(
-                        "No barangay hotlines added yet",
-                        "barangay",
-                      )
-                    else
-                      ..._filteredBarangay.map((h) => _buildHotlineCard(h)),
+                  // 4. BUILD UI
+                  return SingleChildScrollView(
+                    padding: const EdgeInsets.all(20),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        _buildSearchBar(),
+                        const SizedBox(height: 24),
+                        const Text(
+                          "Emergency Hotlines",
+                          style: TextStyle(
+                            fontSize: 20,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.black87,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          "Manage emergency contact numbers",
+                          style: TextStyle(
+                            color: Colors.grey.shade500,
+                            fontSize: 13,
+                          ),
+                        ),
+                        const SizedBox(height: 20),
 
-                    const SizedBox(height: 20),
-                  ],
-                ),
+                        // NATIONAL
+                        _buildSectionTitle(
+                          "NATIONAL EMERGENCY",
+                          addTooltip: "Add National Hotline",
+                          presetType: "national",
+                        ),
+                        if (nationalHotlines.isEmpty)
+                          _buildEmptyState(
+                            "No national hotlines added yet",
+                            "national",
+                          )
+                        else
+                          ...nationalHotlines.map((h) => _buildHotlineCard(h)),
+                        const SizedBox(height: 20),
+
+                        // LOCAL
+                        _buildSectionTitle(
+                          "LOCAL HOTLINES",
+                          addTooltip: "Add Local Hotline",
+                          presetType: "local",
+                        ),
+                        if (localHotlines.isEmpty)
+                          _buildEmptyState(
+                            "No local hotlines added yet",
+                            "local",
+                          )
+                        else
+                          ...localHotlines.map((h) => _buildHotlineCard(h)),
+                        const SizedBox(height: 20),
+
+                        // BARANGAY
+                        _buildSectionTitle(
+                          "BARANGAY HOTLINES",
+                          addTooltip: "Add Barangay Hotline",
+                          presetType: "barangay",
+                        ),
+                        if (barangayHotlines.isEmpty)
+                          _buildEmptyState(
+                            "No barangay hotlines added yet",
+                            "barangay",
+                          )
+                        else
+                          ...barangayHotlines.map((h) => _buildHotlineCard(h)),
+
+                        const SizedBox(height: 20),
+                      ],
+                    ),
+                  );
+                },
               ),
             ),
           ],

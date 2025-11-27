@@ -1,4 +1,5 @@
 // ignore_for_file: use_build_context_synchronously
+import 'dart:convert'; // Required for image decoding
 import 'package:flutter/foundation.dart'; // For web check
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart'; // For logout
@@ -13,42 +14,25 @@ class UserAnnouncementPage extends StatefulWidget {
 }
 
 class _UserAnnouncementPageState extends State<UserAnnouncementPage> {
-  // 🔑 Real-time stream for announcements
+  // 1. Stream for Regular Announcements (Same as Moderator)
   final Stream<QuerySnapshot> _announcementsStream = FirebaseFirestore.instance
       .collection('announcements')
       .orderBy('createdAt', descending: true)
       .snapshots();
 
-  // --- STATIC PINNED POSTS (Always Visible) ---
-  final List<Map<String, dynamic>> _staticPosts = [
-    {
-      'author': 'Barangay Admin',
-      'time': 'Always Pinned',
-      'title': 'Office Hours',
-      'content':
-          'Barangay Hall is open Monday to Friday, from 8:00 AM to 5:00 PM. Closed on Holidays.',
-      'type': 'pinned',
-    },
-    {
-      'author': 'Sanitation Dept',
-      'time': 'Weekly Schedule',
-      'title': 'Garbage Collection',
-      'content':
-          'Garbage collection is scheduled every Tuesday and Friday morning. Please segregate your waste properly.',
-      'type': 'pinned',
-    },
-    {
-      'author': 'Security',
-      'time': 'Daily',
-      'title': 'Curfew Hours',
-      'content':
-          'Curfew hours for minors are strictly observed from 10:00 PM to 4:00 AM.',
-      'type': 'pinned',
-    },
-  ];
+  // 2. Stream for Important Reminders (Same as Moderator)
+  final Stream<QuerySnapshot> _remindersStream = FirebaseFirestore.instance
+      .collection('important_reminders')
+      .orderBy('createdAt', descending: true)
+      .snapshots();
 
-  List<Map<String, dynamic>> _filteredStatic = [];
   final TextEditingController _searchController = TextEditingController();
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
 
   // Navigation for User
   void _onItemTapped(BuildContext context, int index) {
@@ -61,32 +45,6 @@ class _UserAnnouncementPageState extends State<UserAnnouncementPage> {
     }
   }
 
-  @override
-  void initState() {
-    super.initState();
-    _filteredStatic = List.from(_staticPosts);
-  }
-
-  @override
-  void dispose() {
-    _searchController.dispose();
-    super.dispose();
-  }
-
-  void _filterPosts(String query) {
-    final lowerQuery = query.toLowerCase();
-    setState(() {
-      _filteredStatic = _staticPosts.where((post) {
-        return (post['title']?.toString() ?? '').toLowerCase().contains(
-              lowerQuery,
-            ) ||
-            (post['content']?.toString() ?? '').toLowerCase().contains(
-              lowerQuery,
-            );
-      }).toList();
-    });
-  }
-
   String _formatTimestamp(dynamic timestamp) {
     if (timestamp is Timestamp) {
       final date = timestamp.toDate();
@@ -95,7 +53,7 @@ class _UserAnnouncementPageState extends State<UserAnnouncementPage> {
     return 'recently';
   }
 
-  // --- EXIT / LOGOUT FUNCTION ---
+  // --- EXIT / LOGOUT FUNCTION (Kept from User Page) ---
   Future<void> _handleBackOrLogout() async {
     final shouldExit = await showDialog<bool>(
       context: context,
@@ -150,6 +108,7 @@ class _UserAnnouncementPageState extends State<UserAnnouncementPage> {
   }
 
   // --- WIDGET BUILDERS ---
+
   Widget _buildHeader() {
     return Container(
       decoration: BoxDecoration(
@@ -207,6 +166,7 @@ class _UserAnnouncementPageState extends State<UserAnnouncementPage> {
             ),
           ),
           const Spacer(),
+          // EXIT BUTTON (Kept as requested)
           IconButton(
             onPressed: _handleBackOrLogout,
             icon: const Icon(Icons.logout, color: Colors.red),
@@ -232,7 +192,8 @@ class _UserAnnouncementPageState extends State<UserAnnouncementPage> {
       ),
       child: TextField(
         controller: _searchController,
-        onChanged: _filterPosts,
+        // We will trigger a rebuild when text changes to filter the lists
+        onChanged: (val) => setState(() {}),
         decoration: InputDecoration(
           hintText: "Search updates...",
           hintStyle: TextStyle(color: Colors.grey.shade400, fontSize: 14),
@@ -247,6 +208,7 @@ class _UserAnnouncementPageState extends State<UserAnnouncementPage> {
     );
   }
 
+  // --- SECTION HEADER (Simplified for User - No Add Button) ---
   Widget _buildSectionTitle(String title) {
     return Padding(
       padding: const EdgeInsets.only(left: 4, bottom: 12, top: 8),
@@ -262,14 +224,130 @@ class _UserAnnouncementPageState extends State<UserAnnouncementPage> {
     );
   }
 
-  Widget _buildPostCard(Map<String, dynamic> post) {
-    final isPinned = post['type'] == 'pinned';
+  // --- IMPORTANT REMINDER CARD (View Only) ---
+  Widget _buildImportantReminderCard(DocumentSnapshot doc) {
+    final data = doc.data() as Map<String, dynamic>;
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      width: double.infinity,
+      decoration: BoxDecoration(
+        color: const Color(0xFFFFFBE6), // Yellowish background
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFFFE58F), width: 1),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: const BoxDecoration(
+                    color: Color(0xFFFFECB3),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(
+                    Icons.push_pin_rounded,
+                    color: Colors.orange.shade900,
+                    size: 20,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        data['title'] ?? 'Reminder',
+                        style: TextStyle(
+                          color: Colors.orange.shade900,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 16,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        'Important Reminder',
+                        style: TextStyle(
+                          color: Colors.grey.shade600,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                // REMOVED: PopupMenuButton (Edit/Delete)
+              ],
+            ),
+            const SizedBox(height: 12),
+            Text(
+              data['content'] ?? '',
+              style: TextStyle(
+                color: Colors.grey.shade800,
+                fontSize: 14,
+                height: 1.4,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildEmptyRemindersPlaceholder() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(vertical: 24),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.grey.shade200),
+      ),
+      child: Column(
+        children: [
+          Icon(
+            Icons.notifications_off_outlined,
+            size: 40,
+            color: Colors.grey.shade300,
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'No important reminders yet.',
+            style: TextStyle(
+              color: Colors.grey.shade400,
+              fontSize: 14,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // --- RECENT UPDATE CARD (View Only - With Image Support) ---
+  Widget _buildPostCard(DocumentSnapshot doc) {
+    final data = doc.data() as Map<String, dynamic>;
+    final imageUrl = data['imageUrl']?.toString() ?? '';
+
+    // Helper to decode image string
+    ImageProvider? getPostImage() {
+      if (imageUrl.isEmpty) return null;
+      try {
+        return MemoryImage(base64Decode(imageUrl));
+      } catch (e) {
+        return null;
+      }
+    }
+
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
       decoration: BoxDecoration(
-        color: isPinned ? const Color(0xFFFFFDF5) : Colors.white,
+        color: Colors.white,
         borderRadius: BorderRadius.circular(16),
-        border: isPinned ? Border.all(color: Colors.amber.shade200) : null,
         boxShadow: [
           BoxShadow(
             color: Colors.black.withOpacity(0.03),
@@ -289,28 +367,20 @@ class _UserAnnouncementPageState extends State<UserAnnouncementPage> {
                   width: 40,
                   height: 40,
                   decoration: BoxDecoration(
-                    color: isPinned
-                        ? Colors.amber.shade100
-                        : Colors.blue.shade50,
+                    color: Colors.blue.shade50,
                     shape: BoxShape.circle,
                   ),
                   child: Center(
-                    child: isPinned
-                        ? Icon(
-                            Icons.push_pin_rounded,
-                            color: Colors.amber.shade800,
-                            size: 20,
-                          )
-                        : Text(
-                            (post['author']?.toString() ?? 'U')
-                                .substring(0, 1)
-                                .toUpperCase(),
-                            style: const TextStyle(
-                              color: Colors.blue,
-                              fontWeight: FontWeight.bold,
-                              fontSize: 16,
-                            ),
-                          ),
+                    child: Text(
+                      (data['author']?.toString() ?? 'U')
+                          .substring(0, 1)
+                          .toUpperCase(),
+                      style: const TextStyle(
+                        color: Colors.blue,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 16,
+                      ),
+                    ),
                   ),
                 ),
                 const SizedBox(width: 12),
@@ -319,20 +389,18 @@ class _UserAnnouncementPageState extends State<UserAnnouncementPage> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        isPinned
-                            ? (post['title']?.toString() ?? 'Reminder')
-                            : (post['author']?.toString() ?? 'Unknown'),
-                        style: TextStyle(
+                        data['author']?.toString() ?? 'Barangay Office',
+                        style: const TextStyle(
                           fontSize: 15,
                           fontWeight: FontWeight.w700,
-                          color: isPinned
-                              ? Colors.amber.shade900
-                              : Colors.black87,
+                          color: Colors.black87,
                         ),
                       ),
                       const SizedBox(height: 2),
                       Text(
-                        post['time']?.toString() ?? '',
+                        data['createdAt'] != null
+                            ? _formatTimestamp(data['createdAt'])
+                            : 'recently',
                         style: TextStyle(
                           fontSize: 12,
                           color: Colors.grey.shade500,
@@ -342,46 +410,31 @@ class _UserAnnouncementPageState extends State<UserAnnouncementPage> {
                     ],
                   ),
                 ),
-                if (!isPinned)
-                  Icon(Icons.more_horiz_rounded, color: Colors.grey.shade300),
+                // REMOVED: PopupMenuButton (Edit/Delete)
               ],
             ),
             const SizedBox(height: 12),
             Text(
-              post['content']?.toString() ?? '',
+              data['content']?.toString() ?? '',
               style: TextStyle(
                 fontSize: 14,
                 height: 1.5,
                 color: Colors.black87.withOpacity(0.8),
               ),
             ),
-            if (!isPinned) ...[
+            // Display Image if available
+            if (getPostImage() != null) ...[
               const SizedBox(height: 12),
               Container(
                 width: double.infinity,
-                height: 140,
+                height: 180,
                 decoration: BoxDecoration(
-                  color: Colors.grey.shade50,
                   borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: Colors.grey.shade100),
-                ),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(
-                      Icons.image_outlined,
-                      color: Colors.grey.shade300,
-                      size: 32,
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      "No Image Attached",
-                      style: TextStyle(
-                        color: Colors.grey.shade400,
-                        fontSize: 12,
-                      ),
-                    ),
-                  ],
+                  color: Colors.grey.shade100,
+                  image: DecorationImage(
+                    image: getPostImage()!,
+                    fit: BoxFit.cover,
+                  ),
                 ),
               ),
             ],
@@ -391,6 +444,7 @@ class _UserAnnouncementPageState extends State<UserAnnouncementPage> {
     );
   }
 
+  // --- USER NAVBAR (Kept as requested) ---
   Widget _buildBottomNavBar() {
     return Container(
       decoration: BoxDecoration(
@@ -468,123 +522,110 @@ class _UserAnnouncementPageState extends State<UserAnnouncementPage> {
                       ),
                     ),
                     const SizedBox(height: 16),
-                    // Pinned Posts (Static)
-                    if (_filteredStatic.isNotEmpty) ...[
-                      _buildSectionTitle("IMPORTANT REMINDERS"),
-                      Column(
-                        children: [
-                          for (var post in _filteredStatic)
-                            _buildPostCard(post),
-                        ],
-                      ),
-                      const SizedBox(height: 8),
-                    ],
-                    // Dynamic Posts - Real-time with StreamBuilder
+
+                    // --- SECTION 1: IMPORTANT REMINDERS (Dynamic Stream) ---
+                    _buildSectionTitle("IMPORTANT REMINDERS"),
+                    StreamBuilder<QuerySnapshot>(
+                      stream: _remindersStream,
+                      builder: (context, snapshot) {
+                        if (snapshot.connectionState ==
+                            ConnectionState.waiting) {
+                          return const Center(
+                            child: Padding(
+                              padding: EdgeInsets.all(8.0),
+                              child: CircularProgressIndicator(),
+                            ),
+                          );
+                        }
+                        if (snapshot.hasError) {
+                          return const Text('Something went wrong');
+                        }
+
+                        final docs = snapshot.data?.docs ?? [];
+                        if (docs.isEmpty) {
+                          return _buildEmptyRemindersPlaceholder();
+                        }
+
+                        // Filter by search query
+                        final searchQuery = _searchController.text
+                            .toLowerCase();
+                        final filteredDocs = docs.where((doc) {
+                          final data = doc.data() as Map<String, dynamic>;
+                          final title = (data['title'] ?? '')
+                              .toString()
+                              .toLowerCase();
+                          final content = (data['content'] ?? '')
+                              .toString()
+                              .toLowerCase();
+                          return title.contains(searchQuery) ||
+                              content.contains(searchQuery);
+                        }).toList();
+
+                        if (filteredDocs.isEmpty && searchQuery.isNotEmpty) {
+                          return const Center(
+                            child: Text(
+                              "No reminders found",
+                              style: TextStyle(color: Colors.grey),
+                            ),
+                          );
+                        }
+
+                        return Column(
+                          children: filteredDocs
+                              .map((doc) => _buildImportantReminderCard(doc))
+                              .toList(),
+                        );
+                      },
+                    ),
+
+                    const SizedBox(height: 24),
+
+                    // --- SECTION 2: RECENT UPDATES (Dynamic Stream) ---
                     _buildSectionTitle("RECENT UPDATES"),
                     StreamBuilder<QuerySnapshot>(
                       stream: _announcementsStream,
                       builder: (context, snapshot) {
                         if (snapshot.connectionState ==
                             ConnectionState.waiting) {
+                          return const Padding(
+                            padding: EdgeInsets.all(20),
+                            child: Center(child: CircularProgressIndicator()),
+                          );
+                        }
+                        final docs = snapshot.data?.docs ?? [];
+                        if (docs.isEmpty) {
                           return const Center(
-                            child: Padding(
-                              padding: EdgeInsets.all(32.0),
-                              child: CircularProgressIndicator(),
-                            ),
-                          );
-                        }
-                        if (snapshot.hasError) {
-                          return Center(
                             child: Text(
-                              'Error loading data: ${snapshot.error}',
+                              "No recent updates",
+                              style: TextStyle(color: Colors.grey),
                             ),
                           );
                         }
 
-                        final documents = snapshot.data?.docs ?? [];
-                        final dynamicPosts = documents.map((d) {
-                          final data = d.data() as Map<String, dynamic>;
-                          return <String, dynamic>{
-                            'id': d.id,
-                            'author': (data['author'] ?? 'Moderator')
-                                .toString(),
-                            'time': data['createdAt'] != null
-                                ? _formatTimestamp(data['createdAt'])
-                                : 'recently',
-                            'content': (data['content'] ?? 'No content')
-                                .toString(),
-                            'type': 'dynamic',
-                          };
-                        }).toList();
-
-                        // Apply search filter
-                        final currentQuery = _searchController.text
+                        // Filter by search query
+                        final searchQuery = _searchController.text
                             .toLowerCase();
-                        final filteredDynamicPosts = dynamicPosts.where((post) {
-                          return (post['content']?.toString() ?? '')
-                                  .toLowerCase()
-                                  .contains(currentQuery) ||
-                              (post['author']?.toString() ?? '')
-                                  .toLowerCase()
-                                  .contains(currentQuery);
+                        final filteredDocs = docs.where((doc) {
+                          final data = doc.data() as Map<String, dynamic>;
+                          final content = (data['content'] ?? '')
+                              .toString()
+                              .toLowerCase();
+                          return content.contains(searchQuery);
                         }).toList();
 
-                        // Empty states
-                        if (filteredDynamicPosts.isEmpty) {
-                          if (currentQuery.isNotEmpty) {
-                            return Padding(
-                              padding: const EdgeInsets.all(16.0),
-                              child: Center(
-                                child: Text(
-                                  "No matching updates found",
-                                  style: TextStyle(color: Colors.grey[500]),
-                                ),
-                              ),
-                            );
-                          } else {
-                            return Container(
-                              width: double.infinity,
-                              padding: const EdgeInsets.all(24),
-                              decoration: BoxDecoration(
-                                color: Colors.white,
-                                borderRadius: BorderRadius.circular(16),
-                                border: Border.all(color: Colors.grey.shade200),
-                              ),
-                              child: Column(
-                                children: [
-                                  Icon(
-                                    Icons.campaign_outlined,
-                                    size: 40,
-                                    color: Colors.grey.shade300,
-                                  ),
-                                  const SizedBox(height: 12),
-                                  Text(
-                                    "No recent updates",
-                                    style: TextStyle(
-                                      color: Colors.grey.shade500,
-                                      fontWeight: FontWeight.w500,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 4),
-                                  Text(
-                                    "Check the reminders above for info",
-                                    style: TextStyle(
-                                      color: Colors.grey.shade400,
-                                      fontSize: 12,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            );
-                          }
+                        if (filteredDocs.isEmpty && searchQuery.isNotEmpty) {
+                          return const Center(
+                            child: Text(
+                              "No updates found",
+                              style: TextStyle(color: Colors.grey),
+                            ),
+                          );
                         }
 
-                        // Display posts
                         return Column(
-                          children: [
-                            for (var post in filteredDynamicPosts)
-                              _buildPostCard(post),
-                          ],
+                          children: filteredDocs.map((doc) {
+                            return _buildPostCard(doc);
+                          }).toList(),
                         );
                       },
                     ),
