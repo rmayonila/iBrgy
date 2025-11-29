@@ -125,7 +125,7 @@ class _EmergencyHotlinePageState extends State<EmergencyHotlinePage> {
               borderRadius: BorderRadius.circular(50),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withOpacity(0.15),
+                  color: Colors.black.withValues(alpha: 0.15),
                   blurRadius: 20,
                   spreadRadius: 2,
                   offset: const Offset(0, 5),
@@ -172,7 +172,7 @@ class _EmergencyHotlinePageState extends State<EmergencyHotlinePage> {
         ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
+            color: Colors.black.withValues(alpha: 0.05),
             blurRadius: 15,
             offset: const Offset(0, 5),
           ),
@@ -230,7 +230,7 @@ class _EmergencyHotlinePageState extends State<EmergencyHotlinePage> {
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.03),
+            color: Colors.black.withValues(alpha: 0.03),
             blurRadius: 10,
             offset: const Offset(0, 4),
           ),
@@ -281,8 +281,8 @@ class _EmergencyHotlinePageState extends State<EmergencyHotlinePage> {
         boxShadow: [
           BoxShadow(
             color: isUrgent
-                ? Colors.red.withOpacity(0.3)
-                : Colors.black.withOpacity(0.03),
+                ? Colors.red.withValues(alpha: 0.3)
+                : Colors.black.withValues(alpha: 0.03),
             blurRadius: 10,
             offset: const Offset(0, 4),
           ),
@@ -294,7 +294,7 @@ class _EmergencyHotlinePageState extends State<EmergencyHotlinePage> {
           padding: const EdgeInsets.all(10),
           decoration: BoxDecoration(
             color: isUrgent
-                ? Colors.white.withOpacity(0.2)
+                ? Colors.white.withValues(alpha: 0.2)
                 : Colors.red.shade50,
             borderRadius: BorderRadius.circular(12),
           ),
@@ -318,7 +318,7 @@ class _EmergencyHotlinePageState extends State<EmergencyHotlinePage> {
             item['number'],
             style: TextStyle(
               color: isUrgent
-                  ? Colors.white.withOpacity(0.9)
+                  ? Colors.white.withValues(alpha: 0.9)
                   : Colors.grey.shade600,
               fontSize: 15,
               fontWeight: FontWeight.w500,
@@ -400,7 +400,7 @@ class _EmergencyHotlinePageState extends State<EmergencyHotlinePage> {
         color: Colors.white,
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
+            color: Colors.black.withValues(alpha: 0.05),
             blurRadius: 10,
             offset: const Offset(0, -5),
           ),
@@ -626,7 +626,7 @@ class PhoneFrame extends StatelessWidget {
             borderRadius: BorderRadius.circular(40),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withOpacity(0.1),
+                color: Colors.black.withValues(alpha: 0.1),
                 blurRadius: 30,
                 spreadRadius: 5,
                 offset: const Offset(0, 10),

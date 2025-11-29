@@ -162,7 +162,7 @@ class _UserAnnouncementPageState extends State<UserAnnouncementPage> {
         ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
+            color: Color.fromRGBO(0, 0, 0, 0.05),
             blurRadius: 15,
             offset: const Offset(0, 5),
           ),
@@ -226,7 +226,7 @@ class _UserAnnouncementPageState extends State<UserAnnouncementPage> {
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.03),
+            color: Color.fromRGBO(0, 0, 0, 0.03),
             blurRadius: 10,
             offset: const Offset(0, 4),
           ),
@@ -348,7 +348,7 @@ class _UserAnnouncementPageState extends State<UserAnnouncementPage> {
         border: Border.all(color: Colors.grey.shade200),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.02),
+            color: Color.fromRGBO(0, 0, 0, 0.02),
             blurRadius: 8,
             offset: const Offset(0, 2),
           ),
@@ -397,7 +397,7 @@ class _UserAnnouncementPageState extends State<UserAnnouncementPage> {
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.03),
+            color: Color.fromRGBO(0, 0, 0, 0.03),
             blurRadius: 10,
             offset: const Offset(0, 4),
           ),
@@ -499,7 +499,7 @@ class _UserAnnouncementPageState extends State<UserAnnouncementPage> {
         color: Colors.white,
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
+            color: Color.fromRGBO(0, 0, 0, 0.05),
             blurRadius: 10,
             offset: const Offset(0, -5),
           ),
@@ -722,7 +722,7 @@ class _ExpandableTextState extends State<_ExpandableText> {
           style: TextStyle(
             fontSize: 14,
             height: 1.5,
-            color: Colors.black87.withOpacity(0.8),
+            color: Color.fromRGBO(33, 33, 33, 0.8),
           ),
         );
 
@@ -746,7 +746,7 @@ class _ExpandableTextState extends State<_ExpandableText> {
                 style: TextStyle(
                   fontSize: 14,
                   height: 1.5,
-                  color: Colors.black87.withOpacity(0.8),
+                  color: Color.fromRGBO(33, 33, 33, 0.8),
                 ),
               ),
               const SizedBox(height: 4),
@@ -773,7 +773,7 @@ class _ExpandableTextState extends State<_ExpandableText> {
             style: TextStyle(
               fontSize: 14,
               height: 1.5,
-              color: Colors.black87.withOpacity(0.8),
+              color: Color.fromRGBO(33, 33, 33, 0.8),
             ),
           );
         }
@@ -799,7 +799,7 @@ class PhoneFrame extends StatelessWidget {
             borderRadius: BorderRadius.circular(40),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withOpacity(0.1),
+                color: Color.fromRGBO(0, 0, 0, 0.1),
                 blurRadius: 30,
                 spreadRadius: 5,
                 offset: const Offset(0, 10),

@@ -16,7 +16,7 @@ class UserBrgyOfficialsPage extends StatefulWidget {
 class _UserBrgyOfficialsPageState extends State<UserBrgyOfficialsPage> {
   final TextEditingController _searchController = TextEditingController();
   String _searchQuery = '';
-  int _selectedIndex = 3; // People tab
+  final int _selectedIndex = 3; // People tab - CHANGED TO FINAL
 
   // 1. Streams (Same as Moderator to ensure sync)
   final Stream<QuerySnapshot> _officialsStream = FirebaseFirestore.instance
@@ -153,7 +153,12 @@ class _UserBrgyOfficialsPageState extends State<UserBrgyOfficialsPage> {
             borderRadius: BorderRadius.circular(24),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withOpacity(0.25),
+                color: Color.fromRGBO(
+                  0,
+                  0,
+                  0,
+                  0.25,
+                ), // FIXED: withOpacity replaced
                 blurRadius: 25,
                 offset: const Offset(0, 10),
               ),
@@ -328,7 +333,7 @@ class _UserBrgyOfficialsPageState extends State<UserBrgyOfficialsPage> {
         ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
+            color: Color.fromRGBO(0, 0, 0, 0.05), // FIXED: withOpacity replaced
             blurRadius: 15,
             offset: const Offset(0, 5),
           ),
@@ -400,7 +405,12 @@ class _UserBrgyOfficialsPageState extends State<UserBrgyOfficialsPage> {
         borderRadius: BorderRadius.circular(20),
         boxShadow: [
           BoxShadow(
-            color: Colors.blue.withOpacity(0.3),
+            color: Color.fromRGBO(
+              0,
+              123,
+              255,
+              0.3,
+            ), // FIXED: withOpacity replaced
             blurRadius: 10,
             offset: const Offset(0, 5),
           ),
@@ -434,7 +444,7 @@ class _UserBrgyOfficialsPageState extends State<UserBrgyOfficialsPage> {
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.03),
+            color: Color.fromRGBO(0, 0, 0, 0.03), // FIXED: withOpacity replaced
             blurRadius: 10,
             offset: const Offset(0, 4),
           ),
@@ -486,7 +496,7 @@ class _UserBrgyOfficialsPageState extends State<UserBrgyOfficialsPage> {
         border: Border.all(color: Colors.grey.shade200),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.02),
+            color: Color.fromRGBO(0, 0, 0, 0.02), // FIXED: withOpacity replaced
             blurRadius: 8,
             offset: const Offset(0, 2),
           ),
@@ -646,7 +656,7 @@ class _UserBrgyOfficialsPageState extends State<UserBrgyOfficialsPage> {
         color: Colors.white,
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
+            color: Color.fromRGBO(0, 0, 0, 0.05), // FIXED: withOpacity replaced
             blurRadius: 10,
             offset: const Offset(0, -5),
           ),
@@ -913,7 +923,12 @@ class PhoneFrame extends StatelessWidget {
             borderRadius: BorderRadius.circular(40),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withOpacity(0.1),
+                color: Color.fromRGBO(
+                  0,
+                  0,
+                  0,
+                  0.1,
+                ), // FIXED: withOpacity replaced
                 blurRadius: 30,
                 spreadRadius: 5,
                 offset: const Offset(0, 10),

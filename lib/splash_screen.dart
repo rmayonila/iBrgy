@@ -267,7 +267,12 @@ class _SplashScreenState extends State<SplashScreen>
               shape: BoxShape.circle,
               gradient: RadialGradient(
                 colors: [
-                  Colors.blue.shade100.withOpacity(0.4),
+                  Color.fromRGBO(
+                    187,
+                    222,
+                    251,
+                    0.4,
+                  ), // FIXED: withOpacity replaced
                   Colors.transparent,
                 ],
               ),
@@ -284,7 +289,12 @@ class _SplashScreenState extends State<SplashScreen>
               shape: BoxShape.circle,
               gradient: RadialGradient(
                 colors: [
-                  Colors.blue.shade200.withOpacity(0.3),
+                  Color.fromRGBO(
+                    144,
+                    202,
+                    249,
+                    0.3,
+                  ), // FIXED: withOpacity replaced
                   Colors.transparent,
                 ],
               ),
@@ -301,7 +311,12 @@ class _SplashScreenState extends State<SplashScreen>
         shape: BoxShape.circle,
         boxShadow: [
           BoxShadow(
-            color: Colors.blue.withOpacity(0.15),
+            color: Color.fromRGBO(
+              33,
+              150,
+              243,
+              0.15,
+            ), // FIXED: withOpacity replaced
             blurRadius: 40,
             spreadRadius: 10,
             offset: const Offset(0, 10),
@@ -330,12 +345,24 @@ class _SplashScreenState extends State<SplashScreen>
         filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
         child: Container(
           decoration: BoxDecoration(
-            color: Colors.white.withOpacity(0.5),
+            color: Color.fromRGBO(
+              255,
+              255,
+              255,
+              0.5,
+            ), // FIXED: withOpacity replaced
             borderRadius: BorderRadius.circular(30),
-            border: Border.all(color: Colors.white.withOpacity(0.6)),
+            border: Border.all(
+              color: Color.fromRGBO(255, 255, 255, 0.6),
+            ), // FIXED: withOpacity replaced
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withOpacity(0.05),
+                color: Color.fromRGBO(
+                  0,
+                  0,
+                  0,
+                  0.05,
+                ), // FIXED: withOpacity replaced
                 blurRadius: 10,
                 spreadRadius: 1,
               ),

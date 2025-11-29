@@ -159,12 +159,12 @@ class _ModeratorBrgyOfficialsPageState
                 return FileImage(File(pickedImageFile!.path));
               }
             } else if (currentImageBase64 != null &&
-                currentImageBase64!.isNotEmpty) {
+                currentImageBase64.isNotEmpty) {
               try {
-                if (currentImageBase64!.startsWith('http')) {
-                  return NetworkImage(currentImageBase64!);
+                if (currentImageBase64.startsWith('http')) {
+                  return NetworkImage(currentImageBase64);
                 } else {
-                  return MemoryImage(base64Decode(currentImageBase64!));
+                  return MemoryImage(base64Decode(currentImageBase64));
                 }
               } catch (e) {
                 return null;
@@ -515,7 +515,7 @@ class _ModeratorBrgyOfficialsPageState
             borderRadius: BorderRadius.circular(24),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withOpacity(0.25),
+                color: Colors.black.withValues(alpha: 0.25),
                 blurRadius: 25,
                 offset: const Offset(0, 10),
               ),
@@ -691,7 +691,7 @@ class _ModeratorBrgyOfficialsPageState
         ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
+            color: Colors.black.withValues(alpha: 0.05),
             blurRadius: 15,
             offset: const Offset(0, 5),
           ),
@@ -757,7 +757,7 @@ class _ModeratorBrgyOfficialsPageState
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.03),
+            color: Colors.black.withValues(alpha: 0.03),
             blurRadius: 10,
             offset: const Offset(0, 4),
           ),
@@ -804,7 +804,7 @@ class _ModeratorBrgyOfficialsPageState
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.02),
+            color: Colors.black.withValues(alpha: 0.02),
             blurRadius: 10,
             offset: const Offset(0, 4),
           ),
@@ -938,8 +938,9 @@ class _ModeratorBrgyOfficialsPageState
     final hours = contacts['hours']?.toString() ?? '';
     final phone = contacts['contacts']?.toString() ?? '';
 
-    if (address.isEmpty && hours.isEmpty && phone.isEmpty)
+    if (address.isEmpty && hours.isEmpty && phone.isEmpty) {
       return const SizedBox.shrink();
+    }
 
     return Container(
       margin: const EdgeInsets.only(top: 4, bottom: 20),
@@ -1044,7 +1045,7 @@ class _ModeratorBrgyOfficialsPageState
         color: Colors.white,
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
+            color: Colors.black.withValues(alpha: 0.05),
             blurRadius: 10,
             offset: const Offset(0, -5),
           ),
@@ -1168,8 +1169,9 @@ class _ModeratorBrgyOfficialsPageState
                             if (_searchQuery.isEmpty ||
                                 name.contains(_searchQuery) ||
                                 title.contains(_searchQuery)) {
-                              if (!grouped.containsKey(category))
+                              if (!grouped.containsKey(category)) {
                                 grouped[category] = [];
+                              }
                               grouped[category]!.add(doc);
                             }
                           }
@@ -1282,7 +1284,7 @@ class PhoneFrame extends StatelessWidget {
             borderRadius: BorderRadius.circular(40),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withOpacity(0.1),
+                color: Colors.black.withValues(alpha: 0.1),
                 blurRadius: 30,
                 spreadRadius: 5,
                 offset: const Offset(0, 10),

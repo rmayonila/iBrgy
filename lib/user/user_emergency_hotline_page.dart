@@ -162,7 +162,12 @@ class _UserEmergencyHotlinePageState extends State<UserEmergencyHotlinePage> {
             borderRadius: BorderRadius.circular(50),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withOpacity(0.15),
+                color: Color.fromRGBO(
+                  0,
+                  0,
+                  0,
+                  0.15,
+                ), // FIXED: withOpacity replaced
                 blurRadius: 20,
                 spreadRadius: 2,
                 offset: const Offset(0, 5),
@@ -208,7 +213,7 @@ class _UserEmergencyHotlinePageState extends State<UserEmergencyHotlinePage> {
         ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
+            color: Color.fromRGBO(0, 0, 0, 0.05), // FIXED: withOpacity replaced
             blurRadius: 15,
             offset: const Offset(0, 5),
           ),
@@ -272,7 +277,7 @@ class _UserEmergencyHotlinePageState extends State<UserEmergencyHotlinePage> {
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.03),
+            color: Color.fromRGBO(0, 0, 0, 0.03), // FIXED: withOpacity replaced
             blurRadius: 10,
             offset: const Offset(0, 4),
           ),
@@ -321,8 +326,13 @@ class _UserEmergencyHotlinePageState extends State<UserEmergencyHotlinePage> {
         boxShadow: [
           BoxShadow(
             color: isUrgent
-                ? Colors.red.withOpacity(0.3)
-                : Colors.black.withOpacity(0.03),
+                ? Color.fromRGBO(
+                    211,
+                    47,
+                    47,
+                    0.3,
+                  ) // FIXED: withOpacity replaced
+                : Color.fromRGBO(0, 0, 0, 0.03), // FIXED: withOpacity replaced
             blurRadius: 10,
             offset: const Offset(0, 4),
           ),
@@ -334,7 +344,12 @@ class _UserEmergencyHotlinePageState extends State<UserEmergencyHotlinePage> {
           padding: const EdgeInsets.all(10),
           decoration: BoxDecoration(
             color: isUrgent
-                ? Colors.white.withOpacity(0.2)
+                ? Color.fromRGBO(
+                    255,
+                    255,
+                    255,
+                    0.2,
+                  ) // FIXED: withOpacity replaced
                 : Colors.red.shade50,
             borderRadius: BorderRadius.circular(12),
           ),
@@ -358,7 +373,12 @@ class _UserEmergencyHotlinePageState extends State<UserEmergencyHotlinePage> {
             item['number'],
             style: TextStyle(
               color: isUrgent
-                  ? Colors.white.withOpacity(0.9)
+                  ? Color.fromRGBO(
+                      255,
+                      255,
+                      255,
+                      0.9,
+                    ) // FIXED: withOpacity replaced
                   : Colors.grey.shade600,
               fontSize: 15,
               fontWeight: FontWeight.w500,
@@ -428,7 +448,7 @@ class _UserEmergencyHotlinePageState extends State<UserEmergencyHotlinePage> {
         color: Colors.white,
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
+            color: Color.fromRGBO(0, 0, 0, 0.05), // FIXED: withOpacity replaced
             blurRadius: 10,
             offset: const Offset(0, -5),
           ),
@@ -651,7 +671,12 @@ class PhoneFrame extends StatelessWidget {
             borderRadius: BorderRadius.circular(40),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withOpacity(0.1),
+                color: Color.fromRGBO(
+                  0,
+                  0,
+                  0,
+                  0.1,
+                ), // FIXED: withOpacity replaced
                 blurRadius: 30,
                 spreadRadius: 5,
                 offset: const Offset(0, 10),

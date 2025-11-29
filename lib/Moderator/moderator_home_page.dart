@@ -155,7 +155,7 @@ class _ModeratorHomePageState extends State<ModeratorHomePage> {
                     ),
                     const SizedBox(height: 16),
                     _buildCategoryDropdown(
-                      value: selectedCategory,
+                      initialValue: selectedCategory,
                       onChanged: (val) {
                         setStateDialog(() => selectedCategory = val!);
                       },
@@ -181,14 +181,17 @@ class _ModeratorHomePageState extends State<ModeratorHomePage> {
                 ),
                 ElevatedButton(
                   onPressed: () async {
-                    if (titleCtrl.text.isEmpty || stepsCtrl.text.isEmpty)
+                    if (titleCtrl.text.isEmpty || stepsCtrl.text.isEmpty) {
                       return;
+                    }
                     await _addService(
                       titleCtrl.text,
                       selectedCategory,
                       stepsCtrl.text,
                     );
-                    Navigator.of(ctx).pop();
+                    if (mounted) {
+                      Navigator.of(ctx).pop();
+                    }
                     _showSnackBar('Service Added Successfully', Colors.green);
                   },
                   style: ElevatedButton.styleFrom(
@@ -245,7 +248,7 @@ class _ModeratorHomePageState extends State<ModeratorHomePage> {
                     ),
                     const SizedBox(height: 16),
                     _buildCategoryDropdown(
-                      value: selectedCategory,
+                      initialValue: selectedCategory,
                       onChanged: (val) {
                         setStateDialog(() => selectedCategory = val!);
                       },
@@ -277,7 +280,9 @@ class _ModeratorHomePageState extends State<ModeratorHomePage> {
                       selectedCategory,
                       stepsCtrl.text,
                     );
-                    Navigator.of(ctx).pop();
+                    if (mounted) {
+                      Navigator.of(ctx).pop();
+                    }
                     _showSnackBar('Service Updated Successfully', Colors.green);
                   },
                   style: ElevatedButton.styleFrom(
@@ -319,7 +324,9 @@ class _ModeratorHomePageState extends State<ModeratorHomePage> {
           ElevatedButton(
             onPressed: () {
               _deleteService(docId);
-              Navigator.of(ctx).pop();
+              if (mounted) {
+                Navigator.of(ctx).pop();
+              }
               _showSnackBar('Service Deleted', Colors.red);
             },
             style: ElevatedButton.styleFrom(
@@ -376,11 +383,11 @@ class _ModeratorHomePageState extends State<ModeratorHomePage> {
   }
 
   Widget _buildCategoryDropdown({
-    required String value,
+    required String initialValue,
     required ValueChanged<String?> onChanged,
   }) {
     return DropdownButtonFormField<String>(
-      value: value,
+      initialValue: initialValue,
       items: categoryConfig.keys.map((k) {
         return DropdownMenuItem(
           value: k,
@@ -445,7 +452,7 @@ class _ModeratorHomePageState extends State<ModeratorHomePage> {
         ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
+            color: Colors.black.withValues(alpha: 0.05),
             blurRadius: 15,
             offset: const Offset(0, 5),
           ),
@@ -503,7 +510,7 @@ class _ModeratorHomePageState extends State<ModeratorHomePage> {
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.03),
+            color: Colors.black.withValues(alpha: 0.03),
             blurRadius: 10,
             offset: const Offset(0, 4),
           ),
@@ -547,7 +554,7 @@ class _ModeratorHomePageState extends State<ModeratorHomePage> {
         borderRadius: BorderRadius.circular(12),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
+            color: Colors.black.withValues(alpha: 0.05),
             blurRadius: 8,
             offset: const Offset(0, 2),
           ),
@@ -560,7 +567,7 @@ class _ModeratorHomePageState extends State<ModeratorHomePage> {
               height: 40,
               width: 40,
               decoration: BoxDecoration(
-                color: (config['color'] as Color).withOpacity(0.1),
+                color: (config['color'] as Color).withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(8),
               ),
               child: Icon(
@@ -704,7 +711,7 @@ class _ModeratorHomePageState extends State<ModeratorHomePage> {
                               borderRadius: BorderRadius.circular(8),
                               boxShadow: [
                                 BoxShadow(
-                                  color: Colors.black.withOpacity(0.1),
+                                  color: Colors.black.withValues(alpha: 0.1),
                                   blurRadius: 4,
                                 ),
                               ],
@@ -776,7 +783,7 @@ class _ModeratorHomePageState extends State<ModeratorHomePage> {
             color: Colors.white,
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withOpacity(0.05),
+                color: Colors.black.withValues(alpha: 0.05),
                 blurRadius: 10,
                 offset: const Offset(0, -5),
               ),
@@ -852,7 +859,7 @@ class PhoneFrame extends StatelessWidget {
             borderRadius: BorderRadius.circular(40),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withOpacity(0.1),
+                color: Colors.black.withValues(alpha: 0.1),
                 blurRadius: 30,
                 spreadRadius: 5,
                 offset: const Offset(0, 10),

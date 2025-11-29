@@ -2,7 +2,7 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:google_fonts/google_fonts.dart'; // Ensure this is imported
+import 'package:google_fonts/google_fonts.dart';
 import 'admin/admin_home.dart' as admin;
 import 'main.dart' show PhoneFrame;
 
@@ -26,6 +26,7 @@ class _LoginPageState extends State<LoginPage> {
 
   // Seeded admin credentials
   static const String _seededAdminEmail = "admin@ibrgy.com";
+  // This is the fallback if no custom password is found in Firestore
   static const String _seededAdminPassword = "admin1234";
 
   @override
@@ -94,19 +95,76 @@ class _LoginPageState extends State<LoginPage> {
 
     setState(() => _loading = true);
 
-    // Check for seeded admin credentials
-    if (email.toLowerCase() == _seededAdminEmail &&
-        password == _seededAdminPassword) {
-      if (mounted) setState(() => _loading = false);
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(
-          builder: (ctx) => PhoneFrame(child: admin.AdminHomePage()),
-        ),
-      );
-      return;
+    // ---------------------------------------------------------
+    // 1. CHECK FOR SEEDED ADMIN (With Firestore Dynamic Password)
+    // ---------------------------------------------------------
+    if (email.toLowerCase() == _seededAdminEmail) {
+      try {
+        // Fetch the dynamic password from Firestore
+        // Note: Matches the 'AccountPage' logic (collection: settings, doc: admin_auth)
+        final doc = await FirebaseFirestore.instance
+            .collection('settings')
+            .doc('admin_auth')
+            .get();
+
+        String validPassword = _seededAdminPassword; // Default: 'admin1234'
+
+        // If a custom password exists in database, use it
+        if (doc.exists && doc.data() != null) {
+          final storedPw = doc.data()?['currentPassword'];
+          if (storedPw != null && storedPw.toString().isNotEmpty) {
+            validPassword = storedPw;
+          }
+        }
+
+        // Validate Input
+        if (password == validPassword) {
+          if (mounted) setState(() => _loading = false);
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(
+              builder: (ctx) => PhoneFrame(child: admin.AdminHomePage()),
+            ),
+          );
+          return; // Stop here, admin is logged in
+        } else {
+          // Password incorrect
+          if (mounted) {
+            setState(() {
+              _loading = false;
+              _errorMessage = 'Incorrect password';
+            });
+          }
+          return;
+        }
+      } catch (e) {
+        // Fallback for network errors: try hardcoded password if Firestore fails
+        // purely to prevent lockout during offline, though risky if pw changed.
+        // For strict security, you might want to show "Network error" instead.
+        if (password == _seededAdminPassword) {
+          if (mounted) setState(() => _loading = false);
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(
+              builder: (ctx) => PhoneFrame(child: admin.AdminHomePage()),
+            ),
+          );
+          return;
+        }
+
+        if (mounted) {
+          setState(() {
+            _loading = false;
+            _errorMessage = 'Login failed. Please check your connection.';
+          });
+        }
+        return;
+      }
     }
 
+    // ---------------------------------------------------------
+    // 2. CHECK FOR STANDARD FIREBASE USERS
+    // ---------------------------------------------------------
     try {
       final cred = await FirebaseAuth.instance.signInWithEmailAndPassword(
         email: email,
@@ -211,7 +269,7 @@ class _LoginPageState extends State<LoginPage> {
                       borderRadius: BorderRadius.circular(24),
                       boxShadow: [
                         BoxShadow(
-                          color: Colors.blue.withOpacity(0.1),
+                          color: Colors.blue.withValues(alpha: 0.1),
                           blurRadius: 30,
                           spreadRadius: 5,
                           offset: const Offset(0, 10),
@@ -221,11 +279,11 @@ class _LoginPageState extends State<LoginPage> {
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        // Logo - Replaced with the new image from assets
+                        // Logo
                         SizedBox(
-                          height: 80, // Increased height for the new logo
+                          height: 80,
                           child: Image.asset(
-                            'assets/images/ibrgy_logo_without_text.png', // Make sure to add this image to your assets
+                            'assets/images/ibrgy_logo_without_text.png',
                             fit: BoxFit.contain,
                           ),
                         ),
@@ -344,8 +402,8 @@ class _LoginPageState extends State<LoginPage> {
                                     borderRadius: BorderRadius.circular(14),
                                     boxShadow: [
                                       BoxShadow(
-                                        color: Colors.blue.shade300.withOpacity(
-                                          0.4,
+                                        color: Colors.blue.shade300.withValues(
+                                          alpha: 0.4,
                                         ),
                                         blurRadius: 10,
                                         offset: const Offset(0, 4),
@@ -390,7 +448,7 @@ class _LoginPageState extends State<LoginPage> {
                           shape: BoxShape.circle,
                           boxShadow: [
                             BoxShadow(
-                              color: Colors.black.withOpacity(0.1),
+                              color: Colors.black.withValues(alpha: 0.1),
                               blurRadius: 8,
                               offset: const Offset(0, 2),
                             ),

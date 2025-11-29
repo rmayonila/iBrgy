@@ -5,7 +5,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../splash_screen.dart';
 import 'admin_notifications_page.dart';
-import 'edit_profile_page.dart';
+import 'account.dart';
 import 'manage_moderators_page.dart';
 import 'change_password_page.dart'; // Import the separated file
 import 'help_support_page.dart'; // Import the separated file
@@ -277,12 +277,12 @@ class _AccountSettingsPageState extends State<AccountSettingsPage> {
                     _buildGroupContainer([
                       _buildListTile(
                         icon: Icons.person_outline,
-                        title: 'Edit Profile',
+                        title: 'Account',
                         onTap: () {
                           Navigator.push(
                             context,
                             MaterialPageRoute(
-                              builder: (context) => EditProfilePage(
+                              builder: (context) => AccountPage(
                                 initialName: adminName,
                                 initialEmail: adminEmail,
                               ),
@@ -339,18 +339,7 @@ class _AccountSettingsPageState extends State<AccountSettingsPage> {
                           );
                         },
                       ),
-                      _buildListTile(
-                        icon: Icons.lock_outline,
-                        title: 'Change Password',
-                        onTap: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) => const ChangePasswordPage(),
-                            ),
-                          );
-                        },
-                      ),
+
                       _buildListTile(
                         icon: Icons.logout,
                         title: 'Log Out',

@@ -154,7 +154,7 @@ class _UserHomePageState extends State<UserHomePage> {
         ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
+            color: Color.fromRGBO(0, 0, 0, 0.05), // FIXED: withOpacity replaced
             blurRadius: 15,
             offset: const Offset(0, 5),
           ),
@@ -218,7 +218,7 @@ class _UserHomePageState extends State<UserHomePage> {
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.03),
+            color: Color.fromRGBO(0, 0, 0, 0.03), // FIXED: withOpacity replaced
             blurRadius: 10,
             offset: const Offset(0, 4),
           ),
@@ -264,7 +264,7 @@ class _UserHomePageState extends State<UserHomePage> {
         borderRadius: BorderRadius.circular(12),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
+            color: Color.fromRGBO(0, 0, 0, 0.05), // FIXED: withOpacity replaced
             blurRadius: 8,
             offset: const Offset(0, 2),
           ),
@@ -278,7 +278,15 @@ class _UserHomePageState extends State<UserHomePage> {
               height: 40,
               width: 40,
               decoration: BoxDecoration(
-                color: (config['color'] as Color).withOpacity(0.1),
+                color: Color.fromRGBO(
+                  ((config['color'] as Color).value >> 16) &
+                      0xFF, // FIXED: .red replaced
+                  ((config['color'] as Color).value >> 8) &
+                      0xFF, // FIXED: .green replaced
+                  (config['color'] as Color).value &
+                      0xFF, // FIXED: .blue replaced
+                  0.1,
+                ),
                 borderRadius: BorderRadius.circular(8),
               ),
               child: Icon(
@@ -461,7 +469,12 @@ class _UserHomePageState extends State<UserHomePage> {
           color: Colors.white,
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.05),
+              color: Color.fromRGBO(
+                0,
+                0,
+                0,
+                0.05,
+              ), // FIXED: withOpacity replaced
               blurRadius: 10,
               offset: const Offset(0, -5),
             ),
@@ -535,7 +548,12 @@ class PhoneFrame extends StatelessWidget {
             borderRadius: BorderRadius.circular(40),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withOpacity(0.1),
+                color: Color.fromRGBO(
+                  0,
+                  0,
+                  0,
+                  0.1,
+                ), // FIXED: withOpacity replaced
                 blurRadius: 30,
                 spreadRadius: 5,
                 offset: const Offset(0, 10),
