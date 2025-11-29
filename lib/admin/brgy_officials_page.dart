@@ -1,4 +1,5 @@
 // ignore_for_file: use_build_context_synchronously
+import 'dart:convert'; // Required for Base64 images
 import 'package:flutter/foundation.dart'; // For web check
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -11,38 +12,24 @@ class BrgyOfficialsPage extends StatefulWidget {
 }
 
 class _BrgyOfficialsPageState extends State<BrgyOfficialsPage> {
-  final FirebaseFirestore _db = FirebaseFirestore.instance;
-
-  // Data State
-  Map<String, List<Map<String, String>>> _allOfficials = {};
-  Map<String, List<Map<String, String>>> _filteredOfficials = {};
-  Map<String, Map<String, String>> _contacts = {};
-
-  // Search State
   final TextEditingController _searchController = TextEditingController();
+  String _searchQuery = '';
 
-  // --- STATIC STRUCTURE (For Empty State) ---
-  final Map<String, List<Map<String, String>>> _staticStructure = {
-    'Punong Barangay': [
-      {'title': 'Barangay Captain', 'name': 'To be updated...'},
-    ],
-    'Sangguniang Barangay': [
-      {'title': 'Barangay Kagawad 1', 'name': 'To be updated...'},
-      {'title': 'Barangay Kagawad 2', 'name': 'To be updated...'},
-      {'title': 'Barangay Kagawad 3', 'name': 'To be updated...'},
-      {'title': 'Barangay Kagawad 4', 'name': 'To be updated...'},
-      {'title': 'Barangay Kagawad 5', 'name': 'To be updated...'},
-      {'title': 'Barangay Kagawad 6', 'name': 'To be updated...'},
-      {'title': 'Barangay Kagawad 7', 'name': 'To be updated...'},
-    ],
-    'Sangguniang Kabataan': [
-      {'title': 'SK Chairperson', 'name': 'To be updated...'},
-    ],
-    'Appointed Officials': [
-      {'title': 'Barangay Secretary', 'name': 'To be updated...'},
-      {'title': 'Barangay Treasurer', 'name': 'To be updated...'},
-    ],
-  };
+  // 1. Streams (Same as User to ensure sync)
+  final Stream<QuerySnapshot> _officialsStream = FirebaseFirestore.instance
+      .collection('officials')
+      .orderBy('createdAt', descending: true)
+      .snapshots();
+
+  final Stream<QuerySnapshot> _contactsStream = FirebaseFirestore.instance
+      .collection('official_contacts')
+      .snapshots();
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
 
   void _onItemTapped(BuildContext context, int index) {
     if (index == 0) {
@@ -56,91 +43,217 @@ class _BrgyOfficialsPageState extends State<BrgyOfficialsPage> {
     }
   }
 
-  @override
-  void initState() {
-    super.initState();
-    _loadOfficialsAndContacts();
-  }
-
-  @override
-  void dispose() {
-    _searchController.dispose();
-    super.dispose();
-  }
-
-  Future<void> _loadOfficialsAndContacts() async {
-    try {
-      final snap = await _db
-          .collection('officials')
-          .orderBy('createdAt', descending: true)
-          .get();
-      final Map<String, List<Map<String, String>>> loaded = {};
-      for (var d in snap.docs) {
-        final data = d.data();
-        final category = (data['category'] ?? 'Uncategorized').toString();
-        final title = (data['title'] ?? '').toString();
-        final name = (data['name'] ?? '').toString();
-        if (!loaded.containsKey(category)) loaded[category] = [];
-        loaded[category]!.add({'id': d.id, 'title': title, 'name': name});
-      }
-
-      final contactsSnap = await _db.collection('official_contacts').get();
-      final Map<String, Map<String, String>> contacts = {};
-      for (var d in contactsSnap.docs) {
-        final data = d.data();
-        contacts[d.id] = {
-          'address': (data['address'] ?? '').toString(),
-          'hours': (data['hours'] ?? '').toString(),
-          'contacts': (data['contacts'] ?? '').toString(),
-        };
-      }
-
-      if (!mounted) return;
-      setState(() {
-        _allOfficials = loaded;
-        _filteredOfficials = loaded;
-        _contacts = contacts;
-      });
-    } catch (e) {
-      // ignore
-    }
-  }
-
-  void _filterOfficials(String query) {
-    if (query.isEmpty) {
-      setState(() {
-        _filteredOfficials = Map.from(_allOfficials);
-      });
-      return;
-    }
-
-    final lowerQuery = query.toLowerCase();
-    final Map<String, List<Map<String, String>>> temp = {};
-    final sourceMap = _allOfficials.isEmpty ? _staticStructure : _allOfficials;
-
-    sourceMap.forEach((category, officialsList) {
-      final filteredList = officialsList.where((o) {
-        final title = (o['title'] ?? '').toLowerCase();
-        final name = (o['name'] ?? '').toLowerCase();
-        return title.contains(lowerQuery) || name.contains(lowerQuery);
-      }).toList();
-
-      if (filteredList.isNotEmpty) {
-        temp[category] = filteredList;
-      }
-    });
-
+  void _updateSearch(String query) {
     setState(() {
-      _filteredOfficials = temp;
+      _searchQuery = query.toLowerCase();
     });
   }
 
-  bool _hasContactInfo(String category) {
-    final c = _contacts[category];
-    if (c == null) return false;
-    return (c['address']?.trim().isNotEmpty ?? false) ||
-        (c['hours']?.trim().isNotEmpty ?? false) ||
-        (c['contacts']?.trim().isNotEmpty ?? false);
+  // --- SHOW DETAILS MODAL (Read-Only Version) ---
+  void _showOfficialDetails(Map<String, dynamic> data) {
+    final title = data['title']?.toString() ?? '';
+    final name = data['name']?.toString() ?? '';
+    final nickname = data['nickname']?.toString() ?? '';
+    final age = data['age']?.toString() ?? ''; // Added Age
+    final address = data['address']?.toString() ?? '';
+    final category = data['category']?.toString() ?? '';
+    final imageUrl = data['imageUrl']?.toString() ?? '';
+
+    // Create Combined Position Title (CATEGORY + TITLE)
+    String combinedPosition = title;
+    if (category.isNotEmpty) {
+      combinedPosition = "$category $title";
+    }
+
+    // Helper for image in modal
+    ImageProvider? getProfileImage() {
+      if (imageUrl.isEmpty) return null;
+      try {
+        if (imageUrl.startsWith('http')) {
+          return NetworkImage(imageUrl);
+        } else {
+          return MemoryImage(base64Decode(imageUrl));
+        }
+      } catch (e) {
+        return null;
+      }
+    }
+
+    showDialog(
+      context: context,
+      useRootNavigator: false, // CRITICAL: Keeps modal inside the "phone frame"
+      builder: (ctx) => Dialog(
+        backgroundColor: Colors.transparent,
+        insetPadding: const EdgeInsets.symmetric(horizontal: 30, vertical: 24),
+        child: Container(
+          clipBehavior: Clip.antiAlias,
+          constraints: const BoxConstraints(maxWidth: 340),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(24),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.25),
+                blurRadius: 25,
+                offset: const Offset(0, 10),
+              ),
+            ],
+          ),
+          child: Stack(
+            children: [
+              // MAIN CONTENT
+              SingleChildScrollView(
+                padding: const EdgeInsets.fromLTRB(24, 40, 24, 32),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    // Large Image
+                    Container(
+                      width: 130,
+                      height: 130,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: Colors.blue.shade50,
+                        border: Border.all(
+                          color: Colors.blue.shade100,
+                          width: 4,
+                        ),
+                        image: getProfileImage() != null
+                            ? DecorationImage(
+                                image: getProfileImage()!,
+                                fit: BoxFit.cover,
+                              )
+                            : null,
+                      ),
+                      child: getProfileImage() == null
+                          ? Icon(
+                              Icons.person,
+                              size: 65,
+                              color: Colors.blue.shade200,
+                            )
+                          : null,
+                    ),
+                    const SizedBox(height: 20),
+
+                    // Name & Nickname
+                    Text(
+                      name,
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(
+                        fontSize: 24,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.black87,
+                        letterSpacing: -0.5,
+                      ),
+                    ),
+                    if (nickname.isNotEmpty)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 6.0),
+                        child: Text(
+                          '"$nickname"',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontStyle: FontStyle.italic,
+                            color: Colors.blue.shade700,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ),
+
+                    const SizedBox(height: 24),
+                    const Divider(height: 1, thickness: 0.5),
+                    const SizedBox(height: 24),
+
+                    // Details List
+                    // Showing Combined Position
+                    _buildDetailRow(
+                      Icons.work_outline_rounded,
+                      "Position",
+                      combinedPosition.toUpperCase(),
+                    ),
+                    // 2. Added Age Row
+                    if (age.isNotEmpty)
+                      _buildDetailRow(
+                        Icons.calendar_today_rounded,
+                        "Age",
+                        "$age years old",
+                      ),
+                    if (address.isNotEmpty)
+                      _buildDetailRow(
+                        Icons.location_on_outlined,
+                        "Address",
+                        address,
+                      ),
+                  ],
+                ),
+              ),
+
+              // CLOSE BUTTON ("X" at Upper Right)
+              Positioned(
+                top: 8,
+                right: 8,
+                child: IconButton(
+                  onPressed: () => Navigator.of(ctx).pop(),
+                  style: IconButton.styleFrom(
+                    backgroundColor: Colors.grey.shade100,
+                    highlightColor: Colors.grey.shade200,
+                  ),
+                  icon: Icon(Icons.close, color: Colors.grey.shade600),
+                  tooltip: 'Close',
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  // Helper widget for the details modal
+  Widget _buildDetailRow(IconData icon, String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 16.0),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: Colors.blue.shade50,
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Icon(icon, size: 20, color: Colors.blue.shade700),
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  label,
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Colors.grey.shade500,
+                    fontWeight: FontWeight.w600,
+                    letterSpacing: 0.5,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  value,
+                  style: const TextStyle(
+                    fontSize: 16,
+                    color: Colors.black87,
+                    fontWeight: FontWeight.w400,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   // --- WIDGET BUILDERS ---
@@ -199,14 +312,6 @@ class _BrgyOfficialsPageState extends State<BrgyOfficialsPage> {
                   ),
                 ),
               ],
-            ),
-          ),
-          const Spacer(),
-          IconButton(
-            onPressed: () {},
-            icon: const Icon(
-              Icons.notifications_none_rounded,
-              color: Colors.black87,
             ),
           ),
         ],
@@ -270,7 +375,8 @@ class _BrgyOfficialsPageState extends State<BrgyOfficialsPage> {
       ),
       child: TextField(
         controller: _searchController,
-        onChanged: _filterOfficials,
+        onChanged: _updateSearch,
+        style: const TextStyle(color: Colors.black),
         decoration: InputDecoration(
           hintText: "Search official...",
           hintStyle: TextStyle(color: Colors.grey.shade400, fontSize: 14),
@@ -285,13 +391,29 @@ class _BrgyOfficialsPageState extends State<BrgyOfficialsPage> {
     );
   }
 
-  Widget _buildOfficialCard(
-    Map<String, String> official, {
-    bool isPlaceholder = false,
-  }) {
+  // --- READ-ONLY OFFICIAL CARD (Clickable for Details) ---
+  Widget _buildOfficialCard(DocumentSnapshot doc) {
+    final data = doc.data() as Map<String, dynamic>;
+    final title = data['title']?.toString() ?? '';
+    final name = data['name']?.toString() ?? '';
+    final imageUrl = data['imageUrl']?.toString() ?? '';
+
+    // Helper to decode image string
+    ImageProvider? getProfileImage() {
+      if (imageUrl.isEmpty) return null;
+      try {
+        if (imageUrl.startsWith('http')) {
+          return NetworkImage(imageUrl);
+        } else {
+          return MemoryImage(base64Decode(imageUrl));
+        }
+      } catch (e) {
+        return null;
+      }
+    }
+
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
-      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
@@ -304,105 +426,124 @@ class _BrgyOfficialsPageState extends State<BrgyOfficialsPage> {
           ),
         ],
       ),
-      child: Row(
-        children: [
-          CircleAvatar(
-            radius: 24,
-            backgroundColor: isPlaceholder
-                ? Colors.grey.shade100
-                : Colors.blue.shade50,
-            child: isPlaceholder
-                ? Icon(Icons.person_outline, color: Colors.grey.shade400)
-                : Text(
-                    (official['name'] ?? 'O').substring(0, 1).toUpperCase(),
-                    style: TextStyle(
-                      color: Colors.blue.shade700,
-                      fontWeight: FontWeight.bold,
-                      fontSize: 18,
-                    ),
-                  ),
-          ),
-          const SizedBox(width: 16),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(16),
+          onTap: () {
+            // View Only - Show Details Modal
+            _showOfficialDetails(data);
+          },
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Row(
               children: [
-                Text(
-                  official['title'] ?? '',
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                    color: Colors.blue.shade700,
-                    letterSpacing: 0.5,
+                // Profile Image
+                CircleAvatar(
+                  radius: 28,
+                  backgroundColor: Colors.blue.shade50,
+                  backgroundImage: getProfileImage(),
+                  child: getProfileImage() == null
+                      ? Text(
+                          name.isNotEmpty
+                              ? name.substring(0, 1).toUpperCase()
+                              : '?',
+                          style: TextStyle(
+                            color: Colors.blue.shade700,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 20,
+                          ),
+                        )
+                      : null,
+                ),
+                const SizedBox(width: 16),
+
+                // Info Column
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Title Badge
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 2,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.blue.shade50,
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: Text(
+                          title.toUpperCase(),
+                          style: TextStyle(
+                            fontSize: 10,
+                            fontWeight: FontWeight.w700,
+                            color: Colors.blue.shade800,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+
+                      // Full Name
+                      Text(
+                        name,
+                        style: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.black87,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
-                const SizedBox(height: 4),
-                Text(
-                  official['name'] ?? '',
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                    color: isPlaceholder
-                        ? Colors.grey.shade400
-                        : Colors.black87,
-                    fontStyle: isPlaceholder
-                        ? FontStyle.italic
-                        : FontStyle.normal,
-                  ),
-                ),
+                // REMOVED: Edit/Delete Menu (Admin is Read-Only for viewing)
               ],
             ),
           ),
-        ],
+        ),
       ),
     );
   }
 
-  Widget _buildContactInfoCard(String category) {
-    if (!_hasContactInfo(category)) return const SizedBox.shrink();
+  // --- READ-ONLY CONTACT CARD ---
+  Widget _buildContactInfoCard(String category, Map<String, dynamic> contacts) {
+    final address = contacts['address']?.toString() ?? '';
+    final hours = contacts['hours']?.toString() ?? '';
+    final phone = contacts['contacts']?.toString() ?? '';
 
-    final contact = _contacts[category]!;
+    if (address.isEmpty && hours.isEmpty && phone.isEmpty) {
+      return const SizedBox.shrink();
+    }
 
     return Container(
       margin: const EdgeInsets.only(top: 4, bottom: 20),
       width: double.infinity,
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: const Color(0xFFF0F7FF), // Very light blue
+        color: const Color(0xFFF0F7FF),
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: Colors.blue.shade100),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          if ((contact['address'] ?? '').isNotEmpty) ...[
-            _buildContactRow(
-              Icons.location_on_outlined,
-              'Address',
-              contact['address']!,
-            ),
+          if (address.isNotEmpty) ...[
+            _buildContactRow(Icons.location_on_outlined, 'Address', address),
             const SizedBox(height: 12),
           ],
-          if ((contact['hours'] ?? '').isNotEmpty) ...[
-            _buildContactRow(
-              Icons.access_time,
-              'Office Hours',
-              contact['hours']!,
-            ),
+          if (hours.isNotEmpty) ...[
+            _buildContactRow(Icons.access_time, 'Office Hours', hours),
             const SizedBox(height: 12),
           ],
-          if ((contact['contacts'] ?? '').isNotEmpty) ...[
-            _buildContactRow(
-              Icons.phone_outlined,
-              'Contact',
-              contact['contacts']!,
-            ),
+          if (phone.isNotEmpty) ...[
+            _buildContactRow(Icons.phone_outlined, 'Contact', phone),
           ],
         ],
       ),
     );
   }
 
+  // Simple Row for Contact Info (No Edit Button)
   Widget _buildContactRow(IconData icon, String label, String value) {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -433,7 +574,7 @@ class _BrgyOfficialsPageState extends State<BrgyOfficialsPage> {
     );
   }
 
-  // --- ENHANCED NAVBAR BUILDER ---
+  // --- ENHANCED NAVBAR BUILDER (ADMIN VERSION - PRESERVED) ---
   Widget _buildBottomNavBar() {
     return Container(
       decoration: BoxDecoration(
@@ -473,12 +614,12 @@ class _BrgyOfficialsPageState extends State<BrgyOfficialsPage> {
             icon: Icon(Icons.phone_rounded),
             label: 'Emergency',
           ),
-          // FIXED: Uses standard Icon so it stays Grey when not selected
           BottomNavigationBarItem(
-            icon: Icon(Icons.campaign_rounded),
+            icon: Icon(
+              Icons.campaign_rounded,
+            ), // Regular icon without container
             label: 'Updates',
           ),
-          // This one is selected, so it will be Blue automatically
           BottomNavigationBarItem(
             icon: Icon(Icons.people_alt_rounded),
             label: 'People',
@@ -495,7 +636,7 @@ class _BrgyOfficialsPageState extends State<BrgyOfficialsPage> {
   @override
   Widget build(BuildContext context) {
     Widget mobileContent = Scaffold(
-      backgroundColor: const Color(0xFFF8F9FA), // Matches Admin Home bg
+      backgroundColor: const Color(0xFFF8F9FA),
       body: SafeArea(
         child: Column(
           children: [
@@ -506,104 +647,164 @@ class _BrgyOfficialsPageState extends State<BrgyOfficialsPage> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // 1. Search Bar
                     _buildSearchBar(),
                     const SizedBox(height: 24),
-
-                    // 2. Hero Banner
                     _buildBanner(),
+                    const Padding(
+                      padding: EdgeInsets.only(bottom: 16.0),
+                      child: Text(
+                        "Barangay Officials",
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.black87,
+                        ),
+                      ),
+                    ),
 
-                    // 3. Logic: Data vs Placeholder
-                    if (_allOfficials.isEmpty &&
-                        _searchController.text.isEmpty) ...[
-                      // EMPTY STATE: Show Static Structure
-                      const Padding(
-                        padding: EdgeInsets.only(bottom: 16.0),
-                        child: Text(
-                          "Organizational Structure",
-                          style: TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.black87,
-                          ),
-                        ),
-                      ),
-                      ..._staticStructure.entries.map((entry) {
-                        return Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Padding(
-                              padding: const EdgeInsets.only(
-                                bottom: 12.0,
-                                left: 4,
-                              ),
-                              child: Text(
-                                entry.key,
-                                style: TextStyle(
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.bold,
-                                  color: Colors.grey.shade600,
-                                  letterSpacing: 0.5,
+                    // --- OFFICIALS STREAM ---
+                    StreamBuilder<QuerySnapshot>(
+                      stream: _officialsStream,
+                      builder: (context, snapshot) {
+                        if (snapshot.connectionState ==
+                            ConnectionState.waiting) {
+                          return const Center(
+                            child: Padding(
+                              padding: EdgeInsets.all(40),
+                              child: CircularProgressIndicator(),
+                            ),
+                          );
+                        }
+
+                        final officialDocs = snapshot.data?.docs ?? [];
+
+                        if (officialDocs.isEmpty) {
+                          if (_searchQuery.isNotEmpty) {
+                            return Center(
+                              child: Padding(
+                                padding: const EdgeInsets.only(top: 20),
+                                child: Text(
+                                  "No matching officials found",
+                                  style: TextStyle(color: Colors.grey[500]),
                                 ),
                               ),
+                            );
+                          }
+                          // Empty Placeholder
+                          return Container(
+                            width: double.infinity,
+                            padding: const EdgeInsets.all(24),
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(16),
+                              border: Border.all(color: Colors.grey.shade200),
                             ),
-                            ...entry.value.map(
-                              (o) => _buildOfficialCard(o, isPlaceholder: true),
-                            ),
-                            const SizedBox(height: 12),
-                          ],
-                        );
-                      }),
-                    ] else if (_filteredOfficials.isEmpty &&
-                        _searchController.text.isNotEmpty) ...[
-                      // SEARCHING BUT NO RESULTS
-                      Padding(
-                        padding: const EdgeInsets.only(top: 20),
-                        child: Center(
-                          child: Text(
-                            "No matching officials found",
-                            style: TextStyle(color: Colors.grey[500]),
-                          ),
-                        ),
-                      ),
-                    ] else ...[
-                      // DATA EXISTS
-                      const Padding(
-                        padding: EdgeInsets.only(bottom: 16.0),
-                        child: Text(
-                          "Barangay Officials",
-                          style: TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.black87,
-                          ),
-                        ),
-                      ),
-                      ..._filteredOfficials.entries.map((entry) {
-                        return Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Padding(
-                              padding: const EdgeInsets.only(
-                                bottom: 12.0,
-                                left: 4,
-                              ),
-                              child: Text(
-                                entry.key,
-                                style: TextStyle(
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.bold,
-                                  color: Colors.grey.shade600,
-                                  letterSpacing: 0.5,
+                            child: Column(
+                              children: [
+                                Icon(
+                                  Icons.people_outline,
+                                  size: 40,
+                                  color: Colors.grey.shade300,
                                 ),
+                                const SizedBox(height: 12),
+                                Text(
+                                  "No officials added yet",
+                                  style: TextStyle(
+                                    color: Colors.grey.shade500,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          );
+                        }
+
+                        // Filter and Group Data
+                        final Map<String, List<DocumentSnapshot>> grouped = {};
+                        for (var doc in officialDocs) {
+                          final data = doc.data() as Map<String, dynamic>;
+                          final name = (data['name'] ?? '')
+                              .toString()
+                              .toLowerCase();
+                          final title = (data['title'] ?? '')
+                              .toString()
+                              .toLowerCase();
+                          final category = (data['category'] ?? 'Uncategorized')
+                              .toString();
+
+                          if (_searchQuery.isEmpty ||
+                              name.contains(_searchQuery) ||
+                              title.contains(_searchQuery)) {
+                            if (!grouped.containsKey(category)) {
+                              grouped[category] = [];
+                            }
+                            grouped[category]!.add(doc);
+                          }
+                        }
+
+                        if (grouped.isEmpty) {
+                          return Center(
+                            child: Padding(
+                              padding: const EdgeInsets.only(top: 20),
+                              child: Text(
+                                "No matching officials found",
+                                style: TextStyle(color: Colors.grey[500]),
                               ),
                             ),
-                            ...entry.value.map((o) => _buildOfficialCard(o)),
-                            _buildContactInfoCard(entry.key),
-                          ],
+                          );
+                        }
+
+                        // --- CONTACTS STREAM (Nested) ---
+                        return StreamBuilder<QuerySnapshot>(
+                          stream: _contactsStream,
+                          builder: (ctx, contactSnap) {
+                            final contactDocs = contactSnap.data?.docs ?? [];
+                            final Map<String, Map<String, dynamic>> contacts =
+                                {};
+                            for (var d in contactDocs) {
+                              contacts[d.id] = d.data() as Map<String, dynamic>;
+                            }
+
+                            return Column(
+                              children: grouped.entries.map((entry) {
+                                final category = entry.key;
+                                final docs = entry.value;
+                                final categoryContacts =
+                                    contacts[category] ?? {};
+
+                                return Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Padding(
+                                      padding: const EdgeInsets.only(
+                                        bottom: 12.0,
+                                        left: 4,
+                                      ),
+                                      child: Text(
+                                        category,
+                                        style: TextStyle(
+                                          fontSize: 14,
+                                          fontWeight: FontWeight.bold,
+                                          color: Colors.grey.shade600,
+                                          letterSpacing: 0.5,
+                                        ),
+                                      ),
+                                    ),
+                                    ...docs.map(
+                                      (doc) => _buildOfficialCard(doc),
+                                    ),
+                                    _buildContactInfoCard(
+                                      category,
+                                      categoryContacts,
+                                    ),
+                                  ],
+                                );
+                              }).toList(),
+                            );
+                          },
                         );
-                      }),
-                    ],
+                      },
+                    ),
 
                     const SizedBox(height: 40),
                   ],
@@ -623,10 +824,29 @@ class _BrgyOfficialsPageState extends State<BrgyOfficialsPage> {
   }
 }
 
+// --- HELPER CLASS FOR CUSTOM ICON ---
+class ContainerIcon extends StatelessWidget {
+  final IconData icon;
+  const ContainerIcon({super.key, required this.icon});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(4),
+      decoration: BoxDecoration(
+        color: Colors.blue.shade50,
+        shape: BoxShape.circle,
+      ),
+      child: Icon(icon, size: 24, color: Colors.blue),
+    );
+  }
+}
+
 // --- PHONE FRAME ---
 class PhoneFrame extends StatelessWidget {
   final Widget child;
   const PhoneFrame({super.key, required this.child});
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(

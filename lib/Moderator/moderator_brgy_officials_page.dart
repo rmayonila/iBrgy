@@ -1,10 +1,10 @@
+// ignore_for_file: use_build_context_synchronously
 import 'dart:convert'; // Needed for Base64 images
 import 'dart:io';
 import 'package:flutter/foundation.dart'; // For kIsWeb check
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:image_picker/image_picker.dart'; // Required for gallery
-import 'moderator_nav.dart';
 
 class ModeratorBrgyOfficialsPage extends StatefulWidget {
   const ModeratorBrgyOfficialsPage({super.key});
@@ -44,12 +44,19 @@ class _ModeratorBrgyOfficialsPageState
   }
 
   void _onItemTapped(int index) {
-    navigateModeratorIndex(
-      context,
-      index,
-      currentIndex: _selectedIndex,
-      onSamePage: (i) => setState(() => _selectedIndex = i),
-    );
+    // Standard Navigation logic
+    if (index == 0) {
+      // Stay/Nav to Home
+    } else if (index == 1) {
+      Navigator.pushReplacementNamed(context, '/moderator-emergency-hotline');
+    } else if (index == 2) {
+      Navigator.pushReplacementNamed(context, '/moderator-announcement');
+    } else if (index == 4) {
+      Navigator.pushReplacementNamed(context, '/moderator-account-settings');
+    }
+    setState(() {
+      _selectedIndex = index;
+    });
   }
 
   void _updateSearch(String query) {
@@ -68,6 +75,25 @@ class _ModeratorBrgyOfficialsPageState
     }
   }
 
+  // --- HELPER: SHOW CUSTOM SNACKBAR ---
+  void _showSnackBar(String message, {bool isError = false}) {
+    _scaffoldMessengerKey.currentState?.showSnackBar(
+      SnackBar(
+        content: Text(
+          message,
+          style: const TextStyle(
+            color: Colors.white,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        backgroundColor: isError ? Colors.red : Colors.green,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        margin: const EdgeInsets.all(16),
+      ),
+    );
+  }
+
   // --- UNIFIED DIALOG (ADD & EDIT) ---
   Future<void> _showOfficialDialog({DocumentSnapshot? existingDoc}) async {
     final isEditing = existingDoc != null;
@@ -81,7 +107,6 @@ class _ModeratorBrgyOfficialsPageState
     final nicknameController = TextEditingController(
       text: data['nickname'] ?? '',
     );
-    // 1. Added Age Controller
     final ageController = TextEditingController(
       text: data['age']?.toString() ?? '',
     );
@@ -89,7 +114,7 @@ class _ModeratorBrgyOfficialsPageState
       text: data['address'] ?? '',
     );
 
-    String? currentImageBase64 = data['imageUrl']; // Can be URL or Base64
+    String? currentImageBase64 = data['imageUrl'];
     XFile? pickedImageFile;
 
     // Reusable decoration
@@ -123,10 +148,9 @@ class _ModeratorBrgyOfficialsPageState
     await showDialog(
       context: context,
       barrierDismissible: true,
-      useRootNavigator: false, // Ensures dialog stays within the app frame
+      useRootNavigator: false,
       builder: (ctx) => StatefulBuilder(
         builder: (context, setDialogState) {
-          // Helper to decide what image provider to show
           ImageProvider? getImageProvider() {
             if (pickedImageFile != null) {
               if (kIsWeb) {
@@ -264,7 +288,6 @@ class _ModeratorBrgyOfficialsPageState
                     ),
                   ),
                   const SizedBox(height: 24),
-
                   TextField(
                     controller: categoryController,
                     style: const TextStyle(color: Colors.black87),
@@ -305,7 +328,6 @@ class _ModeratorBrgyOfficialsPageState
                     ),
                   ),
                   const SizedBox(height: 16),
-                  // 1. Added Age TextField below Nickname
                   TextField(
                     controller: ageController,
                     style: const TextStyle(color: Colors.black87),
@@ -350,19 +372,13 @@ class _ModeratorBrgyOfficialsPageState
                   final address = addressController.text.trim();
 
                   if (category.isEmpty || title.isEmpty || name.isEmpty) {
-                    _scaffoldMessengerKey.currentState?.showSnackBar(
-                      const SnackBar(
-                        content: Text('Please fill all required fields'),
-                        backgroundColor: Colors.red,
-                      ),
-                    );
+                    // Show error if empty
                     return;
                   }
 
                   Navigator.of(ctx).pop(); // Close dialog
 
                   try {
-                    // Handle Image Conversion
                     String finalImageString = currentImageBase64 ?? '';
                     if (pickedImageFile != null) {
                       finalImageString = await _imageToBase64(pickedImageFile!);
@@ -373,7 +389,7 @@ class _ModeratorBrgyOfficialsPageState
                       'title': title,
                       'name': name,
                       'nickname': nickname,
-                      'age': age, // Save age to backend
+                      'age': age,
                       'address': address,
                       'imageUrl': finalImageString,
                       if (!isEditing) 'createdAt': FieldValue.serverTimestamp(),
@@ -385,28 +401,13 @@ class _ModeratorBrgyOfficialsPageState
                           .collection('officials')
                           .doc(existingDoc.id)
                           .update(dataToSave);
-                      _scaffoldMessengerKey.currentState?.showSnackBar(
-                        const SnackBar(
-                          content: Text('Official updated'),
-                          backgroundColor: Colors.green,
-                        ),
-                      );
+                      _showSnackBar('Official updated successfully');
                     } else {
                       await _db.collection('officials').add(dataToSave);
-                      _scaffoldMessengerKey.currentState?.showSnackBar(
-                        const SnackBar(
-                          content: Text('Official added'),
-                          backgroundColor: Colors.green,
-                        ),
-                      );
+                      _showSnackBar('Official added successfully');
                     }
                   } catch (e) {
-                    _scaffoldMessengerKey.currentState?.showSnackBar(
-                      SnackBar(
-                        content: Text('Error: $e'),
-                        backgroundColor: Colors.red,
-                      ),
-                    );
+                    _showSnackBar('Error: $e', isError: true);
                   }
                 },
                 style: ElevatedButton.styleFrom(
@@ -432,14 +433,21 @@ class _ModeratorBrgyOfficialsPageState
     );
   }
 
-  // --- DELETE Official ---
+  // --- DELETE OFFICIAL ---
   Future<void> _deleteOfficial(String docId, String title) async {
     final confirmDelete = await showDialog<bool>(
       context: context,
       useRootNavigator: false, // Inside frame
       builder: (ctx) => AlertDialog(
-        title: const Text('Confirm Deletion'),
-        content: Text('Are you sure you want to delete "$title"?'),
+        backgroundColor: Colors.white, // 1. Change background color to WHITE
+        title: const Text(
+          'Confirm Deletion',
+          style: TextStyle(color: Colors.black),
+        ),
+        content: Text(
+          'Are you sure you want to delete "$title"?',
+          style: const TextStyle(color: Colors.black87),
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(false),
@@ -456,40 +464,30 @@ class _ModeratorBrgyOfficialsPageState
     if (confirmDelete == true) {
       try {
         await _db.collection('officials').doc(docId).delete();
-        _scaffoldMessengerKey.currentState?.showSnackBar(
-          const SnackBar(
-            content: Text('Official deleted'),
-            backgroundColor: Colors.green,
-          ),
-        );
+        _showSnackBar(
+          'Official deleted successfully',
+        ); // 5. Success message with background
       } catch (e) {
-        _scaffoldMessengerKey.currentState?.showSnackBar(
-          SnackBar(
-            content: Text('Failed to delete: $e'),
-            backgroundColor: Colors.red,
-          ),
-        );
+        _showSnackBar('Failed to delete: $e', isError: true);
       }
     }
   }
 
-  // --- SHOW DETAILS MODAL (Updated: "X" Close Button, Inside Frame) ---
+  // --- SHOW DETAILS MODAL ---
   void _showOfficialDetails(Map<String, dynamic> data) {
     final title = data['title']?.toString() ?? '';
     final name = data['name']?.toString() ?? '';
     final nickname = data['nickname']?.toString() ?? '';
-    final age = data['age']?.toString() ?? ''; // Get Age
+    final age = data['age']?.toString() ?? '';
     final address = data['address']?.toString() ?? '';
     final category = data['category']?.toString() ?? '';
     final imageUrl = data['imageUrl']?.toString() ?? '';
 
-    // Create Combined Position Title (CATEGORY + TITLE)
     String combinedPosition = title;
     if (category.isNotEmpty) {
       combinedPosition = "$category $title";
     }
 
-    // Helper for image in modal
     ImageProvider? getProfileImage() {
       if (imageUrl.isEmpty) return null;
       try {
@@ -505,14 +503,12 @@ class _ModeratorBrgyOfficialsPageState
 
     showDialog(
       context: context,
-      useRootNavigator: false, // CRITICAL: Keeps modal inside the "phone frame"
+      useRootNavigator: false,
       builder: (ctx) => Dialog(
         backgroundColor: Colors.transparent,
-        // Increased padding to make it look clearly "inside" the frame
         insetPadding: const EdgeInsets.symmetric(horizontal: 30, vertical: 24),
         child: Container(
           clipBehavior: Clip.antiAlias,
-          // Limit width to ensure it doesn't stretch too wide on larger screens
           constraints: const BoxConstraints(maxWidth: 340),
           decoration: BoxDecoration(
             color: Colors.white,
@@ -527,13 +523,11 @@ class _ModeratorBrgyOfficialsPageState
           ),
           child: Stack(
             children: [
-              // MAIN CONTENT (Wrapped in ScrollView to ensure it fits)
               SingleChildScrollView(
                 padding: const EdgeInsets.fromLTRB(24, 40, 24, 32),
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    // Large Image
                     Container(
                       width: 130,
                       height: 130,
@@ -560,8 +554,6 @@ class _ModeratorBrgyOfficialsPageState
                           : null,
                     ),
                     const SizedBox(height: 20),
-
-                    // Name & Nickname
                     Text(
                       name,
                       textAlign: TextAlign.center,
@@ -586,19 +578,14 @@ class _ModeratorBrgyOfficialsPageState
                           ),
                         ),
                       ),
-
                     const SizedBox(height: 24),
                     const Divider(height: 1, thickness: 0.5),
                     const SizedBox(height: 24),
-
-                    // Details List
-                    // Showing Combined Position
                     _buildDetailRow(
                       Icons.work_outline_rounded,
                       "Position",
                       combinedPosition.toUpperCase(),
                     ),
-                    // 2. Display Age below Position
                     if (age.isNotEmpty)
                       _buildDetailRow(
                         Icons.calendar_today_rounded,
@@ -614,8 +601,6 @@ class _ModeratorBrgyOfficialsPageState
                   ],
                 ),
               ),
-
-              // CLOSE BUTTON ("X" at Upper Right)
               Positioned(
                 top: 8,
                 right: 8,
@@ -636,53 +621,7 @@ class _ModeratorBrgyOfficialsPageState
     );
   }
 
-  // Helper widget for the details modal
-  Widget _buildDetailRow(IconData icon, String label, String value) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 16.0),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-            padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              color: Colors.blue.shade50,
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Icon(icon, size: 20, color: Colors.blue.shade700),
-          ),
-          const SizedBox(width: 16),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  label,
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: Colors.grey.shade500,
-                    fontWeight: FontWeight.w600,
-                    letterSpacing: 0.5,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  value,
-                  style: const TextStyle(
-                    fontSize: 16,
-                    color: Colors.black87,
-                    fontWeight: FontWeight.w400,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // EDIT Contact Info
+  // --- EDIT CONTACT INFO ---
   Future<void> _editContactInfo(
     String category,
     String field,
@@ -695,10 +634,20 @@ class _ModeratorBrgyOfficialsPageState
       context: context,
       useRootNavigator: false, // Inside frame
       builder: (ctx) => AlertDialog(
-        title: Text('Edit $label'),
+        backgroundColor: Colors.white, // White background for consistency
+        title: Text('Edit $label', style: const TextStyle(color: Colors.black)),
         content: TextField(
           controller: inputController,
-          decoration: InputDecoration(hintText: 'Enter $label'),
+          style: const TextStyle(color: Colors.black),
+          decoration: InputDecoration(
+            hintText: 'Enter $label',
+            enabledBorder: const UnderlineInputBorder(
+              borderSide: BorderSide(color: Colors.grey),
+            ),
+            focusedBorder: const UnderlineInputBorder(
+              borderSide: BorderSide(color: Colors.blue),
+            ),
+          ),
           autofocus: true,
         ),
         actions: [
@@ -723,19 +672,9 @@ class _ModeratorBrgyOfficialsPageState
           'updatedAt': FieldValue.serverTimestamp(),
         }, SetOptions(merge: true));
 
-        _scaffoldMessengerKey.currentState?.showSnackBar(
-          const SnackBar(
-            content: Text('Contact updated'),
-            backgroundColor: Colors.green,
-          ),
-        );
+        _showSnackBar('Contact info updated');
       } catch (e) {
-        _scaffoldMessengerKey.currentState?.showSnackBar(
-          SnackBar(
-            content: Text('Failed to update contact info: $e'),
-            backgroundColor: Colors.red,
-          ),
-        );
+        _showSnackBar('Failed to update: $e', isError: true);
       }
     }
   }
@@ -798,46 +737,13 @@ class _ModeratorBrgyOfficialsPageState
               ],
             ),
           ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildBanner() {
-    return Container(
-      width: double.infinity,
-      margin: const EdgeInsets.only(bottom: 24),
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [Colors.blue.shade700, Colors.blue.shade500],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.blue.withOpacity(0.3),
-            blurRadius: 10,
-            offset: const Offset(0, 5),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text(
-            "Meet Your Leaders",
-            style: TextStyle(
-              color: Colors.white,
-              fontSize: 22,
-              fontWeight: FontWeight.bold,
+          const Spacer(),
+          IconButton(
+            onPressed: () {},
+            icon: const Icon(
+              Icons.notifications_none_rounded,
+              color: Colors.black87,
             ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            "Dedicated to serving the community with integrity and transparency.",
-            style: TextStyle(color: Colors.blue.shade50, fontSize: 14),
           ),
         ],
       ),
@@ -860,6 +766,8 @@ class _ModeratorBrgyOfficialsPageState
       child: TextField(
         controller: _searchController,
         onChanged: _updateSearch,
+        // 2. Changed text color to Black for visibility
+        style: const TextStyle(color: Colors.black87),
         decoration: InputDecoration(
           hintText: "Search official...",
           hintStyle: TextStyle(color: Colors.grey.shade400, fontSize: 14),
@@ -874,23 +782,16 @@ class _ModeratorBrgyOfficialsPageState
     );
   }
 
-  // --- OFFICIAL CARD (Clean Design: Hidden Nickname/Address) ---
-  Widget _buildOfficialCard(DocumentSnapshot doc) {
-    final data = doc.data() as Map<String, dynamic>;
-    final docId = doc.id;
-    final title = data['title']?.toString() ?? '';
-    final name = data['name']?.toString() ?? '';
+  Widget _buildOfficialCard(Map<String, dynamic> data, DocumentSnapshot doc) {
+    final name = data['name'] ?? '';
+    final title = data['title'] ?? '';
     final imageUrl = data['imageUrl']?.toString() ?? '';
 
-    // Helper to decode image string
     ImageProvider? getProfileImage() {
       if (imageUrl.isEmpty) return null;
       try {
-        if (imageUrl.startsWith('http')) {
-          return NetworkImage(imageUrl);
-        } else {
-          return MemoryImage(base64Decode(imageUrl));
-        }
+        if (imageUrl.startsWith('http')) return NetworkImage(imageUrl);
+        return MemoryImage(base64Decode(imageUrl));
       } catch (e) {
         return null;
       }
@@ -901,131 +802,133 @@ class _ModeratorBrgyOfficialsPageState
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.grey.shade200),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withOpacity(0.02),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
           ),
         ],
       ),
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          borderRadius: BorderRadius.circular(16),
-          onTap: () {
-            // Open Details Modal (Shows Nickname/Address)
-            _showOfficialDetails(data);
+      child: ListTile(
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        leading: CircleAvatar(
+          radius: 24,
+          backgroundColor: Colors.blue.shade50,
+          backgroundImage: getProfileImage(),
+          child: getProfileImage() == null
+              ? Text(
+                  name.isNotEmpty ? name.substring(0, 1).toUpperCase() : '?',
+                  style: TextStyle(
+                    color: Colors.blue.shade700,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 18,
+                  ),
+                )
+              : null,
+        ),
+        title: Text(
+          title,
+          style: TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.w600,
+            color: Colors.blue.shade700,
+            letterSpacing: 0.5,
+          ),
+        ),
+        subtitle: Text(
+          name,
+          style: const TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.bold,
+            color: Colors.black87,
+          ),
+        ),
+        onTap: () => _showOfficialDetails(data),
+        trailing: PopupMenuButton<String>(
+          // 3. Change popup background to White
+          color: Colors.white,
+          icon: Icon(Icons.more_vert, color: Colors.grey.shade400),
+          onSelected: (value) {
+            if (value == 'edit') {
+              _showOfficialDialog(existingDoc: doc);
+            } else if (value == 'delete') {
+              _deleteOfficial(doc.id, title);
+            }
           },
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Row(
+          itemBuilder: (context) => [
+            const PopupMenuItem(
+              value: 'edit',
+              child: Row(
+                children: [
+                  Icon(Icons.edit_rounded, size: 20, color: Colors.blue),
+                  SizedBox(width: 8),
+                  // 4. Change "Edit" text color to Black
+                  Text('Edit', style: TextStyle(color: Colors.black)),
+                ],
+              ),
+            ),
+            const PopupMenuItem(
+              value: 'delete',
+              child: Row(
+                children: [
+                  Icon(
+                    Icons.delete_outline_rounded,
+                    size: 20,
+                    color: Colors.red,
+                  ),
+                  SizedBox(width: 8),
+                  Text('Delete', style: TextStyle(color: Colors.red)),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDetailRow(IconData icon, String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 16.0),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: Colors.blue.shade50,
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Icon(icon, size: 20, color: Colors.blue.shade700),
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Profile Image
-                CircleAvatar(
-                  radius: 28,
-                  backgroundColor: Colors.blue.shade50,
-                  backgroundImage: getProfileImage(),
-                  child: getProfileImage() == null
-                      ? Text(
-                          name.isNotEmpty
-                              ? name.substring(0, 1).toUpperCase()
-                              : '?',
-                          style: TextStyle(
-                            color: Colors.blue.shade700,
-                            fontWeight: FontWeight.bold,
-                            fontSize: 20,
-                          ),
-                        )
-                      : null,
-                ),
-                const SizedBox(width: 16),
-
-                // Info Column (Clean: No nickname/address here)
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      // Title Badge
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 8,
-                          vertical: 2,
-                        ),
-                        decoration: BoxDecoration(
-                          color: Colors.blue.shade50,
-                          borderRadius: BorderRadius.circular(4),
-                        ),
-                        child: Text(
-                          title.toUpperCase(),
-                          style: TextStyle(
-                            fontSize: 10,
-                            fontWeight: FontWeight.w700,
-                            color: Colors.blue.shade800,
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 6),
-
-                      // Full Name
-                      Text(
-                        name,
-                        style: const TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.black87,
-                        ),
-                      ),
-                    ],
+                Text(
+                  label,
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Colors.grey.shade500,
+                    fontWeight: FontWeight.w600,
+                    letterSpacing: 0.5,
                   ),
                 ),
-
-                // MENU BUTTON
-                PopupMenuButton<String>(
-                  onSelected: (value) {
-                    if (value == 'edit') {
-                      _showOfficialDialog(existingDoc: doc);
-                    } else if (value == 'delete') {
-                      _deleteOfficial(docId, title);
-                    }
-                  },
-                  itemBuilder: (context) => [
-                    PopupMenuItem(
-                      value: 'edit',
-                      child: Row(
-                        children: [
-                          Icon(
-                            Icons.edit_rounded,
-                            size: 20,
-                            color: Colors.blue.shade700,
-                          ),
-                          const SizedBox(width: 8),
-                          const Text('Edit'),
-                        ],
-                      ),
-                    ),
-                    const PopupMenuItem(
-                      value: 'delete',
-                      child: Row(
-                        children: [
-                          Icon(
-                            Icons.delete_outline_rounded,
-                            size: 20,
-                            color: Colors.red,
-                          ),
-                          const SizedBox(width: 8),
-                          Text('Delete', style: TextStyle(color: Colors.red)),
-                        ],
-                      ),
-                    ),
-                  ],
-                  icon: Icon(Icons.more_vert, color: Colors.grey.shade400),
+                const SizedBox(height: 4),
+                Text(
+                  value,
+                  style: const TextStyle(
+                    fontSize: 16,
+                    color: Colors.black87,
+                    fontWeight: FontWeight.w400,
+                  ),
                 ),
               ],
             ),
           ),
-        ),
+        ],
       ),
     );
   }
@@ -1035,9 +938,8 @@ class _ModeratorBrgyOfficialsPageState
     final hours = contacts['hours']?.toString() ?? '';
     final phone = contacts['contacts']?.toString() ?? '';
 
-    if (address.isEmpty && hours.isEmpty && phone.isEmpty) {
+    if (address.isEmpty && hours.isEmpty && phone.isEmpty)
       return const SizedBox.shrink();
-    }
 
     return Container(
       margin: const EdgeInsets.only(top: 4, bottom: 20),
@@ -1176,7 +1078,9 @@ class _ModeratorBrgyOfficialsPageState
             label: 'Emergency',
           ),
           BottomNavigationBarItem(
-            icon: Icon(Icons.campaign_rounded),
+            icon: Icon(
+              Icons.campaign_rounded,
+            ), // Standard icon (grey when unselected)
             label: 'Updates',
           ),
           BottomNavigationBarItem(
@@ -1194,8 +1098,7 @@ class _ModeratorBrgyOfficialsPageState
 
   @override
   Widget build(BuildContext context) {
-    // Ensure snackbars show inside this scaffold context
-    return ScaffoldMessenger(
+    Widget mobileContent = ScaffoldMessenger(
       key: _scaffoldMessengerKey,
       child: Scaffold(
         backgroundColor: const Color(0xFFF8F9FA),
@@ -1211,7 +1114,6 @@ class _ModeratorBrgyOfficialsPageState
                     children: [
                       _buildSearchBar(),
                       const SizedBox(height: 24),
-                      _buildBanner(),
                       Padding(
                         padding: const EdgeInsets.only(bottom: 16.0),
                         child: Row(
@@ -1234,8 +1136,6 @@ class _ModeratorBrgyOfficialsPageState
                           ],
                         ),
                       ),
-
-                      // --- OFFICIALS STREAM ---
                       StreamBuilder<QuerySnapshot>(
                         stream: _officialsStream,
                         builder: (context, snapshot) {
@@ -1248,59 +1148,9 @@ class _ModeratorBrgyOfficialsPageState
                               ),
                             );
                           }
-
                           final officialDocs = snapshot.data?.docs ?? [];
 
-                          if (officialDocs.isEmpty) {
-                            if (_searchQuery.isNotEmpty) {
-                              return Center(
-                                child: Padding(
-                                  padding: const EdgeInsets.only(top: 20),
-                                  child: Text(
-                                    "No matching officials found",
-                                    style: TextStyle(color: Colors.grey[500]),
-                                  ),
-                                ),
-                              );
-                            }
-                            // Empty Placeholder
-                            return Container(
-                              width: double.infinity,
-                              padding: const EdgeInsets.all(24),
-                              decoration: BoxDecoration(
-                                color: Colors.white,
-                                borderRadius: BorderRadius.circular(16),
-                                border: Border.all(color: Colors.grey.shade200),
-                              ),
-                              child: Column(
-                                children: [
-                                  Icon(
-                                    Icons.people_outline,
-                                    size: 40,
-                                    color: Colors.grey.shade300,
-                                  ),
-                                  const SizedBox(height: 12),
-                                  Text(
-                                    "No officials added yet",
-                                    style: TextStyle(
-                                      color: Colors.grey.shade500,
-                                      fontWeight: FontWeight.w500,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 4),
-                                  Text(
-                                    "Tap + to add new officials",
-                                    style: TextStyle(
-                                      color: Colors.grey.shade400,
-                                      fontSize: 12,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            );
-                          }
-
-                          // Filter and Group Data
+                          // Group Data
                           final Map<String, List<DocumentSnapshot>> grouped =
                               {};
                           for (var doc in officialDocs) {
@@ -1318,9 +1168,8 @@ class _ModeratorBrgyOfficialsPageState
                             if (_searchQuery.isEmpty ||
                                 name.contains(_searchQuery) ||
                                 title.contains(_searchQuery)) {
-                              if (!grouped.containsKey(category)) {
+                              if (!grouped.containsKey(category))
                                 grouped[category] = [];
-                              }
                               grouped[category]!.add(doc);
                             }
                           }
@@ -1330,14 +1179,13 @@ class _ModeratorBrgyOfficialsPageState
                               child: Padding(
                                 padding: const EdgeInsets.only(top: 20),
                                 child: Text(
-                                  "No matching officials found",
+                                  "No officials found",
                                   style: TextStyle(color: Colors.grey[500]),
                                 ),
                               ),
                             );
                           }
 
-                          // --- CONTACTS STREAM (Nested) ---
                           return StreamBuilder<QuerySnapshot>(
                             stream: _contactsStream,
                             builder: (ctx, contactSnap) {
@@ -1356,7 +1204,6 @@ class _ModeratorBrgyOfficialsPageState
                                   final categoryContacts =
                                       contacts[category] ??
                                       {
-                                        // Defaults
                                         'address': '',
                                         'hours': '',
                                         'contacts': '',
@@ -1382,7 +1229,10 @@ class _ModeratorBrgyOfficialsPageState
                                         ),
                                       ),
                                       ...docs.map(
-                                        (doc) => _buildOfficialCard(doc),
+                                        (doc) => _buildOfficialCard(
+                                          doc.data() as Map<String, dynamic>,
+                                          doc,
+                                        ),
                                       ),
                                       _buildContactInfoCard(
                                         category,
@@ -1396,7 +1246,6 @@ class _ModeratorBrgyOfficialsPageState
                           );
                         },
                       ),
-
                       const SizedBox(height: 40),
                     ],
                   ),
@@ -1406,6 +1255,45 @@ class _ModeratorBrgyOfficialsPageState
           ),
         ),
         bottomNavigationBar: _buildBottomNavBar(),
+      ),
+    );
+
+    if (kIsWeb) {
+      return PhoneFrame(child: mobileContent);
+    }
+    return mobileContent;
+  }
+}
+
+// --- PHONE FRAME ---
+class PhoneFrame extends StatelessWidget {
+  final Widget child;
+  const PhoneFrame({super.key, required this.child});
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: const Color(0xFFF2F2F7),
+      body: Center(
+        child: Container(
+          width: 375,
+          height: 812,
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(40),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.1),
+                blurRadius: 30,
+                spreadRadius: 5,
+                offset: const Offset(0, 10),
+              ),
+            ],
+          ),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(40),
+            child: child,
+          ),
+        ),
       ),
     );
   }

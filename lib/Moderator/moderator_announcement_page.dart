@@ -95,24 +95,21 @@ class _ModeratorAnnouncementPageState extends State<ModeratorAnnouncementPage> {
   }
 
   // --- HELPER: SHOW FULL IMAGE MODAL ---
-  // Updated to accept context so it opens inside the specific navigator (PhoneFrame)
   void _showFullImageDialog(BuildContext context, ImageProvider imageProvider) {
     showDialog(
-      context: context, // Use the context passed from Builder
-      useRootNavigator: false, // Keep inside PhoneFrame
+      context: context,
+      useRootNavigator: false,
       builder: (ctx) => Dialog(
         backgroundColor: Colors.transparent,
-        insetPadding: EdgeInsets.zero, // Full screen inside the frame
+        insetPadding: EdgeInsets.zero,
         child: Stack(
           alignment: Alignment.center,
           children: [
-            // InteractiveViewer allows zooming/panning
             InteractiveViewer(
               minScale: 0.5,
               maxScale: 4.0,
               child: Image(image: imageProvider, fit: BoxFit.contain),
             ),
-            // Close Button
             Positioned(
               top: 20,
               right: 20,
@@ -708,7 +705,7 @@ class _ModeratorAnnouncementPageState extends State<ModeratorAnnouncementPage> {
     );
   }
 
-  // --- SECTION HEADER ---
+  // --- SECTION HEADER (Modified with Tooltip) ---
   Widget _buildSectionTitle(String title, VoidCallback? onAdd) {
     final isReminder = title.contains("REMINDERS");
     final color = isReminder ? Colors.orange.shade800 : Colors.blue;
@@ -728,18 +725,33 @@ class _ModeratorAnnouncementPageState extends State<ModeratorAnnouncementPage> {
           ),
           const Spacer(),
           if (onAdd != null)
-            IconButton(
-              onPressed: onAdd,
-              icon: Icon(Icons.add, size: 28, color: color),
-              tooltip: 'Add Post',
-              padding: EdgeInsets.zero,
-              constraints: const BoxConstraints(),
+            Tooltip(
+              message: "ADD POST",
+              textStyle: const TextStyle(color: Colors.black, fontSize: 12),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(8),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.1),
+                    blurRadius: 4,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
+              ),
+              child: IconButton(
+                onPressed: onAdd,
+                icon: Icon(Icons.add, size: 28, color: color),
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(),
+              ),
             ),
         ],
       ),
     );
   }
 
+  // --- REMINDER CARD (Modified with Tooltip) ---
   Widget _buildImportantReminderCard(DocumentSnapshot doc) {
     final data = doc.data() as Map<String, dynamic>;
     return Container(
@@ -795,39 +807,57 @@ class _ModeratorAnnouncementPageState extends State<ModeratorAnnouncementPage> {
                     ],
                   ),
                 ),
-                PopupMenuButton<String>(
-                  padding: EdgeInsets.zero,
-                  icon: Icon(Icons.more_horiz, color: Colors.grey.shade500),
-                  color: Colors.white,
-                  onSelected: (value) {
-                    if (value == 'edit') {
-                      _showAddReminderDialog(existingDoc: doc);
-                    } else if (value == 'delete') {
-                      _deleteReminder(doc.id);
-                    }
-                  },
-                  itemBuilder: (context) => [
-                    const PopupMenuItem(
-                      value: 'edit',
-                      child: Row(
-                        children: [
-                          Icon(Icons.edit, size: 18, color: Colors.black87),
-                          SizedBox(width: 8),
-                          Text('Edit', style: TextStyle(color: Colors.black87)),
-                        ],
+                Tooltip(
+                  message: "SHOW MENU",
+                  textStyle: const TextStyle(color: Colors.black, fontSize: 12),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(8),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.1),
+                        blurRadius: 4,
+                        offset: const Offset(0, 2),
                       ),
-                    ),
-                    const PopupMenuItem(
-                      value: 'delete',
-                      child: Row(
-                        children: [
-                          Icon(Icons.delete, color: Colors.red, size: 18),
-                          SizedBox(width: 8),
-                          Text('Delete', style: TextStyle(color: Colors.red)),
-                        ],
+                    ],
+                  ),
+                  child: PopupMenuButton<String>(
+                    padding: EdgeInsets.zero,
+                    icon: Icon(Icons.more_horiz, color: Colors.grey.shade500),
+                    color: Colors.white,
+                    onSelected: (value) {
+                      if (value == 'edit') {
+                        _showAddReminderDialog(existingDoc: doc);
+                      } else if (value == 'delete') {
+                        _deleteReminder(doc.id);
+                      }
+                    },
+                    itemBuilder: (context) => [
+                      const PopupMenuItem(
+                        value: 'edit',
+                        child: Row(
+                          children: [
+                            Icon(Icons.edit, size: 18, color: Colors.black87),
+                            SizedBox(width: 8),
+                            Text(
+                              'Edit',
+                              style: TextStyle(color: Colors.black87),
+                            ),
+                          ],
+                        ),
                       ),
-                    ),
-                  ],
+                      const PopupMenuItem(
+                        value: 'delete',
+                        child: Row(
+                          children: [
+                            Icon(Icons.delete, color: Colors.red, size: 18),
+                            SizedBox(width: 8),
+                            Text('Delete', style: TextStyle(color: Colors.red)),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ],
             ),
@@ -883,6 +913,7 @@ class _ModeratorAnnouncementPageState extends State<ModeratorAnnouncementPage> {
     );
   }
 
+  // --- POST CARD (Modified with Tooltip) ---
   Widget _buildPostCard(DocumentSnapshot doc) {
     final data = doc.data() as Map<String, dynamic>;
     final imageUrl = data['imageUrl']?.toString() ?? '';
@@ -964,39 +995,57 @@ class _ModeratorAnnouncementPageState extends State<ModeratorAnnouncementPage> {
                     ],
                   ),
                 ),
-                PopupMenuButton<String>(
-                  padding: EdgeInsets.zero,
-                  icon: Icon(Icons.more_horiz, color: Colors.grey.shade400),
-                  color: Colors.white,
-                  onSelected: (value) {
-                    if (value == 'edit') {
-                      _showUpdateDialog(existingDoc: doc);
-                    } else if (value == 'delete') {
-                      _deleteUpdate(doc.id);
-                    }
-                  },
-                  itemBuilder: (context) => [
-                    const PopupMenuItem(
-                      value: 'edit',
-                      child: Row(
-                        children: [
-                          Icon(Icons.edit, size: 20, color: Colors.black87),
-                          SizedBox(width: 8),
-                          Text('Edit', style: TextStyle(color: Colors.black87)),
-                        ],
+                Tooltip(
+                  message: "SHOW MENU",
+                  textStyle: const TextStyle(color: Colors.black, fontSize: 12),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(8),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.1),
+                        blurRadius: 4,
+                        offset: const Offset(0, 2),
                       ),
-                    ),
-                    const PopupMenuItem(
-                      value: 'delete',
-                      child: Row(
-                        children: [
-                          Icon(Icons.delete, size: 20, color: Colors.red),
-                          SizedBox(width: 8),
-                          Text('Delete', style: TextStyle(color: Colors.red)),
-                        ],
+                    ],
+                  ),
+                  child: PopupMenuButton<String>(
+                    padding: EdgeInsets.zero,
+                    icon: Icon(Icons.more_horiz, color: Colors.grey.shade400),
+                    color: Colors.white,
+                    onSelected: (value) {
+                      if (value == 'edit') {
+                        _showUpdateDialog(existingDoc: doc);
+                      } else if (value == 'delete') {
+                        _deleteUpdate(doc.id);
+                      }
+                    },
+                    itemBuilder: (context) => [
+                      const PopupMenuItem(
+                        value: 'edit',
+                        child: Row(
+                          children: [
+                            Icon(Icons.edit, size: 20, color: Colors.black87),
+                            SizedBox(width: 8),
+                            Text(
+                              'Edit',
+                              style: TextStyle(color: Colors.black87),
+                            ),
+                          ],
+                        ),
                       ),
-                    ),
-                  ],
+                      const PopupMenuItem(
+                        value: 'delete',
+                        child: Row(
+                          children: [
+                            Icon(Icons.delete, size: 20, color: Colors.red),
+                            SizedBox(width: 8),
+                            Text('Delete', style: TextStyle(color: Colors.red)),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ],
             ),
@@ -1004,7 +1053,6 @@ class _ModeratorAnnouncementPageState extends State<ModeratorAnnouncementPage> {
             _ExpandableText(text: data['content']?.toString() ?? ''),
             if (getPostImage() != null) ...[
               const SizedBox(height: 12),
-              // Use Builder to get a context inside the PhoneFrame structure
               Builder(
                 builder: (context) {
                   return GestureDetector(
@@ -1095,6 +1143,7 @@ class _ModeratorAnnouncementPageState extends State<ModeratorAnnouncementPage> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
+                      // --- SEARCH BAR ---
                       Container(
                         decoration: BoxDecoration(
                           color: Colors.white,
@@ -1109,6 +1158,8 @@ class _ModeratorAnnouncementPageState extends State<ModeratorAnnouncementPage> {
                         ),
                         child: TextField(
                           controller: _searchController,
+                          // REBUILDS UI ON TYPING FOR SEARCH
+                          onChanged: (val) => setState(() {}),
                           style: const TextStyle(color: Colors.black),
                           decoration: InputDecoration(
                             hintText: "Search updates...",
@@ -1143,6 +1194,8 @@ class _ModeratorAnnouncementPageState extends State<ModeratorAnnouncementPage> {
                         "IMPORTANT REMINDERS",
                         () => _showAddReminderDialog(),
                       ),
+
+                      // --- REMINDERS STREAM ---
                       StreamBuilder<QuerySnapshot>(
                         stream: _remindersStream,
                         builder: (context, snapshot) {
@@ -1160,13 +1213,32 @@ class _ModeratorAnnouncementPageState extends State<ModeratorAnnouncementPage> {
                           }
 
                           final docs = snapshot.data?.docs ?? [];
+                          final searchQuery = _searchController.text
+                              .toLowerCase();
 
-                          if (docs.isEmpty) {
+                          final filteredDocs = docs.where((doc) {
+                            final data = doc.data() as Map<String, dynamic>;
+                            final title = (data['title'] ?? '')
+                                .toString()
+                                .toLowerCase();
+                            final content = (data['content'] ?? '')
+                                .toString()
+                                .toLowerCase();
+                            return title.contains(searchQuery) ||
+                                content.contains(searchQuery);
+                          }).toList();
+
+                          if (filteredDocs.isEmpty) {
+                            // If search is active but empty results
+                            if (searchQuery.isNotEmpty) {
+                              return const SizedBox.shrink();
+                            }
+                            // Default empty state
                             return _buildEmptyRemindersPlaceholder();
                           }
 
                           return Column(
-                            children: docs
+                            children: filteredDocs
                                 .map((doc) => _buildImportantReminderCard(doc))
                                 .toList(),
                           );
@@ -1179,6 +1251,8 @@ class _ModeratorAnnouncementPageState extends State<ModeratorAnnouncementPage> {
                         "RECENT UPDATES",
                         () => _showUpdateDialog(),
                       ),
+
+                      // --- ANNOUNCEMENTS STREAM ---
                       StreamBuilder<QuerySnapshot>(
                         stream: _announcementsStream,
                         builder: (context, snapshot) {
@@ -1190,6 +1264,8 @@ class _ModeratorAnnouncementPageState extends State<ModeratorAnnouncementPage> {
                             );
                           }
                           final docs = snapshot.data?.docs ?? [];
+
+                          // Check if DB is empty without search
                           if (docs.isEmpty) {
                             return const Center(
                               child: Text(
@@ -1199,6 +1275,7 @@ class _ModeratorAnnouncementPageState extends State<ModeratorAnnouncementPage> {
                             );
                           }
 
+                          // FILTER
                           final searchQuery = _searchController.text
                               .toLowerCase();
                           final filteredDocs = docs.where((doc) {
@@ -1208,6 +1285,33 @@ class _ModeratorAnnouncementPageState extends State<ModeratorAnnouncementPage> {
                                 .toLowerCase();
                             return content.contains(searchQuery);
                           }).toList();
+
+                          // NO FOUND LOGIC
+                          if (filteredDocs.isEmpty && searchQuery.isNotEmpty) {
+                            return Container(
+                              padding: const EdgeInsets.only(top: 20),
+                              width: double.infinity,
+                              alignment: Alignment.center,
+                              child: const Column(
+                                children: [
+                                  Icon(
+                                    Icons.search_off_rounded,
+                                    size: 40,
+                                    color: Colors.grey,
+                                  ),
+                                  SizedBox(height: 8),
+                                  Text(
+                                    "NO FOUND ANNOUNCEMENT",
+                                    style: TextStyle(
+                                      color: Colors.grey,
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 14,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            );
+                          }
 
                           return Column(
                             children: filteredDocs.map((doc) {

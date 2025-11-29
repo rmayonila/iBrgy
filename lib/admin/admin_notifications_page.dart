@@ -10,8 +10,20 @@ class AdminNotificationsPage extends StatefulWidget {
 }
 
 class _AdminNotificationsPageState extends State<AdminNotificationsPage> {
-  // Icons mapping for different notification types
+  // Enhanced icons mapping for different notification types and actions
   final Map<String, IconData> _notificationIcons = {
+    // Moderator actions
+    'moderator_added': Icons.add_circle,
+    'moderator_edited': Icons.edit,
+    'moderator_deleted': Icons.delete,
+
+    // Page specific icons
+    'services': Icons.miscellaneous_services,
+    'emergency': Icons.emergency,
+    'updates': Icons.campaign,
+    'officials': Icons.people,
+
+    // Legacy types
     'moderator_post': Icons.person,
     'user_registration': Icons.person_add,
     'document_request': Icons.description,
@@ -21,9 +33,20 @@ class _AdminNotificationsPageState extends State<AdminNotificationsPage> {
     'report': Icons.analytics,
   };
 
-  // Colors mapping for different notification types
+  // Enhanced colors mapping
   final Map<String, Color> _notificationColors = {
-    'moderator_post': Colors.blue,
+    // Action-based colors
+    'moderator_added': Colors.green,
+    'moderator_edited': Colors.orange,
+    'moderator_deleted': Colors.red,
+
+    // Page-based colors
+    'services': Colors.blue,
+    'emergency': Colors.red,
+    'updates': Colors.purple,
+    'officials': Colors.teal,
+
+    // Legacy colors
     'user_registration': Colors.green,
     'document_request': Colors.orange,
     'system_alert': Colors.red,
@@ -32,7 +55,54 @@ class _AdminNotificationsPageState extends State<AdminNotificationsPage> {
     'report': Colors.teal,
   };
 
+  // Get icon for notification based on type and action
+  IconData _getNotificationIcon(String type, String? action, String? page) {
+    // For moderator actions
+    if (action != null) {
+      return _notificationIcons['moderator_$action'] ?? Icons.notifications;
+    }
+
+    // For page-specific notifications
+    if (page != null && _notificationIcons.containsKey(page)) {
+      return _notificationIcons[page]!;
+    }
+
+    // Fallback to type-based icon
+    return _notificationIcons[type] ?? Icons.notifications;
+  }
+
+  // Get color for notification based on type and action
+  Color _getNotificationColor(String type, String? action, String? page) {
+    // For moderator actions
+    if (action != null) {
+      return _notificationColors['moderator_$action'] ?? Colors.grey;
+    }
+
+    // For page-specific notifications
+    if (page != null && _notificationColors.containsKey(page)) {
+      return _notificationColors[page]!;
+    }
+
+    // Fallback to type-based color
+    return _notificationColors[type] ?? Colors.grey;
+  }
+
+  // Format timestamp with detailed date and time
   String _formatTimestamp(Timestamp timestamp) {
+    final time = timestamp.toDate();
+
+    // Get detailed date and time
+    final month = time.month.toString().padLeft(2, '0');
+    final day = time.day.toString().padLeft(2, '0');
+    final year = time.year.toString();
+    final hour = time.hour.toString().padLeft(2, '0');
+    final minute = time.minute.toString().padLeft(2, '0');
+
+    return '$month/$day/$year at $hour:${minute}';
+  }
+
+  // Get relative time for subtitle
+  String _getRelativeTime(Timestamp timestamp) {
     final now = DateTime.now();
     final time = timestamp.toDate();
     final difference = now.difference(time);
@@ -46,11 +116,7 @@ class _AdminNotificationsPageState extends State<AdminNotificationsPage> {
     } else if (difference.inDays < 7) {
       return '${difference.inDays}d ago';
     } else {
-      // Simple date formatting without intl package
-      final month = time.month.toString().padLeft(2, '0');
-      final day = time.day.toString().padLeft(2, '0');
-      final year = time.year.toString();
-      return '$month/$day/$year';
+      return _formatTimestamp(timestamp);
     }
   }
 
@@ -58,7 +124,7 @@ class _AdminNotificationsPageState extends State<AdminNotificationsPage> {
     if (!isRead) {
       NotificationService.markAsRead(notificationId);
     }
-    // Add additional navigation logic here based on notification type
+    // You can add additional navigation logic here based on notification data
   }
 
   @override
@@ -81,7 +147,7 @@ class _AdminNotificationsPageState extends State<AdminNotificationsPage> {
               stream: NotificationService.getAdminNotifications(),
               builder: (context, snapshot) {
                 if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-                  return const SizedBox(); // Hide button when no notifications
+                  return const SizedBox();
                 }
 
                 final hasUnread = snapshot.data!.docs.any(
@@ -172,7 +238,7 @@ class _AdminNotificationsPageState extends State<AdminNotificationsPage> {
                       Padding(
                         padding: EdgeInsets.symmetric(horizontal: 40),
                         child: Text(
-                          'Notifications will appear here when moderators post announcements or when there are system updates.',
+                          'You will receive notifications when moderators add, edit, or delete posts in Services, Emergency, Updates, or Officials pages.',
                           textAlign: TextAlign.center,
                           style: TextStyle(fontSize: 14, color: Colors.grey),
                         ),
@@ -193,9 +259,13 @@ class _AdminNotificationsPageState extends State<AdminNotificationsPage> {
                   final notificationId = notification.id;
                   final isRead = data['read'] ?? false;
                   final type = data['type'] ?? 'moderator_post';
+                  final action = data['action'] as String?;
+                  final page = data['page'] as String?;
                   final title = data['title'] ?? 'Notification';
                   final message = data['message'] ?? '';
                   final timestamp = data['timestamp'] as Timestamp?;
+                  final senderName = data['senderName'] as String?;
+                  final postTitle = data['postTitle'] as String?;
 
                   return InkWell(
                     onTap: () => _handleNotificationTap(notificationId, isRead),
@@ -235,14 +305,16 @@ class _AdminNotificationsPageState extends State<AdminNotificationsPage> {
                           width: 40,
                           height: 40,
                           decoration: BoxDecoration(
-                            color:
-                                _notificationColors[type]?.withOpacity(0.1) ??
-                                Colors.grey.withOpacity(0.1),
+                            color: _getNotificationColor(
+                              type,
+                              action,
+                              page,
+                            ).withOpacity(0.1),
                             shape: BoxShape.circle,
                           ),
                           child: Icon(
-                            _notificationIcons[type] ?? Icons.notifications,
-                            color: _notificationColors[type] ?? Colors.grey,
+                            _getNotificationIcon(type, action, page),
+                            color: _getNotificationColor(type, action, page),
                             size: 20,
                           ),
                         ),
@@ -264,15 +336,45 @@ class _AdminNotificationsPageState extends State<AdminNotificationsPage> {
                                     : Colors.blue[600],
                               ),
                             ),
-                            if (timestamp != null)
+                            if (senderName != null)
                               Padding(
-                                padding: const EdgeInsets.only(top: 4.0),
+                                padding: const EdgeInsets.only(top: 2.0),
                                 child: Text(
-                                  _formatTimestamp(timestamp),
+                                  'By: $senderName',
                                   style: TextStyle(
                                     fontSize: 12,
-                                    color: Colors.grey[500],
+                                    color: Colors.grey[600],
+                                    fontStyle: FontStyle.italic,
                                   ),
+                                ),
+                              ),
+                            if (timestamp != null)
+                              Padding(
+                                padding: const EdgeInsets.only(top: 2.0),
+                                child: Row(
+                                  children: [
+                                    Icon(
+                                      Icons.access_time,
+                                      size: 12,
+                                      color: Colors.grey[500],
+                                    ),
+                                    const SizedBox(width: 4),
+                                    Text(
+                                      _getRelativeTime(timestamp),
+                                      style: TextStyle(
+                                        fontSize: 12,
+                                        color: Colors.grey[500],
+                                      ),
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Text(
+                                      _formatTimestamp(timestamp),
+                                      style: TextStyle(
+                                        fontSize: 11,
+                                        color: Colors.grey[400],
+                                      ),
+                                    ),
+                                  ],
                                 ),
                               ),
                           ],

@@ -1,8 +1,9 @@
 // ignore_for_file: use_build_context_synchronously
-import 'package:flutter/foundation.dart'; // For web check
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart'; // Required for Clipboard
+import 'package:flutter/services.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'dart:async'; // Required for Timer
 
 class EmergencyHotlinePage extends StatefulWidget {
   const EmergencyHotlinePage({super.key});
@@ -14,46 +15,21 @@ class EmergencyHotlinePage extends StatefulWidget {
 class _EmergencyHotlinePageState extends State<EmergencyHotlinePage> {
   final FirebaseFirestore _db = FirebaseFirestore.instance;
 
+  // --- DEBOUNCING FIELDS ---
+  Timer? _debounce;
+  final Duration _debounceDuration = const Duration(
+    milliseconds: 300,
+  ); // 0.3 seconds delay
+
   // --- TOAST STATE ---
   bool _showToast = false;
   String _copiedNumber = '';
 
-  // --- STATIC NATIONAL NUMBERS ---
-  final List<Map<String, dynamic>> _nationalHotlines = [
-    {
-      'name': 'National Emergency',
-      'number': '911',
-      'type': 'national',
-      'isUrgent': true,
-      'icon': Icons.warning_amber_rounded,
-    },
-    {
-      'name': 'Philippine Red Cross',
-      'number': '143',
-      'type': 'national',
-      'isUrgent': false,
-      'icon': Icons.medical_services_outlined,
-    },
-    {
-      'name': 'Police (PNP)',
-      'number': '117',
-      'type': 'national',
-      'isUrgent': false,
-      'icon': Icons.local_police_outlined,
-    },
-    {
-      'name': 'Fire Protection (BFP)',
-      'number': '(02) 8426-0219',
-      'type': 'national',
-      'isUrgent': false,
-      'icon': Icons.fire_truck_outlined,
-    },
-  ];
-
-  List<Map<String, dynamic>> _localHotlines = [];
+  // --- SEARCH STATE ---
   String _searchQuery = '';
   final TextEditingController _searchController = TextEditingController();
 
+  // --- ADMIN NAVIGATION LOGIC ---
   void _onItemTapped(BuildContext context, int index) {
     if (index == 0) {
       Navigator.pushReplacementNamed(context, '/admin-home');
@@ -67,68 +43,43 @@ class _EmergencyHotlinePageState extends State<EmergencyHotlinePage> {
   }
 
   @override
-  void initState() {
-    super.initState();
-    _loadLocalHotlines();
-  }
-
-  @override
   void dispose() {
     _searchController.dispose();
+    _debounce?.cancel(); // Cancel the timer when the widget is disposed
     super.dispose();
   }
 
-  Future<void> _loadLocalHotlines() async {
-    try {
-      final snap = await _db
-          .collection('hotlines')
-          .orderBy('createdAt', descending: true)
-          .get();
-      final items = snap.docs.map((d) {
-        final data = d.data();
-        return {
-          'id': d.id,
-          'name': (data['name'] ?? '').toString(),
-          'number': (data['number'] ?? '').toString(),
-          'type': 'local',
-          'isUrgent': false,
-          'icon': Icons.call_rounded,
-        };
-      }).toList();
-
-      if (!mounted) return;
-      setState(() {
-        _localHotlines = items;
-      });
-    } catch (e) {
-      // ignore
+  IconData _getIconForType(String type) {
+    switch (type) {
+      case 'national':
+        return Icons.warning_amber_rounded;
+      case 'barangay':
+        return Icons.account_balance_rounded;
+      case 'police':
+        return Icons.local_police_outlined;
+      case 'fire':
+        return Icons.fire_truck_outlined;
+      case 'medical':
+        return Icons.medical_services_outlined;
+      default:
+        return Icons.call_rounded;
     }
   }
 
-  void _updateSearch(String query) {
-    setState(() {
-      _searchQuery = query.toLowerCase();
+  // --- MODIFIED SEARCH FUNCTION WITH DEBOUNCING ---
+  void _onSearchChanged(String query) {
+    if (_debounce?.isActive ?? false) {
+      _debounce!.cancel();
+    }
+
+    _debounce = Timer(_debounceDuration, () {
+      if (!mounted) return;
+      setState(() {
+        _searchQuery = query.toLowerCase();
+      });
     });
   }
 
-  // --- HELPERS TO FILTER LISTS ---
-  List<Map<String, dynamic>> get _filteredNational {
-    if (_searchQuery.isEmpty) return _nationalHotlines;
-    return _nationalHotlines.where((h) {
-      return h['name'].toLowerCase().contains(_searchQuery) ||
-          h['number'].toLowerCase().contains(_searchQuery);
-    }).toList();
-  }
-
-  List<Map<String, dynamic>> get _filteredLocal {
-    if (_searchQuery.isEmpty) return _localHotlines;
-    return _localHotlines.where((h) {
-      return h['name'].toLowerCase().contains(_searchQuery) ||
-          h['number'].toLowerCase().contains(_searchQuery);
-    }).toList();
-  }
-
-  // --- FUNCTION TO COPY NUMBER ---
   Future<void> _copyToClipboard(String number) async {
     await Clipboard.setData(ClipboardData(text: number));
 
@@ -152,54 +103,57 @@ class _EmergencyHotlinePageState extends State<EmergencyHotlinePage> {
   Widget _buildToast() {
     if (!_showToast) return const SizedBox.shrink();
 
-    return Center(
-      child: TweenAnimationBuilder<double>(
-        tween: Tween(begin: 0.0, end: 1.0),
-        duration: const Duration(milliseconds: 300),
-        curve: Curves.easeOutBack,
-        builder: (context, value, child) {
-          return Transform.scale(
-            scale: value,
-            // FIX: Added clamp to prevent crash if value > 1.0 due to bounce curve
-            child: Opacity(opacity: value.clamp(0.0, 1.0), child: child),
-          );
-        },
-        child: Container(
-          margin: const EdgeInsets.symmetric(horizontal: 30),
-          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(50),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withOpacity(0.15),
-                blurRadius: 20,
-                spreadRadius: 2,
-                offset: const Offset(0, 5),
-              ),
-            ],
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Icon(
-                Icons.check_circle_rounded,
-                color: Colors.green,
-                size: 20,
-              ),
-              const SizedBox(width: 12),
-              Flexible(
-                child: Text(
-                  "Copied: $_copiedNumber",
-                  style: const TextStyle(
-                    color: Colors.black87,
-                    fontWeight: FontWeight.w600,
-                    fontSize: 14,
-                  ),
-                  overflow: TextOverflow.ellipsis,
+    return Align(
+      alignment: Alignment.bottomCenter, // Anchor to the bottom
+      child: Padding(
+        padding: const EdgeInsets.only(bottom: 80.0), // Above the NavBar
+        child: TweenAnimationBuilder<double>(
+          tween: Tween(begin: 0.0, end: 1.0),
+          duration: const Duration(milliseconds: 300),
+          curve: Curves.easeOutBack,
+          builder: (context, value, child) {
+            return Transform.scale(
+              scale: value,
+              child: Opacity(opacity: value.clamp(0.0, 1.0), child: child),
+            );
+          },
+          child: Container(
+            margin: const EdgeInsets.symmetric(horizontal: 30),
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(50),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.15),
+                  blurRadius: 20,
+                  spreadRadius: 2,
+                  offset: const Offset(0, 5),
                 ),
-              ),
-            ],
+              ],
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(
+                  Icons.check_circle_rounded,
+                  color: Colors.green,
+                  size: 20,
+                ),
+                const SizedBox(width: 12),
+                Flexible(
+                  child: Text(
+                    "Copied: $_copiedNumber",
+                    style: const TextStyle(
+                      color: Colors.black87,
+                      fontWeight: FontWeight.w600,
+                      fontSize: 14,
+                    ),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -264,14 +218,6 @@ class _EmergencyHotlinePageState extends State<EmergencyHotlinePage> {
               ],
             ),
           ),
-          const Spacer(),
-          IconButton(
-            onPressed: () {},
-            icon: const Icon(
-              Icons.notifications_none_rounded,
-              color: Colors.black87,
-            ),
-          ),
         ],
       ),
     );
@@ -292,7 +238,9 @@ class _EmergencyHotlinePageState extends State<EmergencyHotlinePage> {
       ),
       child: TextField(
         controller: _searchController,
-        onChanged: _updateSearch,
+        // Using the debounced function
+        onChanged: _onSearchChanged,
+        style: const TextStyle(color: Colors.black, fontSize: 16),
         decoration: InputDecoration(
           hintText: "Search hotline...",
           hintStyle: TextStyle(color: Colors.grey.shade400, fontSize: 14),
@@ -397,7 +345,55 @@ class _EmergencyHotlinePageState extends State<EmergencyHotlinePage> {
     );
   }
 
-  // --- ENHANCED NAVBAR BUILDER ---
+  Widget _buildEmptyState(String sectionName) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: Colors.grey.shade200,
+          style: BorderStyle.solid,
+        ),
+      ),
+      child: Column(
+        children: [
+          Icon(
+            Icons.add_ic_call_rounded,
+            size: 40,
+            color: Colors.grey.shade300,
+          ),
+          const SizedBox(height: 12),
+          Text(
+            "No $sectionName hotlines added yet",
+            style: TextStyle(
+              color: Colors.grey.shade500,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            "These hotlines are managed in Firestore",
+            style: TextStyle(color: Colors.grey.shade400, fontSize: 12),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildNoMatchText() {
+    return Padding(
+      padding: const EdgeInsets.all(16.0),
+      child: Center(
+        child: Text(
+          "No matching numbers",
+          style: TextStyle(color: Colors.grey.shade400),
+        ),
+      ),
+    );
+  }
+
   Widget _buildBottomNavBar() {
     return Container(
       decoration: BoxDecoration(
@@ -437,7 +433,6 @@ class _EmergencyHotlinePageState extends State<EmergencyHotlinePage> {
             icon: Icon(Icons.phone_rounded),
             label: 'Emergency',
           ),
-          // FIX: Changed from ContainerIcon (Blue) to Icon (Grey)
           BottomNavigationBarItem(
             icon: Icon(Icons.campaign_rounded),
             label: 'Updates',
@@ -467,92 +462,133 @@ class _EmergencyHotlinePageState extends State<EmergencyHotlinePage> {
               children: [
                 _buildHeader(),
                 Expanded(
-                  child: SingleChildScrollView(
-                    padding: const EdgeInsets.all(20),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        _buildSearchBar(),
-                        const SizedBox(height: 24),
-                        const Text(
-                          "Emergency Hotlines",
-                          style: TextStyle(
-                            fontSize: 20,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.black87,
+                  child: StreamBuilder<QuerySnapshot>(
+                    stream: _db
+                        .collection('hotlines')
+                        .orderBy('createdAt', descending: true)
+                        .snapshots(),
+                    builder: (context, snapshot) {
+                      if (snapshot.connectionState == ConnectionState.waiting) {
+                        return const Center(child: CircularProgressIndicator());
+                      }
+
+                      if (snapshot.hasError) {
+                        return Center(
+                          child: Text('Error loading data: ${snapshot.error}'),
+                        );
+                      }
+
+                      final docs = snapshot.data?.docs ?? [];
+
+                      final List<Map<String, dynamic>> nationalItems = [];
+                      final List<Map<String, dynamic>> localItems = [];
+                      final List<Map<String, dynamic>> barangayItems = [];
+
+                      for (final doc in docs) {
+                        final data = doc.data() as Map<String, dynamic>;
+                        final hotline = {
+                          'id': doc.id,
+                          'name': (data['name'] ?? '').toString(),
+                          'number': (data['number'] ?? '').toString(),
+                          'type': (data['type'] ?? 'local').toString(),
+                          'isUrgent': data['isUrgent'] == true,
+                          'icon': _getIconForType(
+                            (data['type'] ?? 'local').toString(),
                           ),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          "Tap to copy the number",
-                          style: TextStyle(
-                            color: Colors.grey.shade500,
-                            fontSize: 13,
-                          ),
-                        ),
-                        const SizedBox(height: 20),
-                        if (_filteredNational.isNotEmpty) ...[
-                          _buildSectionTitle("NATIONAL EMERGENCY"),
-                          ..._filteredNational.map((h) => _buildHotlineCard(h)),
-                          const SizedBox(height: 20),
-                        ],
-                        _buildSectionTitle("BARANGAY LOCAL HOTLINES"),
-                        if (_filteredLocal.isEmpty && _searchQuery.isEmpty)
-                          Container(
-                            width: double.infinity,
-                            padding: const EdgeInsets.all(24),
-                            decoration: BoxDecoration(
-                              color: Colors.white,
-                              borderRadius: BorderRadius.circular(16),
-                              border: Border.all(
-                                color: Colors.grey.shade200,
-                                style: BorderStyle.solid,
+                        };
+
+                        // Filter by search query
+                        final search = _searchQuery;
+                        final matchesSearch =
+                            search.isEmpty ||
+                            hotline['name'].toString().toLowerCase().contains(
+                              search,
+                            ) ||
+                            hotline['number'].toString().toLowerCase().contains(
+                              search,
+                            );
+
+                        if (matchesSearch) {
+                          if (hotline['type'] == 'national') {
+                            nationalItems.add(hotline);
+                          } else if (hotline['type'] == 'barangay') {
+                            barangayItems.add(hotline);
+                          } else {
+                            localItems.add(hotline);
+                          }
+                        }
+                      }
+
+                      return SingleChildScrollView(
+                        padding: const EdgeInsets.all(20),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            _buildSearchBar(),
+                            const SizedBox(height: 24),
+                            const Text(
+                              "Emergency Hotlines",
+                              style: TextStyle(
+                                fontSize: 20,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.black87,
                               ),
                             ),
-                            child: Column(
-                              children: [
-                                Icon(
-                                  Icons.add_ic_call_rounded,
-                                  size: 40,
-                                  color: Colors.grey.shade300,
-                                ),
-                                const SizedBox(height: 12),
-                                Text(
-                                  "No local hotlines added yet",
-                                  style: TextStyle(
-                                    color: Colors.grey.shade500,
-                                    fontWeight: FontWeight.w500,
-                                  ),
-                                ),
-                                const SizedBox(height: 4),
-                                Text(
-                                  "Only Admin can add new numbers",
-                                  style: TextStyle(
-                                    color: Colors.grey.shade400,
-                                    fontSize: 12,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          )
-                        else if (_filteredLocal.isEmpty &&
-                            _searchQuery.isNotEmpty)
-                          Padding(
-                            padding: const EdgeInsets.all(16.0),
-                            child: Center(
-                              child: Text(
-                                "No matching local numbers",
-                                style: TextStyle(color: Colors.grey.shade400),
+                            const SizedBox(height: 4),
+                            Text(
+                              "Tap to copy the number",
+                              style: TextStyle(
+                                color: Colors.grey.shade500,
+                                fontSize: 13,
                               ),
                             ),
-                          )
-                        else
-                          ..._filteredLocal.map((h) => _buildHotlineCard(h)),
-                        const SizedBox(
-                          height: 80,
-                        ), // Padding for toast visibility
-                      ],
-                    ),
+                            const SizedBox(height: 20),
+
+                            // NATIONAL
+                            if (nationalItems.isNotEmpty ||
+                                _searchQuery.isNotEmpty)
+                              _buildSectionTitle("NATIONAL EMERGENCY"),
+
+                            if (nationalItems.isEmpty)
+                              _searchQuery.isEmpty
+                                  ? _buildEmptyState("national")
+                                  : _buildNoMatchText()
+                            else
+                              ...nationalItems.map((h) => _buildHotlineCard(h)),
+
+                            const SizedBox(height: 20),
+
+                            // LOCAL
+                            if (localItems.isNotEmpty ||
+                                _searchQuery.isNotEmpty)
+                              _buildSectionTitle("LOCAL HOTLINES"),
+
+                            if (localItems.isEmpty)
+                              _searchQuery.isEmpty
+                                  ? _buildEmptyState("local")
+                                  : _buildNoMatchText()
+                            else
+                              ...localItems.map((h) => _buildHotlineCard(h)),
+
+                            const SizedBox(height: 20),
+
+                            // BARANGAY
+                            if (barangayItems.isNotEmpty ||
+                                _searchQuery.isNotEmpty)
+                              _buildSectionTitle("BARANGAY HOTLINES"),
+
+                            if (barangayItems.isEmpty)
+                              _searchQuery.isEmpty
+                                  ? _buildEmptyState("barangay")
+                                  : _buildNoMatchText()
+                            else
+                              ...barangayItems.map((h) => _buildHotlineCard(h)),
+
+                            const SizedBox(height: 80),
+                          ],
+                        ),
+                      );
+                    },
                   ),
                 ),
               ],

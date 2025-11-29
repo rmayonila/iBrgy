@@ -20,6 +20,14 @@ class _LoginPageState extends State<LoginPage> {
   bool _obscurePassword = true;
   String? _errorMessage;
 
+  // Rate limiting variables
+  DateTime? _lastAttempt;
+  int _attemptCount = 0;
+
+  // Seeded admin credentials
+  static const String _seededAdminEmail = "admin@ibrgy.com";
+  static const String _seededAdminPassword = "admin1234";
+
   @override
   void initState() {
     super.initState();
@@ -27,13 +35,48 @@ class _LoginPageState extends State<LoginPage> {
     _passwordController = TextEditingController();
   }
 
-  // --- LOGIC (Kept exactly the same as your code) ---
+  // Email validation regex
+  bool _isValidEmail(String email) {
+    return RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$').hasMatch(email);
+  }
+
+  // Rate limiting check
+  bool _isRateLimited() {
+    final now = DateTime.now();
+    if (_lastAttempt != null &&
+        now.difference(_lastAttempt!) < const Duration(seconds: 30) &&
+        _attemptCount >= 5) {
+      return true;
+    }
+
+    // Reset attempt count if more than 30 seconds have passed
+    if (_lastAttempt != null &&
+        now.difference(_lastAttempt!) >= const Duration(seconds: 30)) {
+      _attemptCount = 0;
+    }
+
+    _lastAttempt = now;
+    _attemptCount++;
+
+    return false;
+  }
+
+  // --- LOGIN LOGIC ---
   Future<void> _login() async {
     final email = _emailController.text.trim();
     final password = _passwordController.text.trim();
 
     setState(() => _errorMessage = null);
 
+    // Rate limiting check
+    if (_isRateLimited()) {
+      setState(() {
+        _errorMessage = 'Too many attempts. Please wait 30 seconds.';
+      });
+      return;
+    }
+
+    // Input validation
     if (email.isEmpty || password.isEmpty) {
       setState(() {
         _errorMessage = 'Please enter your email and password';
@@ -41,9 +84,19 @@ class _LoginPageState extends State<LoginPage> {
       return;
     }
 
+    // Email format validation
+    if (!_isValidEmail(email)) {
+      setState(() {
+        _errorMessage = 'Please enter a valid email address';
+      });
+      return;
+    }
+
     setState(() => _loading = true);
 
-    if (email.toLowerCase() == 'admin@ibrgy.com' && password == 'admin1234') {
+    // Check for seeded admin credentials
+    if (email.toLowerCase() == _seededAdminEmail &&
+        password == _seededAdminPassword) {
       if (mounted) setState(() => _loading = false);
       Navigator.pushReplacement(
         context,
@@ -241,6 +294,10 @@ class _LoginPageState extends State<LoginPage> {
                           hint: "name@ibrgy.com",
                           icon: Icons.email_outlined,
                           inputType: TextInputType.emailAddress,
+                          autofillHints: const [AutofillHints.email],
+                          textInputAction: TextInputAction.next,
+                          onSubmitted: (_) =>
+                              FocusScope.of(context).nextFocus(),
                         ),
 
                         const SizedBox(height: 20),
@@ -254,6 +311,9 @@ class _LoginPageState extends State<LoginPage> {
                           icon: Icons.lock_outline,
                           isPassword: true,
                           isObscure: _obscurePassword,
+                          autofillHints: const [AutofillHints.password],
+                          textInputAction: TextInputAction.done,
+                          onSubmitted: (_) => _login(),
                           onToggleVisibility: () {
                             setState(
                               () => _obscurePassword = !_obscurePassword,
@@ -377,6 +437,9 @@ class _LoginPageState extends State<LoginPage> {
     bool isPassword = false,
     bool isObscure = false,
     TextInputType inputType = TextInputType.text,
+    List<String>? autofillHints,
+    TextInputAction? textInputAction,
+    ValueChanged<String>? onSubmitted,
     VoidCallback? onToggleVisibility,
   }) {
     return Container(
@@ -389,6 +452,9 @@ class _LoginPageState extends State<LoginPage> {
         controller: controller,
         obscureText: isPassword ? isObscure : false,
         keyboardType: inputType,
+        autofillHints: autofillHints,
+        textInputAction: textInputAction,
+        onSubmitted: onSubmitted,
         style: const TextStyle(color: Colors.black87, fontSize: 15),
         decoration: InputDecoration(
           hintText: hint,

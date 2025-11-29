@@ -2,19 +2,19 @@ import 'package:flutter/foundation.dart'; // For web check
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'dart:async'; // ADD THIS IMPORT
+import 'dart:async'; // Keep this import
+import '../splash_screen.dart'; // Import SplashScreen for logout
 
-// Category colors and icons mapping (same as moderator page)
+// --- CONFIG: Synced with Moderator Page ---
 const Map<String, Map<String, dynamic>> categoryConfig = {
   'Health & Welfare': {'color': Color(0xFF4CAF50), 'icon': Icons.favorite},
   'Brgy Clearance/Permit Process': {
     'color': Color(0xFFFFA726),
     'icon': Icons.assignment,
   },
-  'Brgy Hall Schedule': {'color': Color(0xFF29B6F6), 'icon': Icons.schedule},
-  'Emergency Services': {'color': Color(0xFFEF5350), 'icon': Icons.emergency},
-  'Events & Announcements': {'color': Color(0xFF7E57C2), 'icon': Icons.event},
+  'Cedula': {'color': Color(0xFF29B6F6), 'icon': Icons.schedule},
   'Community Programs': {'color': Color(0xFF26A69A), 'icon': Icons.groups},
+  'Other': {'color': Color(0xFF9E9E9E), 'icon': Icons.info},
 };
 
 class AdminHomePage extends StatefulWidget {
@@ -26,353 +26,78 @@ class AdminHomePage extends StatefulWidget {
 
 class _AdminHomePageState extends State<AdminHomePage> {
   int _selectedIndex = 0;
-  List<Map<String, String>> infoItems = [];
-  final FirebaseFirestore _db = FirebaseFirestore.instance;
   final FirebaseAuth _auth = FirebaseAuth.instance;
 
-  // track expanded indices for inline post expansion
-  final Set<int> _expanded = {};
-  StreamSubscription<QuerySnapshot>? _subscription;
-  bool _isLoading = true;
+  // Search State (Copied from UserHomePage)
+  final TextEditingController _searchController = TextEditingController();
+  String _searchQuery = '';
 
-  Future<void> _ensureSignedIn() async {
-    try {
-      if (_auth.currentUser == null) {
-        await _auth.signInAnonymously();
-      }
-    } catch (_) {
-      // ignore auth errors here
-    }
-  }
+  // Track expanded states (Copied from UserHomePage)
+  final Map<String, bool> _expandedStates = {};
+
+  // Stream (Copied from UserHomePage, assuming the collection name is correct for services)
+  // NOTE: The previous AdminHomePage used 'infoItems'. This uses 'barangay_services'.
+  // I am proceeding with 'barangay_services' as per the UserHomePage code.
+  final Stream<QuerySnapshot> _servicesStream = FirebaseFirestore.instance
+      .collection('barangay_services')
+      .orderBy('createdAt', descending: true)
+      .snapshots();
 
   @override
   void initState() {
     super.initState();
-    _setupRealTimeListener();
+    // Assuming the Admin logs in via a proper login page, we only ensure auth state exists.
+    _ensureSignedIn();
   }
 
   @override
   void dispose() {
-    _subscription?.cancel();
+    _searchController.dispose();
     super.dispose();
   }
 
-  void _setupRealTimeListener() {
-    setState(() {
-      _isLoading = true;
-    });
-
-    _subscription = _db
-        .collection('infoItems')
-        .orderBy('createdAt', descending: true)
-        .snapshots()
-        .listen(
-          (QuerySnapshot snapshot) {
-            if (mounted) {
-              final items = snapshot.docs.map((d) {
-                final data = d.data() as Map<String, dynamic>;
-                return {
-                  'id': d.id,
-                  'title': (data['title'] ?? '').toString(),
-                  'category': (data['category'] ?? '').toString(),
-                  'description': (data['description'] ?? '').toString(),
-                  'lastUpdated': data['createdAt'] != null
-                      ? _formatTimestamp(data['createdAt'])
-                      : 'recently',
-                };
-              }).toList();
-
-              setState(() {
-                infoItems = items;
-                _isLoading = false;
-              });
-            }
-          },
-          onError: (error) {
-            print("Error listening to posts: $error");
-            setState(() {
-              _isLoading = false;
-            });
-          },
-        );
-  }
-
-  String _formatTimestamp(dynamic timestamp) {
-    if (timestamp is Timestamp) {
-      final date = timestamp.toDate();
-      return "${date.month}/${date.day}/${date.year}";
+  Future<void> _ensureSignedIn() async {
+    try {
+      // In a real app, this check might be removed if proper login guarantees a user.
+      if (_auth.currentUser == null) {
+        await _auth.signInAnonymously();
+      }
+    } catch (_) {
+      // ignore auth errors
     }
-    return 'recently';
   }
 
+  void _updateSearch(String query) {
+    setState(() {
+      _searchQuery = query.toLowerCase();
+    });
+  }
+
+  // UPDATED _onItemTapped logic using the Admin's navigation routes
   void _onItemTapped(BuildContext context, int index) {
     if (index == 1) {
+      // From original AdminHomePage logic
       Navigator.pushReplacementNamed(context, '/emergency-hotline');
       return;
     }
     if (index == 2) {
+      // From original AdminHomePage logic
       Navigator.pushReplacementNamed(context, '/announcement');
       return;
     }
     if (index == 3) {
+      // From original AdminHomePage logic
       Navigator.pushReplacementNamed(context, '/brgy-officials');
       return;
     }
     if (index == 4) {
+      // From original AdminHomePage logic
       Navigator.pushReplacementNamed(context, '/account-settings');
       return;
     }
     setState(() {
       _selectedIndex = index;
     });
-  }
-
-  // This list displays the actual items added by moderators via Firestore
-  Widget _buildBarangayServicesList() {
-    if (_isLoading) {
-      return Center(
-        child: Padding(
-          padding: const EdgeInsets.all(20.0),
-          child: Column(
-            children: [
-              SizedBox(
-                width: 40,
-                height: 40,
-                child: CircularProgressIndicator(color: Colors.blue.shade700),
-              ),
-              const SizedBox(height: 12),
-              Text(
-                "Loading services...",
-                style: TextStyle(color: Colors.grey.shade600),
-              ),
-            ],
-          ),
-        ),
-      );
-    }
-
-    if (infoItems.isEmpty) {
-      return Center(
-        child: Padding(
-          padding: const EdgeInsets.all(20.0),
-          child: Column(
-            children: [
-              Icon(Icons.post_add, size: 48, color: Colors.grey.shade300),
-              const SizedBox(height: 8),
-              Text(
-                "No barangay services yet",
-                style: TextStyle(color: Colors.grey.shade400),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                "Services will appear here when moderators add them",
-                style: TextStyle(color: Colors.grey.shade400, fontSize: 12),
-                textAlign: TextAlign.center,
-              ),
-            ],
-          ),
-        ),
-      );
-    }
-
-    return ListView.builder(
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      itemCount: infoItems.length,
-      itemBuilder: (context, index) {
-        return _buildEnhancedInfoCard(context, infoItems[index], index: index);
-      },
-    );
-  }
-
-  Widget _buildEnhancedInfoCard(
-    BuildContext context,
-    Map<String, String> info, {
-    int? index,
-  }) {
-    final category = info['category'] ?? 'Community Info';
-    final config =
-        categoryConfig[category] ?? {'color': Colors.grey, 'icon': Icons.info};
-
-    return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.02),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Header
-          Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: (config['color'] as Color).withOpacity(0.1),
-              borderRadius: const BorderRadius.only(
-                topLeft: Radius.circular(16),
-                topRight: Radius.circular(16),
-              ),
-            ),
-            child: Row(
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    shape: BoxShape.circle,
-                  ),
-                  child: Icon(
-                    config['icon'] as IconData,
-                    color: config['color'] as Color,
-                    size: 20,
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        info['title'] ?? '',
-                        style: const TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.black87,
-                        ),
-                      ),
-                      Text(
-                        'Updated ${info['lastUpdated']}',
-                        style: TextStyle(fontSize: 11, color: Colors.grey[600]),
-                      ),
-                    ],
-                  ),
-                ),
-                // Admin can only view, not edit/delete
-                Icon(Icons.visibility, color: Colors.grey.shade400, size: 20),
-              ],
-            ),
-          ),
-
-          // Content
-          Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  info['description'] ?? '',
-                  maxLines: (index != null && _expanded.contains(index))
-                      ? null
-                      : 3,
-                  overflow: (index != null && _expanded.contains(index))
-                      ? TextOverflow.visible
-                      : TextOverflow.ellipsis,
-                  style: TextStyle(
-                    fontSize: 13,
-                    color: Colors.grey[700],
-                    height: 1.5,
-                  ),
-                ),
-                const SizedBox(height: 12),
-                if ((info['description']?.length ?? 0) > 100)
-                  GestureDetector(
-                    onTap: () {
-                      if (index != null) {
-                        setState(() {
-                          if (_expanded.contains(index)) {
-                            _expanded.remove(index);
-                          } else {
-                            _expanded.add(index);
-                          }
-                        });
-                      }
-                    },
-                    child: Text(
-                      _expanded.contains(index) ? "Show Less" : "Read More",
-                      style: TextStyle(
-                        color: config['color'] as Color,
-                        fontWeight: FontWeight.w600,
-                        fontSize: 13,
-                      ),
-                    ),
-                  ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    // 1. Define the App Content
-    Widget mobileContent = Scaffold(
-      backgroundColor: const Color(0xFFF8F9FA),
-      body: SafeArea(
-        child: Column(
-          children: [
-            // --- HEADER: iBrgy Branding ---
-            _buildHeader(),
-            Expanded(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.all(20),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    _buildSearchBar(),
-                    const SizedBox(height: 24),
-                    _buildSectionTitle("Quick Services"),
-                    const SizedBox(height: 16),
-                    _buildServicesGrid(),
-                    const SizedBox(height: 24),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        _buildSectionTitle("Barangay Services"),
-                        IconButton(
-                          icon: Icon(
-                            Icons.refresh,
-                            color: Colors.blue.shade700,
-                          ),
-                          onPressed: () {
-                            // Force refresh
-                            _subscription?.cancel();
-                            _setupRealTimeListener();
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                content: Text('Refreshing services...'),
-                                duration: Duration(seconds: 1),
-                              ),
-                            );
-                          },
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 16),
-                    _buildBarangayServicesList(),
-                  ],
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-      bottomNavigationBar: _buildBottomNavBar(),
-    );
-
-    // 2. Apply Phone Frame if on Web
-    if (kIsWeb) {
-      return PhoneFrame(child: mobileContent);
-    }
-    return mobileContent;
   }
 
   // --- WIDGET BUILDERS ---
@@ -410,9 +135,9 @@ class _AdminHomePageState extends State<AdminHomePage> {
           ),
           const SizedBox(width: 12),
           RichText(
-            text: const TextSpan(
+            text: TextSpan(
               children: [
-                TextSpan(
+                const TextSpan(
                   text: 'iB',
                   style: TextStyle(
                     fontSize: 24,
@@ -426,26 +151,11 @@ class _AdminHomePageState extends State<AdminHomePage> {
                   style: TextStyle(
                     fontSize: 24,
                     fontWeight: FontWeight.w800,
-                    color: Color(0xFF0D47A1),
+                    color: Colors.blue.shade900,
                     letterSpacing: -0.5,
                   ),
                 ),
               ],
-            ),
-          ),
-          const Spacer(),
-          IconButton(
-            onPressed: () {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Notifications'),
-                  duration: Duration(seconds: 1),
-                ),
-              );
-            },
-            icon: const Icon(
-              Icons.notifications_none_rounded,
-              color: Colors.black87,
             ),
           ),
         ],
@@ -467,138 +177,163 @@ class _AdminHomePageState extends State<AdminHomePage> {
         ],
       ),
       child: TextField(
+        controller: _searchController,
+        onChanged: _updateSearch,
+        style: const TextStyle(color: Colors.black),
         decoration: InputDecoration(
-          hintText: "Search services, forms...",
+          hintText: "Search services...",
           hintStyle: TextStyle(color: Colors.grey.shade400, fontSize: 14),
           prefixIcon: Icon(Icons.search, color: Colors.grey.shade400),
-          suffixIcon: Icon(Icons.qr_code_scanner, color: Colors.blue.shade700),
           border: InputBorder.none,
           contentPadding: const EdgeInsets.symmetric(
             horizontal: 20,
             vertical: 14,
           ),
         ),
-        readOnly: true,
-        onTap: () {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Search feature coming soon'),
-              duration: Duration(seconds: 1),
-            ),
-          );
-        },
       ),
     );
   }
 
-  Widget _buildSectionTitle(String title) {
-    return Text(
-      title,
-      style: const TextStyle(
-        fontSize: 18,
-        fontWeight: FontWeight.bold,
-        color: Colors.black87,
-      ),
-    );
-  }
+  // --- SERVICE CARD (Read-Only) ---
+  Widget _buildServiceCard(DocumentSnapshot doc) {
+    final data = doc.data() as Map<String, dynamic>;
+    final docId = doc.id;
+    final title = data['title'] ?? 'Service';
+    final category = data['category'] ?? 'Other';
+    final steps = data['steps'] ?? '';
 
-  Widget _buildServicesGrid() {
-    final services = [
-      {
-        'icon': Icons.description_outlined,
-        'label': 'Clearance',
-        'color': 0xFFFFE0B2,
-      },
-      {
-        'icon': Icons.badge_outlined,
-        'label': 'Barangay ID',
-        'color': 0xFFBBDEFB,
-      },
-      {
-        'icon': Icons.storefront_outlined,
-        'label': 'Business',
-        'color': 0xFFC8E6C9,
-      },
-      {
-        'icon': Icons.gavel_outlined,
-        'label': 'Complaints',
-        'color': 0xFFE1BEE7,
-      },
-    ];
+    // Config Lookup
+    final config =
+        categoryConfig[category] ??
+        {'color': const Color(0xFF9E9E9E), 'icon': Icons.info};
 
-    return GridView.builder(
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 4,
-        childAspectRatio: 0.8,
-        crossAxisSpacing: 12,
-        mainAxisSpacing: 12,
+    final isExpanded = _expandedStates[docId] ?? false;
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
       ),
-      itemCount: services.length,
-      itemBuilder: (context, index) {
-        final item = services[index];
-        return GestureDetector(
-          onTap: () {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text('${item['label']} clicked'),
-                duration: const Duration(seconds: 1),
+      child: Column(
+        children: [
+          // Header Tile
+          ListTile(
+            leading: Container(
+              height: 40,
+              width: 40,
+              decoration: BoxDecoration(
+                color: (config['color'] as Color).withOpacity(0.1),
+                borderRadius: BorderRadius.circular(8),
               ),
-            );
-          },
-          child: Column(
-            children: [
-              Expanded(
-                child: Container(
-                  width: double.infinity,
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(16),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withOpacity(0.02),
-                        blurRadius: 8,
-                        offset: const Offset(0, 2),
-                      ),
-                    ],
-                  ),
-                  child: Center(
-                    child: Container(
-                      height: 45,
-                      width: 45,
-                      decoration: BoxDecoration(
-                        color: Color(item['color'] as int).withOpacity(0.4),
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: Icon(
-                        item['icon'] as IconData,
-                        color: Colors.black87,
-                        size: 24,
-                      ),
+              child: Icon(
+                config['icon'] as IconData,
+                color: config['color'] as Color,
+                size: 20,
+              ),
+            ),
+            title: Text(
+              title,
+              style: const TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w600,
+                color: Colors.black87,
+              ),
+            ),
+            subtitle: Text(
+              category,
+              style: TextStyle(fontSize: 12, color: Colors.grey.shade500),
+            ),
+            trailing: Icon(
+              isExpanded ? Icons.expand_less : Icons.expand_more,
+              color: Colors.grey.shade600,
+            ),
+            onTap: () {
+              setState(() {
+                _expandedStates[docId] = !isExpanded;
+              });
+            },
+          ),
+
+          // Expanded Content
+          if (isExpanded)
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.grey.shade50,
+                borderRadius: const BorderRadius.only(
+                  bottomLeft: Radius.circular(12),
+                  bottomRight: Radius.circular(12),
+                ),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Steps / Requirements:',
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 14,
+                      color: Colors.black87,
                     ),
                   ),
-                ),
+                  const SizedBox(height: 8),
+                  Text(
+                    steps,
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: Colors.grey.shade700,
+                      height: 1.5,
+                    ),
+                  ),
+                ],
               ),
-              const SizedBox(height: 8),
-              Text(
-                item['label'] as String,
-                style: const TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
-                  color: Colors.black87,
-                ),
-                textAlign: TextAlign.center,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
-            ],
-          ),
-        );
-      },
+            ),
+        ],
+      ),
     );
   }
 
+  Widget _buildEmptyState() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(vertical: 40),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.grey.shade200),
+      ),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(
+            Icons.assignment_outlined,
+            size: 48,
+            color: Colors.grey.shade300,
+          ),
+          const SizedBox(height: 12),
+          Text(
+            'No services found',
+            style: TextStyle(
+              color: Colors.grey.shade500,
+              fontSize: 14,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // Reusing the Bottom Navigation Bar from the FIRST AdminHomePage
   Widget _buildBottomNavBar() {
     return Container(
       decoration: BoxDecoration(
@@ -646,6 +381,7 @@ class _AdminHomePageState extends State<AdminHomePage> {
             icon: Icon(Icons.people_alt_rounded),
             label: 'People',
           ),
+          // Additional item from the FIRST AdminHomePage's NavBar
           BottomNavigationBarItem(
             icon: Icon(Icons.person_rounded),
             label: 'Profile',
@@ -654,13 +390,109 @@ class _AdminHomePageState extends State<AdminHomePage> {
       ),
     );
   }
+
+  @override
+  Widget build(BuildContext context) {
+    Widget mobileContent = Scaffold(
+      backgroundColor: const Color(0xFFF8F9FA),
+      body: SafeArea(
+        child: Column(
+          children: [
+            _buildHeader(),
+            Expanded(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.all(20),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _buildSearchBar(),
+                    const SizedBox(height: 24),
+                    const Text(
+                      "Barangay Services",
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.black87,
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    StreamBuilder<QuerySnapshot>(
+                      stream: _servicesStream,
+                      builder: (context, snapshot) {
+                        if (snapshot.connectionState ==
+                            ConnectionState.waiting) {
+                          return const Center(
+                            child: Padding(
+                              padding: EdgeInsets.all(20),
+                              child: CircularProgressIndicator(),
+                            ),
+                          );
+                        }
+                        if (snapshot.hasError) {
+                          return const Text("Error loading services");
+                        }
+
+                        final docs = snapshot.data?.docs ?? [];
+                        final filteredDocs = _searchQuery.isEmpty
+                            ? docs
+                            : docs.where((doc) {
+                                final data = doc.data() as Map<String, dynamic>;
+                                final t = (data['title'] ?? '')
+                                    .toString()
+                                    .toLowerCase();
+                                final c = (data['category'] ?? '')
+                                    .toString()
+                                    .toLowerCase();
+                                return t.contains(_searchQuery) ||
+                                    c.contains(_searchQuery);
+                              }).toList();
+
+                        if (filteredDocs.isEmpty) {
+                          return _buildEmptyState();
+                        }
+
+                        return Column(
+                          children: filteredDocs
+                              .map((doc) => _buildServiceCard(doc))
+                              .toList(),
+                        );
+                      },
+                    ),
+                    const SizedBox(height: 40),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+      // USE ADMIN'S NAV BAR
+      bottomNavigationBar: _buildBottomNavBar(),
+    );
+
+    // WRAP FOR WEB: Reusing the PhoneFrame logic from the user file
+    if (kIsWeb) {
+      return PhoneFrame(
+        child: MaterialApp(
+          debugShowCheckedModeBanner: false,
+          theme: ThemeData(
+            scaffoldBackgroundColor: const Color(0xFFF8F9FA),
+            primarySwatch: Colors.blue,
+            useMaterial3: true,
+          ),
+          home: mobileContent,
+        ),
+      );
+    }
+
+    return mobileContent;
+  }
 }
 
-// --- PHONE FRAME (Standard Reuse) ---
+// --- PHONE FRAME (Reusable) ---
 class PhoneFrame extends StatelessWidget {
   final Widget child;
   const PhoneFrame({super.key, required this.child});
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(

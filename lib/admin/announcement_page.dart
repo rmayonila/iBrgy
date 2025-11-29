@@ -1,4 +1,5 @@
 // ignore_for_file: use_build_context_synchronously
+import 'dart:convert'; // Required for image decoding
 import 'package:flutter/foundation.dart'; // For web check
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -13,43 +14,25 @@ class AnnouncementPage extends StatefulWidget {
 class _AnnouncementPageState extends State<AnnouncementPage> {
   final FirebaseFirestore _db = FirebaseFirestore.instance;
 
-  // 🔑 Real-time stream for announcements
+  // 1. Stream for Regular Announcements
   final Stream<QuerySnapshot> _announcementsStream = FirebaseFirestore.instance
       .collection('announcements')
       .orderBy('createdAt', descending: true)
       .snapshots();
 
-  // --- STATIC PINNED POSTS (Always Visible) ---
-  final List<Map<String, dynamic>> _staticPosts = [
-    {
-      'author': 'Barangay Admin',
-      'time': 'Always Pinned',
-      'title': 'Office Hours',
-      'content':
-          'Barangay Hall is open Monday to Friday, from 8:00 AM to 5:00 PM. Closed on Holidays.',
-      'type': 'pinned',
-    },
-    {
-      'author': 'Sanitation Dept',
-      'time': 'Weekly Schedule',
-      'title': 'Garbage Collection',
-      'content':
-          'Garbage collection is scheduled every Tuesday and Friday morning. Please segregate your waste properly.',
-      'type': 'pinned',
-    },
-    {
-      'author': 'Security',
-      'time': 'Daily',
-      'title': 'Curfew Hours',
-      'content':
-          'Curfew hours for minors are strictly observed from 10:00 PM to 4:00 AM.',
-      'type': 'pinned',
-    },
-  ];
+  // 2. Stream for Important Reminders
+  final Stream<QuerySnapshot> _remindersStream = FirebaseFirestore.instance
+      .collection('important_reminders')
+      .orderBy('createdAt', descending: true)
+      .snapshots();
 
-  // Filtered Data
-  List<Map<String, dynamic>> _filteredStatic = [];
   final TextEditingController _searchController = TextEditingController();
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
 
   void _onItemTapped(BuildContext context, int index) {
     if (index == 0) {
@@ -63,32 +46,6 @@ class _AnnouncementPageState extends State<AnnouncementPage> {
     }
   }
 
-  @override
-  void initState() {
-    super.initState();
-    _filteredStatic = List.from(_staticPosts);
-  }
-
-  @override
-  void dispose() {
-    _searchController.dispose();
-    super.dispose();
-  }
-
-  void _filterPosts(String query) {
-    final lowerQuery = query.toLowerCase();
-    setState(() {
-      _filteredStatic = _staticPosts.where((post) {
-        return (post['title'] ?? '').toString().toLowerCase().contains(
-              lowerQuery,
-            ) ||
-            (post['content'] ?? '').toString().toLowerCase().contains(
-              lowerQuery,
-            );
-      }).toList();
-    });
-  }
-
   String _formatTimestamp(dynamic timestamp) {
     if (timestamp is Timestamp) {
       final date = timestamp.toDate();
@@ -97,7 +54,59 @@ class _AnnouncementPageState extends State<AnnouncementPage> {
     return 'recently';
   }
 
+  // --- HELPER: SHOW FULL IMAGE MODAL ---
+  void _showFullImageDialog(BuildContext context, ImageProvider imageProvider) {
+    showDialog(
+      context: context,
+      useRootNavigator: false, // Keep inside PhoneFrame
+      builder: (ctx) => Dialog(
+        backgroundColor: Colors.transparent,
+        insetPadding: const EdgeInsets.all(
+          20,
+        ), // Add padding to keep inside frame
+        child: Container(
+          constraints: BoxConstraints(
+            maxWidth: 375 - 40, // Account for phone frame width and padding
+            maxHeight: 812 - 40, // Account for phone frame height and padding
+          ),
+          child: Stack(
+            alignment: Alignment.center,
+            children: [
+              // InteractiveViewer allows zooming/panning
+              InteractiveViewer(
+                minScale: 0.5,
+                maxScale: 4.0,
+                child: Image(image: imageProvider, fit: BoxFit.contain),
+              ),
+              // Close Button
+              Positioned(
+                top: 10,
+                right: 10,
+                child: GestureDetector(
+                  onTap: () => Navigator.of(ctx).pop(),
+                  child: Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: const BoxDecoration(
+                      color: Colors.black54,
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(
+                      Icons.close,
+                      color: Colors.white,
+                      size: 24,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   // --- WIDGET BUILDERS ---
+
   Widget _buildHeader() {
     return Container(
       decoration: BoxDecoration(
@@ -154,14 +163,6 @@ class _AnnouncementPageState extends State<AnnouncementPage> {
               ],
             ),
           ),
-          const Spacer(),
-          IconButton(
-            onPressed: () {},
-            icon: const Icon(
-              Icons.notifications_none_rounded,
-              color: Colors.black87,
-            ),
-          ),
         ],
       ),
     );
@@ -182,7 +183,8 @@ class _AnnouncementPageState extends State<AnnouncementPage> {
       ),
       child: TextField(
         controller: _searchController,
-        onChanged: _filterPosts,
+        onChanged: (val) => setState(() {}),
+        style: const TextStyle(color: Colors.black),
         decoration: InputDecoration(
           hintText: "Search updates...",
           hintStyle: TextStyle(color: Colors.grey.shade400, fontSize: 14),
@@ -212,14 +214,136 @@ class _AnnouncementPageState extends State<AnnouncementPage> {
     );
   }
 
-  Widget _buildPostCard(Map<String, dynamic> post) {
-    final isPinned = post['type'] == 'pinned';
+  // --- IMPORTANT REMINDER CARD (Admin View) ---
+  Widget _buildImportantReminderCard(DocumentSnapshot doc) {
+    final data = doc.data() as Map<String, dynamic>;
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      width: double.infinity,
+      decoration: BoxDecoration(
+        color: const Color(0xFFFFFBE6), // Yellowish background
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFFFE58F), width: 1),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: const BoxDecoration(
+                    color: Color(0xFFFFECB3),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(
+                    Icons.push_pin_rounded,
+                    color: Colors.orange.shade900,
+                    size: 20,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        data['title'] ?? 'Reminder',
+                        style: TextStyle(
+                          color: Colors.orange.shade900,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 16,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        'Important Reminder',
+                        style: TextStyle(
+                          color: Colors.grey.shade600,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Text(
+              data['content'] ?? '',
+              style: TextStyle(
+                color: Colors.grey.shade800,
+                fontSize: 14,
+                height: 1.4,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildEmptyRemindersPlaceholder() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(vertical: 24),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.grey.shade200),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.02),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        children: [
+          Icon(
+            Icons.notifications_off_outlined,
+            size: 40,
+            color: Colors.grey.shade300,
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'No important reminders yet.',
+            style: TextStyle(
+              color: Colors.grey.shade400,
+              fontSize: 14,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // --- RECENT UPDATE CARD (Admin View - With Expandable Text & Image) ---
+  Widget _buildPostCard(DocumentSnapshot doc) {
+    final data = doc.data() as Map<String, dynamic>;
+    final imageUrl = data['imageUrl']?.toString() ?? '';
+
+    // Helper to decode image string
+    ImageProvider? getPostImage() {
+      if (imageUrl.isEmpty) return null;
+      try {
+        return MemoryImage(base64Decode(imageUrl));
+      } catch (e) {
+        return null;
+      }
+    }
+
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
       decoration: BoxDecoration(
-        color: isPinned ? const Color(0xFFFFFDF5) : Colors.white,
+        color: Colors.white,
         borderRadius: BorderRadius.circular(16),
-        border: isPinned ? Border.all(color: Colors.amber.shade200) : null,
         boxShadow: [
           BoxShadow(
             color: Colors.black.withOpacity(0.03),
@@ -239,28 +363,20 @@ class _AnnouncementPageState extends State<AnnouncementPage> {
                   width: 40,
                   height: 40,
                   decoration: BoxDecoration(
-                    color: isPinned
-                        ? Colors.amber.shade100
-                        : Colors.blue.shade50,
+                    color: Colors.blue.shade50,
                     shape: BoxShape.circle,
                   ),
                   child: Center(
-                    child: isPinned
-                        ? Icon(
-                            Icons.push_pin_rounded,
-                            color: Colors.amber.shade800,
-                            size: 20,
-                          )
-                        : Text(
-                            (post['author']?.toString() ?? 'U')
-                                .substring(0, 1)
-                                .toUpperCase(),
-                            style: const TextStyle(
-                              color: Colors.blue,
-                              fontWeight: FontWeight.bold,
-                              fontSize: 16,
-                            ),
-                          ),
+                    child: Text(
+                      (data['author']?.toString() ?? 'U')
+                          .substring(0, 1)
+                          .toUpperCase(),
+                      style: const TextStyle(
+                        color: Colors.blue,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 16,
+                      ),
+                    ),
                   ),
                 ),
                 const SizedBox(width: 12),
@@ -269,20 +385,18 @@ class _AnnouncementPageState extends State<AnnouncementPage> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        isPinned
-                            ? (post['title']?.toString() ?? 'Reminder')
-                            : (post['author']?.toString() ?? 'Unknown'),
-                        style: TextStyle(
+                        data['author']?.toString() ?? 'Barangay Office',
+                        style: const TextStyle(
                           fontSize: 15,
                           fontWeight: FontWeight.w700,
-                          color: isPinned
-                              ? Colors.amber.shade900
-                              : Colors.black87,
+                          color: Colors.black87,
                         ),
                       ),
                       const SizedBox(height: 2),
                       Text(
-                        post['time']?.toString() ?? '',
+                        data['createdAt'] != null
+                            ? _formatTimestamp(data['createdAt'])
+                            : 'recently',
                         style: TextStyle(
                           fontSize: 12,
                           color: Colors.grey.shade500,
@@ -292,47 +406,34 @@ class _AnnouncementPageState extends State<AnnouncementPage> {
                     ],
                   ),
                 ),
-                if (!isPinned)
-                  Icon(Icons.more_horiz_rounded, color: Colors.grey.shade300),
               ],
             ),
             const SizedBox(height: 12),
-            Text(
-              post['content']?.toString() ?? '',
-              style: TextStyle(
-                fontSize: 14,
-                height: 1.5,
-                color: Colors.black87.withOpacity(0.8),
-              ),
-            ),
-            if (!isPinned) ...[
+
+            // 1. Expandable Text Feature
+            _ExpandableText(text: data['content']?.toString() ?? ''),
+
+            // 2. Full Image Viewer Feature
+            if (getPostImage() != null) ...[
               const SizedBox(height: 12),
-              Container(
-                width: double.infinity,
-                height: 140,
-                decoration: BoxDecoration(
-                  color: Colors.grey.shade50,
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: Colors.grey.shade100),
-                ),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(
-                      Icons.image_outlined,
-                      color: Colors.grey.shade300,
-                      size: 32,
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      "No Image Attached",
-                      style: TextStyle(
-                        color: Colors.grey.shade400,
-                        fontSize: 12,
+              Builder(
+                builder: (context) {
+                  return GestureDetector(
+                    onTap: () => _showFullImageDialog(context, getPostImage()!),
+                    child: Container(
+                      width: double.infinity,
+                      height: 180,
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(12),
+                        color: Colors.grey.shade100,
+                        image: DecorationImage(
+                          image: getPostImage()!,
+                          fit: BoxFit.cover,
+                        ),
                       ),
                     ),
-                  ],
-                ),
+                  );
+                },
               ),
             ],
           ],
@@ -422,122 +523,110 @@ class _AnnouncementPageState extends State<AnnouncementPage> {
                       ),
                     ),
                     const SizedBox(height: 16),
-                    // IMPORTANT REMINDERS (Static)
-                    if (_filteredStatic.isNotEmpty) ...[
-                      _buildSectionTitle("IMPORTANT REMINDERS"),
-                      Column(
-                        children: [
-                          for (var post in _filteredStatic)
-                            _buildPostCard(post),
-                        ],
-                      ),
-                      const SizedBox(height: 8),
-                    ],
-                    // RECENT UPDATES - Real-time with StreamBuilder
+
+                    // --- SECTION 1: IMPORTANT REMINDERS ---
+                    _buildSectionTitle("IMPORTANT REMINDERS"),
+                    StreamBuilder<QuerySnapshot>(
+                      stream: _remindersStream,
+                      builder: (context, snapshot) {
+                        if (snapshot.connectionState ==
+                            ConnectionState.waiting) {
+                          return const Center(
+                            child: Padding(
+                              padding: EdgeInsets.all(8.0),
+                              child: CircularProgressIndicator(),
+                            ),
+                          );
+                        }
+                        if (snapshot.hasError) {
+                          return const Text('Something went wrong');
+                        }
+
+                        final docs = snapshot.data?.docs ?? [];
+                        if (docs.isEmpty) {
+                          return _buildEmptyRemindersPlaceholder();
+                        }
+
+                        // Filter by search query
+                        final searchQuery = _searchController.text
+                            .toLowerCase();
+                        final filteredDocs = docs.where((doc) {
+                          final data = doc.data() as Map<String, dynamic>;
+                          final title = (data['title'] ?? '')
+                              .toString()
+                              .toLowerCase();
+                          final content = (data['content'] ?? '')
+                              .toString()
+                              .toLowerCase();
+                          return title.contains(searchQuery) ||
+                              content.contains(searchQuery);
+                        }).toList();
+
+                        if (filteredDocs.isEmpty && searchQuery.isNotEmpty) {
+                          return const Center(
+                            child: Text(
+                              "No reminders found",
+                              style: TextStyle(color: Colors.grey),
+                            ),
+                          );
+                        }
+
+                        return Column(
+                          children: filteredDocs
+                              .map((doc) => _buildImportantReminderCard(doc))
+                              .toList(),
+                        );
+                      },
+                    ),
+
+                    const SizedBox(height: 24),
+
+                    // --- SECTION 2: RECENT UPDATES ---
                     _buildSectionTitle("RECENT UPDATES"),
                     StreamBuilder<QuerySnapshot>(
                       stream: _announcementsStream,
                       builder: (context, snapshot) {
                         if (snapshot.connectionState ==
                             ConnectionState.waiting) {
+                          return const Padding(
+                            padding: EdgeInsets.all(20),
+                            child: Center(child: CircularProgressIndicator()),
+                          );
+                        }
+                        final docs = snapshot.data?.docs ?? [];
+                        if (docs.isEmpty) {
                           return const Center(
-                            child: Padding(
-                              padding: EdgeInsets.all(32.0),
-                              child: CircularProgressIndicator(),
-                            ),
-                          );
-                        }
-                        if (snapshot.hasError) {
-                          return Center(
                             child: Text(
-                              'Error loading data: ${snapshot.error}',
+                              "No recent updates",
+                              style: TextStyle(color: Colors.grey),
                             ),
                           );
                         }
 
-                        final documents = snapshot.data?.docs ?? [];
-                        final dynamicPosts = documents.map((d) {
-                          final data = d.data() as Map<String, dynamic>;
-                          return <String, dynamic>{
-                            'id': d.id,
-                            'author': (data['author'] ?? 'Barangay Office')
-                                .toString(),
-                            'time': data['createdAt'] != null
-                                ? _formatTimestamp(data['createdAt'])
-                                : 'recently',
-                            'content': (data['content'] ?? '').toString(),
-                            'type': 'dynamic',
-                          };
-                        }).toList();
-
-                        // Apply search filter
-                        final currentQuery = _searchController.text
+                        // Filter by search query
+                        final searchQuery = _searchController.text
                             .toLowerCase();
-                        final filteredDynamicPosts = dynamicPosts.where((post) {
-                          return (post['content']?.toString() ?? '')
-                                  .toLowerCase()
-                                  .contains(currentQuery) ||
-                              (post['author']?.toString() ?? '')
-                                  .toLowerCase()
-                                  .contains(currentQuery);
+                        final filteredDocs = docs.where((doc) {
+                          final data = doc.data() as Map<String, dynamic>;
+                          final content = (data['content'] ?? '')
+                              .toString()
+                              .toLowerCase();
+                          return content.contains(searchQuery);
                         }).toList();
 
-                        // Empty states
-                        if (filteredDynamicPosts.isEmpty) {
-                          if (currentQuery.isNotEmpty) {
-                            return Padding(
-                              padding: const EdgeInsets.all(16.0),
-                              child: Center(
-                                child: Text(
-                                  "No matching updates found",
-                                  style: TextStyle(color: Colors.grey[500]),
-                                ),
-                              ),
-                            );
-                          } else {
-                            return Container(
-                              width: double.infinity,
-                              padding: const EdgeInsets.all(24),
-                              decoration: BoxDecoration(
-                                color: Colors.white,
-                                borderRadius: BorderRadius.circular(16),
-                                border: Border.all(color: Colors.grey.shade200),
-                              ),
-                              child: Column(
-                                children: [
-                                  Icon(
-                                    Icons.campaign_outlined,
-                                    size: 40,
-                                    color: Colors.grey.shade300,
-                                  ),
-                                  const SizedBox(height: 12),
-                                  Text(
-                                    "No recent updates",
-                                    style: TextStyle(
-                                      color: Colors.grey.shade500,
-                                      fontWeight: FontWeight.w500,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 4),
-                                  Text(
-                                    "Check the reminders above for info",
-                                    style: TextStyle(
-                                      color: Colors.grey.shade400,
-                                      fontSize: 12,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            );
-                          }
+                        if (filteredDocs.isEmpty && searchQuery.isNotEmpty) {
+                          return const Center(
+                            child: Text(
+                              "No updates found",
+                              style: TextStyle(color: Colors.grey),
+                            ),
+                          );
                         }
 
-                        // Display posts
                         return Column(
-                          children: [
-                            for (var post in filteredDynamicPosts)
-                              _buildPostCard(post),
-                          ],
+                          children: filteredDocs.map((doc) {
+                            return _buildPostCard(doc);
+                          }).toList(),
                         );
                       },
                     ),
@@ -556,6 +645,88 @@ class _AnnouncementPageState extends State<AnnouncementPage> {
       return PhoneFrame(child: mobileContent);
     }
     return mobileContent;
+  }
+}
+
+// --- HELPER WIDGET FOR "SEE MORE / SEE LESS" ---
+class _ExpandableText extends StatefulWidget {
+  final String text;
+  const _ExpandableText({required this.text});
+
+  @override
+  State<_ExpandableText> createState() => _ExpandableTextState();
+}
+
+class _ExpandableTextState extends State<_ExpandableText> {
+  bool isExpanded = false;
+  static const int maxLines = 3;
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final span = TextSpan(
+          text: widget.text,
+          style: TextStyle(
+            fontSize: 14,
+            height: 1.5,
+            color: Colors.black87.withOpacity(0.8),
+          ),
+        );
+
+        final tp = TextPainter(
+          text: span,
+          maxLines: maxLines,
+          textDirection: TextDirection.ltr,
+        );
+        tp.layout(maxWidth: constraints.maxWidth);
+
+        if (tp.didExceedMaxLines) {
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                widget.text,
+                maxLines: isExpanded ? null : maxLines,
+                overflow: isExpanded
+                    ? TextOverflow.visible
+                    : TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontSize: 14,
+                  height: 1.5,
+                  color: Colors.black87.withOpacity(0.8),
+                ),
+              ),
+              const SizedBox(height: 4),
+              GestureDetector(
+                onTap: () {
+                  setState(() {
+                    isExpanded = !isExpanded;
+                  });
+                },
+                child: Text(
+                  isExpanded ? "See Less" : "See More",
+                  style: const TextStyle(
+                    color: Colors.blue,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 13,
+                  ),
+                ),
+              ),
+            ],
+          );
+        } else {
+          return Text(
+            widget.text,
+            style: TextStyle(
+              fontSize: 14,
+              height: 1.5,
+              color: Colors.black87.withOpacity(0.8),
+            ),
+          );
+        }
+      },
+    );
   }
 }
 
