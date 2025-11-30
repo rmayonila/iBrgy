@@ -2,7 +2,7 @@
 import 'package:flutter/foundation.dart'; // For web check
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'add_staff_account_page.dart';
+import 'add_moderator_account_page.dart';
 
 class ManageModeratorsPage extends StatelessWidget {
   const ManageModeratorsPage({super.key});
@@ -35,7 +35,7 @@ class ManageModeratorsPage extends StatelessWidget {
           Navigator.push(
             context,
             MaterialPageRoute(
-              builder: (context) => const AddStaffAccountPage(),
+              builder: (context) => const AddModeratorAccountPage(),
             ),
           );
         },

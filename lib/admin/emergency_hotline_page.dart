@@ -21,13 +21,19 @@ class _EmergencyHotlinePageState extends State<EmergencyHotlinePage> {
     milliseconds: 300,
   ); // 0.3 seconds delay
 
-  // --- TOAST STATE ---
-  bool _showToast = false;
-  String _copiedNumber = '';
-
   // --- SEARCH STATE ---
   String _searchQuery = '';
   final TextEditingController _searchController = TextEditingController();
+
+  // --- DATA STATE ---
+  List<Map<String, dynamic>> _allHotlines = [];
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadHotlines();
+  }
 
   // --- ADMIN NAVIGATION LOGIC ---
   void _onItemTapped(BuildContext context, int index) {
@@ -47,6 +53,44 @@ class _EmergencyHotlinePageState extends State<EmergencyHotlinePage> {
     _searchController.dispose();
     _debounce?.cancel(); // Cancel the timer when the widget is disposed
     super.dispose();
+  }
+
+  // --- LOAD HOTLINES DATA ---
+  Future<void> _loadHotlines() async {
+    try {
+      final snapshot = await _db
+          .collection('hotlines')
+          .orderBy('createdAt', descending: true)
+          .get();
+
+      final List<Map<String, dynamic>> hotlines = [];
+
+      for (final doc in snapshot.docs) {
+        final data = doc.data() as Map<String, dynamic>;
+        final hotline = {
+          'id': doc.id,
+          'name': (data['name'] ?? '').toString(),
+          'number': (data['number'] ?? '').toString(),
+          'type': (data['type'] ?? 'local').toString(),
+          'isUrgent': data['isUrgent'] == true,
+          'icon': _getIconForType((data['type'] ?? 'local').toString()),
+        };
+        hotlines.add(hotline);
+      }
+
+      if (mounted) {
+        setState(() {
+          _allHotlines = hotlines;
+          _isLoading = false;
+        });
+      }
+    } catch (error) {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    }
   }
 
   IconData _getIconForType(String type) {
@@ -75,9 +119,23 @@ class _EmergencyHotlinePageState extends State<EmergencyHotlinePage> {
     _debounce = Timer(_debounceDuration, () {
       if (!mounted) return;
       setState(() {
-        _searchQuery = query.toLowerCase();
+        _searchQuery = query.trim().toLowerCase();
       });
     });
+  }
+
+  // --- HANDLE SEARCH SUBMIT ---
+  void _onSearchSubmitted(String value) {
+    // Cancel any pending debounce
+    _debounce?.cancel();
+
+    if (!mounted) return;
+    setState(() {
+      _searchQuery = value.trim().toLowerCase();
+    });
+
+    // Unfocus to hide keyboard
+    FocusScope.of(context).unfocus();
   }
 
   Future<void> _copyToClipboard(String number) async {
@@ -85,76 +143,81 @@ class _EmergencyHotlinePageState extends State<EmergencyHotlinePage> {
 
     if (!mounted) return;
 
-    setState(() {
-      _showToast = true;
-      _copiedNumber = number;
-    });
+    // Show centered overlay toast
+    _showCenteredOverlayToast(number);
+  }
 
+  // --- CENTERED OVERLAY TOAST METHOD ---
+  void _showCenteredOverlayToast(String number) {
+    final overlay = Overlay.of(context);
+    final overlayEntry = OverlayEntry(
+      builder: (context) => Positioned.fill(
+        child: IgnorePointer(
+          child: Material(
+            color: Colors.transparent,
+            child: Center(child: _buildToastContent(number)),
+          ),
+        ),
+      ),
+    );
+
+    // Insert the overlay
+    overlay.insert(overlayEntry);
+
+    // Remove the overlay after 2 seconds
     Future.delayed(const Duration(seconds: 2), () {
-      if (mounted) {
-        setState(() {
-          _showToast = false;
-        });
-      }
+      overlayEntry.remove();
     });
   }
 
-  // --- MINIMALIST TOAST WIDGET ---
-  Widget _buildToast() {
-    if (!_showToast) return const SizedBox.shrink();
-
-    return Align(
-      alignment: Alignment.bottomCenter, // Anchor to the bottom
-      child: Padding(
-        padding: const EdgeInsets.only(bottom: 80.0), // Above the NavBar
-        child: TweenAnimationBuilder<double>(
-          tween: Tween(begin: 0.0, end: 1.0),
-          duration: const Duration(milliseconds: 300),
-          curve: Curves.easeOutBack,
-          builder: (context, value, child) {
-            return Transform.scale(
-              scale: value,
-              child: Opacity(opacity: value.clamp(0.0, 1.0), child: child),
-            );
-          },
-          child: Container(
-            margin: const EdgeInsets.symmetric(horizontal: 30),
-            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(50),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.15),
-                  blurRadius: 20,
-                  spreadRadius: 2,
-                  offset: const Offset(0, 5),
-                ),
-              ],
+  // --- TOAST CONTENT WIDGET ---
+  Widget _buildToastContent(String number) {
+    return TweenAnimationBuilder<double>(
+      tween: Tween(begin: 0.0, end: 1.0),
+      duration: const Duration(milliseconds: 300),
+      curve: Curves.easeOutBack,
+      builder: (context, value, child) {
+        return Transform.scale(
+          scale: value,
+          child: Opacity(opacity: value.clamp(0.0, 1.0), child: child),
+        );
+      },
+      child: Container(
+        margin: const EdgeInsets.symmetric(horizontal: 40),
+        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.2),
+              blurRadius: 25,
+              spreadRadius: 2,
+              offset: const Offset(0, 8),
             ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Icon(
-                  Icons.check_circle_rounded,
-                  color: Colors.green,
-                  size: 20,
-                ),
-                const SizedBox(width: 12),
-                Flexible(
-                  child: Text(
-                    "Copied: $_copiedNumber",
-                    style: const TextStyle(
-                      color: Colors.black87,
-                      fontWeight: FontWeight.w600,
-                      fontSize: 14,
-                    ),
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-              ],
+          ],
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(
+              Icons.check_circle_rounded,
+              color: Colors.green,
+              size: 24,
             ),
-          ),
+            const SizedBox(width: 12),
+            Flexible(
+              child: Text(
+                "Copied: $number",
+                style: const TextStyle(
+                  color: Colors.black87,
+                  fontWeight: FontWeight.w600,
+                  fontSize: 16,
+                ),
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+          ],
         ),
       ),
     );
@@ -238,8 +301,8 @@ class _EmergencyHotlinePageState extends State<EmergencyHotlinePage> {
       ),
       child: TextField(
         controller: _searchController,
-        // Using the debounced function
         onChanged: _onSearchChanged,
+        onSubmitted: _onSearchSubmitted,
         style: const TextStyle(color: Colors.black, fontSize: 16),
         decoration: InputDecoration(
           hintText: "Search hotline...",
@@ -382,14 +445,44 @@ class _EmergencyHotlinePageState extends State<EmergencyHotlinePage> {
     );
   }
 
-  Widget _buildNoMatchText() {
-    return Padding(
-      padding: const EdgeInsets.all(16.0),
-      child: Center(
-        child: Text(
-          "No matching numbers",
-          style: TextStyle(color: Colors.grey.shade400),
+  Widget _buildNoSearchResults() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(32),
+      margin: const EdgeInsets.only(top: 16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: Colors.grey.shade200,
+          style: BorderStyle.solid,
         ),
+      ),
+      child: Column(
+        children: [
+          Icon(Icons.search_off_rounded, size: 48, color: Colors.grey.shade300),
+          const SizedBox(height: 16),
+          Text(
+            "No hotlines found",
+            style: TextStyle(
+              color: Colors.grey.shade600,
+              fontWeight: FontWeight.w600,
+              fontSize: 16,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            "No results for \"$_searchQuery\"",
+            style: TextStyle(color: Colors.grey.shade500, fontSize: 14),
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 4),
+          Text(
+            "Try searching with different keywords",
+            style: TextStyle(color: Colors.grey.shade400, fontSize: 12),
+            textAlign: TextAlign.center,
+          ),
+        ],
       ),
     );
   }
@@ -450,152 +543,179 @@ class _EmergencyHotlinePageState extends State<EmergencyHotlinePage> {
     );
   }
 
+  // New Widget: Description Note
+  Widget _buildDescriptionNote() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.blue.shade50,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: Colors.blue.shade100,
+          style: BorderStyle.solid,
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.info_outline, color: Colors.blue.shade700, size: 20),
+              const SizedBox(width: 8),
+              Text(
+                "Quick Guide",
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 14,
+                  color: Colors.blue.shade700,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          const Text(
+            "Emergency Hotline provides ESSENTIAL EMERGENCY HOTLINE NUMBERS. Tap on any number to IMMEDIATELY COPY IT to your clipboard for quick pasting into your phone dialer. Your safety is our priority.",
+            style: TextStyle(fontSize: 13, color: Colors.black87, height: 1.4),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // New Widget: Quote
+  Widget _buildSafetyQuote() {
+    return Align(
+      alignment: Alignment.centerRight,
+      child: Padding(
+        padding: const EdgeInsets.only(top: 10, bottom: 20, right: 4),
+        child: Text(
+          "\"Keep safe and be vigilant\"",
+          style: TextStyle(
+            fontStyle: FontStyle.italic,
+            fontSize: 14,
+            color: Colors.grey.shade500,
+          ),
+        ),
+      ),
+    );
+  }
+
+  // --- BUILD CONTENT BASED ON SEARCH ---
+  Widget _buildContent() {
+    if (_isLoading) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    final List<Map<String, dynamic>> nationalItems = [];
+    final List<Map<String, dynamic>> localItems = [];
+    final List<Map<String, dynamic>> barangayItems = [];
+
+    for (final hotline in _allHotlines) {
+      // Filter by search query
+      final search = _searchQuery;
+      final matchesSearch =
+          search.isEmpty ||
+          hotline['name'].toString().toLowerCase().contains(search) ||
+          hotline['number'].toString().toLowerCase().contains(search);
+
+      if (matchesSearch) {
+        if (hotline['type'] == 'national') {
+          nationalItems.add(hotline);
+        } else if (hotline['type'] == 'barangay') {
+          barangayItems.add(hotline);
+        } else {
+          localItems.add(hotline);
+        }
+      }
+    }
+
+    // Check if there are any results across all categories
+    final bool hasSearchResults =
+        nationalItems.isNotEmpty ||
+        localItems.isNotEmpty ||
+        barangayItems.isNotEmpty;
+    final bool isSearching = _searchQuery.isNotEmpty;
+
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _buildSearchBar(),
+          const SizedBox(height: 24),
+          const Text(
+            "Emergency Hotlines",
+            style: TextStyle(
+              fontSize: 20,
+              fontWeight: FontWeight.bold,
+              color: Colors.black87,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            "Tap to copy the number",
+            style: TextStyle(color: Colors.grey.shade500, fontSize: 13),
+          ),
+          const SizedBox(height: 16),
+          // Description Note
+          _buildDescriptionNote(),
+          // Safety Quote
+          _buildSafetyQuote(),
+          const SizedBox(height: 4),
+
+          // Show "No results" message when searching with no results
+          if (isSearching && !hasSearchResults) _buildNoSearchResults(),
+
+          // Show content only if we have results or not searching
+          if (!isSearching || hasSearchResults) ...[
+            // NATIONAL
+            if (nationalItems.isNotEmpty || !isSearching)
+              _buildSectionTitle("NATIONAL EMERGENCY"),
+
+            if (nationalItems.isEmpty && !isSearching)
+              _buildEmptyState("national")
+            else if (nationalItems.isNotEmpty)
+              ...nationalItems.map((h) => _buildHotlineCard(h)),
+
+            const SizedBox(height: 20),
+
+            // LOCAL
+            if (localItems.isNotEmpty || !isSearching)
+              _buildSectionTitle("LOCAL HOTLINES"),
+
+            if (localItems.isEmpty && !isSearching)
+              _buildEmptyState("local")
+            else if (localItems.isNotEmpty)
+              ...localItems.map((h) => _buildHotlineCard(h)),
+
+            const SizedBox(height: 20),
+
+            // BARANGAY
+            if (barangayItems.isNotEmpty || !isSearching)
+              _buildSectionTitle("BARANGAY HOTLINES"),
+
+            if (barangayItems.isEmpty && !isSearching)
+              _buildEmptyState("barangay")
+            else if (barangayItems.isNotEmpty)
+              ...barangayItems.map((h) => _buildHotlineCard(h)),
+          ],
+
+          const SizedBox(height: 80),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     Widget mobileContent = Scaffold(
       backgroundColor: const Color(0xFFF8F9FA),
       body: SafeArea(
-        child: Stack(
+        child: Column(
           children: [
-            // Content Layer
-            Column(
-              children: [
-                _buildHeader(),
-                Expanded(
-                  child: StreamBuilder<QuerySnapshot>(
-                    stream: _db
-                        .collection('hotlines')
-                        .orderBy('createdAt', descending: true)
-                        .snapshots(),
-                    builder: (context, snapshot) {
-                      if (snapshot.connectionState == ConnectionState.waiting) {
-                        return const Center(child: CircularProgressIndicator());
-                      }
-
-                      if (snapshot.hasError) {
-                        return Center(
-                          child: Text('Error loading data: ${snapshot.error}'),
-                        );
-                      }
-
-                      final docs = snapshot.data?.docs ?? [];
-
-                      final List<Map<String, dynamic>> nationalItems = [];
-                      final List<Map<String, dynamic>> localItems = [];
-                      final List<Map<String, dynamic>> barangayItems = [];
-
-                      for (final doc in docs) {
-                        final data = doc.data() as Map<String, dynamic>;
-                        final hotline = {
-                          'id': doc.id,
-                          'name': (data['name'] ?? '').toString(),
-                          'number': (data['number'] ?? '').toString(),
-                          'type': (data['type'] ?? 'local').toString(),
-                          'isUrgent': data['isUrgent'] == true,
-                          'icon': _getIconForType(
-                            (data['type'] ?? 'local').toString(),
-                          ),
-                        };
-
-                        // Filter by search query
-                        final search = _searchQuery;
-                        final matchesSearch =
-                            search.isEmpty ||
-                            hotline['name'].toString().toLowerCase().contains(
-                              search,
-                            ) ||
-                            hotline['number'].toString().toLowerCase().contains(
-                              search,
-                            );
-
-                        if (matchesSearch) {
-                          if (hotline['type'] == 'national') {
-                            nationalItems.add(hotline);
-                          } else if (hotline['type'] == 'barangay') {
-                            barangayItems.add(hotline);
-                          } else {
-                            localItems.add(hotline);
-                          }
-                        }
-                      }
-
-                      return SingleChildScrollView(
-                        padding: const EdgeInsets.all(20),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            _buildSearchBar(),
-                            const SizedBox(height: 24),
-                            const Text(
-                              "Emergency Hotlines",
-                              style: TextStyle(
-                                fontSize: 20,
-                                fontWeight: FontWeight.bold,
-                                color: Colors.black87,
-                              ),
-                            ),
-                            const SizedBox(height: 4),
-                            Text(
-                              "Tap to copy the number",
-                              style: TextStyle(
-                                color: Colors.grey.shade500,
-                                fontSize: 13,
-                              ),
-                            ),
-                            const SizedBox(height: 20),
-
-                            // NATIONAL
-                            if (nationalItems.isNotEmpty ||
-                                _searchQuery.isNotEmpty)
-                              _buildSectionTitle("NATIONAL EMERGENCY"),
-
-                            if (nationalItems.isEmpty)
-                              _searchQuery.isEmpty
-                                  ? _buildEmptyState("national")
-                                  : _buildNoMatchText()
-                            else
-                              ...nationalItems.map((h) => _buildHotlineCard(h)),
-
-                            const SizedBox(height: 20),
-
-                            // LOCAL
-                            if (localItems.isNotEmpty ||
-                                _searchQuery.isNotEmpty)
-                              _buildSectionTitle("LOCAL HOTLINES"),
-
-                            if (localItems.isEmpty)
-                              _searchQuery.isEmpty
-                                  ? _buildEmptyState("local")
-                                  : _buildNoMatchText()
-                            else
-                              ...localItems.map((h) => _buildHotlineCard(h)),
-
-                            const SizedBox(height: 20),
-
-                            // BARANGAY
-                            if (barangayItems.isNotEmpty ||
-                                _searchQuery.isNotEmpty)
-                              _buildSectionTitle("BARANGAY HOTLINES"),
-
-                            if (barangayItems.isEmpty)
-                              _searchQuery.isEmpty
-                                  ? _buildEmptyState("barangay")
-                                  : _buildNoMatchText()
-                            else
-                              ...barangayItems.map((h) => _buildHotlineCard(h)),
-
-                            const SizedBox(height: 80),
-                          ],
-                        ),
-                      );
-                    },
-                  ),
-                ),
-              ],
-            ),
-
-            // Notification Layer (Fixed Minimalist Toast)
-            _buildToast(),
+            _buildHeader(),
+            Expanded(child: _buildContent()),
           ],
         ),
       ),

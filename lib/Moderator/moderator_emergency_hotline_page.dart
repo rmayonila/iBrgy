@@ -593,6 +593,64 @@ class _ModeratorEmergencyHotlinePageState
     );
   }
 
+  // New Widget: Description Note
+  Widget _buildDescriptionNote() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.blue.shade50,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: Colors.blue.shade100,
+          style: BorderStyle.solid,
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.info_outline, color: Colors.blue.shade700, size: 20),
+              const SizedBox(width: 8),
+              Text(
+                "Quick Guide",
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 14,
+                  color: Colors.blue.shade700,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          const Text(
+            "Emergency Hotline provides ESSENTIAL EMERGENCY HOTLINE NUMBERS. Tap on any number to IMMEDIATELY COPY IT to your clipboard for quick pasting into your phone dialer. Your safety is our priority.",
+            style: TextStyle(fontSize: 13, color: Colors.black87, height: 1.4),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // New Widget: Quote
+  Widget _buildSafetyQuote() {
+    return Align(
+      alignment: Alignment.centerRight,
+      child: Padding(
+        padding: const EdgeInsets.only(top: 10, bottom: 20, right: 4),
+        child: Text(
+          "\"Keep safe and be vigilant\"",
+          style: TextStyle(
+            fontStyle: FontStyle.italic,
+            fontSize: 14,
+            color: Colors.grey.shade500,
+          ),
+        ),
+      ),
+    );
+  }
+
   Widget _buildSectionTitle(
     String title, {
     String? addTooltip,
@@ -875,7 +933,12 @@ class _ModeratorEmergencyHotlinePageState
                               fontSize: 13,
                             ),
                           ),
-                          const SizedBox(height: 20),
+                          const SizedBox(height: 16),
+                          // 3. Description Note (New)
+                          _buildDescriptionNote(),
+                          // 4. Safety Quote (New)
+                          _buildSafetyQuote(),
+                          const SizedBox(height: 4),
 
                           // Sections (Hide header if searching and empty)
                           if (_searchQuery.isEmpty ||

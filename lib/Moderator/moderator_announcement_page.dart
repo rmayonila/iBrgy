@@ -1127,6 +1127,36 @@ class _ModeratorAnnouncementPageState extends State<ModeratorAnnouncementPage> {
     );
   }
 
+  // --- NEW: Info Card for purpose note ---
+  Widget _buildInfoCard() {
+    return Container(
+      margin: const EdgeInsets.only(top: 8, bottom: 20),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.blue.shade50, // Light blue background
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.blue.shade100),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(Icons.info_outline, color: Colors.blue.shade700, size: 20),
+          const SizedBox(width: 10),
+          const Expanded(
+            child: Text(
+              'The Barangay Updates provides the important reminders and recent updates from the barangay office.',
+              style: TextStyle(
+                fontSize: 13,
+                color: Colors.black87,
+                height: 1.4,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     Widget mobileContent = ScaffoldMessenger(
@@ -1189,6 +1219,9 @@ class _ModeratorAnnouncementPageState extends State<ModeratorAnnouncementPage> {
                         ),
                       ),
                       const SizedBox(height: 16),
+
+                      // --- NEW: Info Card is placed here ---
+                      _buildInfoCard(),
 
                       _buildSectionTitle(
                         "IMPORTANT REMINDERS",

@@ -5,21 +5,22 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
-class AddStaffAccountPage extends StatefulWidget {
-  const AddStaffAccountPage({super.key});
+class AddModeratorAccountPage extends StatefulWidget {
+  const AddModeratorAccountPage({super.key});
 
   @override
-  State<AddStaffAccountPage> createState() => _AddStaffAccountPageState();
+  State<AddModeratorAccountPage> createState() =>
+      _AddModeratorAccountPageState();
 }
 
-class _AddStaffAccountPageState extends State<AddStaffAccountPage> {
+class _AddModeratorAccountPageState extends State<AddModeratorAccountPage> {
   final _nameController = TextEditingController();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   bool _isLoading = false;
   final _formKey = GlobalKey<FormState>();
 
-  Future<void> _createStaffAccount() async {
+  Future<void> _createModeratorAccount() async {
     if (!_formKey.currentState!.validate()) return;
 
     setState(() => _isLoading = true);
@@ -57,6 +58,7 @@ class _AddStaffAccountPageState extends State<AddStaffAccountPage> {
           .createUserWithEmailAndPassword(email: email, password: password);
 
       // 5. Save details to Firestore using the MAIN instance (Admin permissions)
+      // In _createStaffAccount() method, change this line:
       await FirebaseFirestore.instance
           .collection('users')
           .doc(userCredential.user!.uid)
@@ -64,7 +66,7 @@ class _AddStaffAccountPageState extends State<AddStaffAccountPage> {
             'uid': userCredential.user!.uid,
             'name': name,
             'email': email,
-            'role': 'staff',
+            'role': 'moderator', // CHANGE FROM 'staff' TO 'moderator'
             'createdAt': FieldValue.serverTimestamp(),
           });
 
@@ -112,7 +114,7 @@ class _AddStaffAccountPageState extends State<AddStaffAccountPage> {
       backgroundColor: Colors.white,
       appBar: AppBar(
         title: const Text(
-          "Add New Staff",
+          "Add Moderator",
           style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold),
         ),
         backgroundColor: Colors.white,
@@ -132,7 +134,7 @@ class _AddStaffAccountPageState extends State<AddStaffAccountPage> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               const Text(
-                "Staff Details",
+                "Moderator Details",
                 style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: 8),
@@ -189,7 +191,7 @@ class _AddStaffAccountPageState extends State<AddStaffAccountPage> {
                 width: double.infinity,
                 height: 50,
                 child: ElevatedButton(
-                  onPressed: _isLoading ? null : _createStaffAccount,
+                  onPressed: _isLoading ? null : _createModeratorAccount,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.blue,
                     shape: RoundedRectangleBorder(

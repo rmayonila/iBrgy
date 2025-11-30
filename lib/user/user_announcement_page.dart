@@ -162,13 +162,14 @@ class _UserAnnouncementPageState extends State<UserAnnouncementPage> {
         ),
         boxShadow: [
           BoxShadow(
-            color: Color.fromRGBO(0, 0, 0, 0.05),
+            color: const Color.fromRGBO(0, 0, 0, 0.05),
             blurRadius: 15,
             offset: const Offset(0, 5),
           ),
         ],
       ),
       padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 20.0),
+      // REVERTED to original Row structure
       child: Row(
         children: [
           Container(
@@ -219,6 +220,36 @@ class _UserAnnouncementPageState extends State<UserAnnouncementPage> {
     );
   }
 
+  // --- NEW: Info Card for purpose note ---
+  Widget _buildInfoCard() {
+    return Container(
+      margin: const EdgeInsets.only(top: 8, bottom: 20),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.blue.shade50, // Light blue background
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.blue.shade100),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(Icons.info_outline, color: Colors.blue.shade700, size: 20),
+          const SizedBox(width: 10),
+          const Expanded(
+            child: Text(
+              'The Barangay Updates provides the important reminders and recent updates from the barangay office.',
+              style: TextStyle(
+                fontSize: 13,
+                color: Colors.black87,
+                height: 1.4,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildSearchBar() {
     return Container(
       decoration: BoxDecoration(
@@ -226,7 +257,7 @@ class _UserAnnouncementPageState extends State<UserAnnouncementPage> {
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: Color.fromRGBO(0, 0, 0, 0.03),
+            color: const Color.fromRGBO(0, 0, 0, 0.03),
             blurRadius: 10,
             offset: const Offset(0, 4),
           ),
@@ -348,7 +379,7 @@ class _UserAnnouncementPageState extends State<UserAnnouncementPage> {
         border: Border.all(color: Colors.grey.shade200),
         boxShadow: [
           BoxShadow(
-            color: Color.fromRGBO(0, 0, 0, 0.02),
+            color: const Color.fromRGBO(0, 0, 0, 0.02),
             blurRadius: 8,
             offset: const Offset(0, 2),
           ),
@@ -397,7 +428,7 @@ class _UserAnnouncementPageState extends State<UserAnnouncementPage> {
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: Color.fromRGBO(0, 0, 0, 0.03),
+            color: const Color.fromRGBO(0, 0, 0, 0.03),
             blurRadius: 10,
             offset: const Offset(0, 4),
           ),
@@ -499,7 +530,7 @@ class _UserAnnouncementPageState extends State<UserAnnouncementPage> {
         color: Colors.white,
         boxShadow: [
           BoxShadow(
-            color: Color.fromRGBO(0, 0, 0, 0.05),
+            color: const Color.fromRGBO(0, 0, 0, 0.05),
             blurRadius: 10,
             offset: const Offset(0, -5),
           ),
@@ -563,7 +594,9 @@ class _UserAnnouncementPageState extends State<UserAnnouncementPage> {
                           color: Colors.black87,
                         ),
                       ),
-                      const SizedBox(height: 16),
+
+                      // --- NEW: Info Card is placed here ---
+                      _buildInfoCard(),
 
                       // --- SECTION 1: IMPORTANT REMINDERS ---
                       _buildSectionTitle("IMPORTANT REMINDERS"),
@@ -584,10 +617,6 @@ class _UserAnnouncementPageState extends State<UserAnnouncementPage> {
                           }
 
                           final docs = snapshot.data?.docs ?? [];
-                          if (docs.isEmpty) {
-                            return _buildEmptyRemindersPlaceholder();
-                          }
-
                           // Filter by search query
                           final searchQuery = _searchController.text
                               .toLowerCase();
@@ -603,13 +632,16 @@ class _UserAnnouncementPageState extends State<UserAnnouncementPage> {
                                 content.contains(searchQuery);
                           }).toList();
 
-                          if (filteredDocs.isEmpty && searchQuery.isNotEmpty) {
-                            return const Center(
-                              child: Text(
-                                "No reminders found",
-                                style: TextStyle(color: Colors.grey),
-                              ),
-                            );
+                          if (filteredDocs.isEmpty) {
+                            if (searchQuery.isNotEmpty) {
+                              return const Center(
+                                child: Text(
+                                  "No reminders found",
+                                  style: TextStyle(color: Colors.grey),
+                                ),
+                              );
+                            }
+                            return _buildEmptyRemindersPlaceholder();
                           }
 
                           return Column(
@@ -635,15 +667,6 @@ class _UserAnnouncementPageState extends State<UserAnnouncementPage> {
                             );
                           }
                           final docs = snapshot.data?.docs ?? [];
-                          if (docs.isEmpty) {
-                            return const Center(
-                              child: Text(
-                                "No recent updates",
-                                style: TextStyle(color: Colors.grey),
-                              ),
-                            );
-                          }
-
                           // Filter by search query
                           final searchQuery = _searchController.text
                               .toLowerCase();
@@ -655,7 +678,7 @@ class _UserAnnouncementPageState extends State<UserAnnouncementPage> {
                             return content.contains(searchQuery);
                           }).toList();
 
-                          if (filteredDocs.isEmpty && searchQuery.isNotEmpty) {
+                          if (filteredDocs.isEmpty) {
                             return const Center(
                               child: Text(
                                 "No updates found",
@@ -719,7 +742,7 @@ class _ExpandableTextState extends State<_ExpandableText> {
       builder: (context, constraints) {
         final span = TextSpan(
           text: widget.text,
-          style: TextStyle(
+          style: const TextStyle(
             fontSize: 14,
             height: 1.5,
             color: Color.fromRGBO(33, 33, 33, 0.8),
@@ -743,7 +766,7 @@ class _ExpandableTextState extends State<_ExpandableText> {
                 overflow: isExpanded
                     ? TextOverflow.visible
                     : TextOverflow.ellipsis,
-                style: TextStyle(
+                style: const TextStyle(
                   fontSize: 14,
                   height: 1.5,
                   color: Color.fromRGBO(33, 33, 33, 0.8),
@@ -770,7 +793,7 @@ class _ExpandableTextState extends State<_ExpandableText> {
         } else {
           return Text(
             widget.text,
-            style: TextStyle(
+            style: const TextStyle(
               fontSize: 14,
               height: 1.5,
               color: Color.fromRGBO(33, 33, 33, 0.8),
@@ -799,7 +822,7 @@ class PhoneFrame extends StatelessWidget {
             borderRadius: BorderRadius.circular(40),
             boxShadow: [
               BoxShadow(
-                color: Color.fromRGBO(0, 0, 0, 0.1),
+                color: const Color.fromRGBO(0, 0, 0, 0.1),
                 blurRadius: 30,
                 spreadRadius: 5,
                 offset: const Offset(0, 10),

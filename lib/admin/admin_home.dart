@@ -193,6 +193,49 @@ class _AdminHomePageState extends State<AdminHomePage> {
     );
   }
 
+  // --- NEW WIDGET: Instructional Note ---
+  Widget _buildInstructionalNote() {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.blue.shade50,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.blue.shade100),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(Icons.info_outline, color: Colors.blue.shade700, size: 20),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Hello there!',
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 16,
+                    color: Colors.blue.shade900,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                const Text(
+                  'Home contains the complete steps and requirements  for all available Barangay services. Review the details first to save time and ensure you have everything needed before visiting the office.',
+                  style: TextStyle(
+                    fontSize: 13,
+                    color: Colors.black87,
+                    height: 1.4,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   // --- SERVICE CARD (Read-Only) ---
   Widget _buildServiceCard(DocumentSnapshot doc) {
     final data = doc.data() as Map<String, dynamic>;
@@ -405,6 +448,8 @@ class _AdminHomePageState extends State<AdminHomePage> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     _buildSearchBar(),
+                    const SizedBox(height: 20), // Adjusted spacing
+                    _buildInstructionalNote(), // <<< NEW INSTRUCTIONAL NOTE
                     const SizedBox(height: 24),
                     const Text(
                       "Barangay Services",

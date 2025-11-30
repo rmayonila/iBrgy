@@ -2,14 +2,14 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../services/notification_service.dart';
 
-class AdminNotificationsPage extends StatefulWidget {
-  const AdminNotificationsPage({super.key});
+class TrackActivityPage extends StatefulWidget {
+  const TrackActivityPage({super.key});
 
   @override
-  State<AdminNotificationsPage> createState() => _AdminNotificationsPageState();
+  State<TrackActivityPage> createState() => _TrackActivityPageState();
 }
 
-class _AdminNotificationsPageState extends State<AdminNotificationsPage> {
+class _TrackActivityPageState extends State<TrackActivityPage> {
   // Enhanced icons mapping for different notification types and actions
   final Map<String, IconData> _notificationIcons = {
     // Moderator actions

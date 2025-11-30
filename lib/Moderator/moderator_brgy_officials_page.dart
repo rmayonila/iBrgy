@@ -750,6 +750,47 @@ class _ModeratorBrgyOfficialsPageState
     );
   }
 
+  Widget _buildBanner() {
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.only(bottom: 24),
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [Colors.blue.shade700, Colors.blue.shade500],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.blue.withValues(alpha: 0.3),
+            blurRadius: 10,
+            offset: const Offset(0, 5),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            "Meet Your Leaders",
+            style: TextStyle(
+              color: Colors.white,
+              fontSize: 22,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            "Dedicated to serving the community with integrity and transparency.",
+            style: TextStyle(color: Colors.blue.shade50, fontSize: 14),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildSearchBar() {
     return Container(
       decoration: BoxDecoration(
@@ -1115,6 +1156,7 @@ class _ModeratorBrgyOfficialsPageState
                     children: [
                       _buildSearchBar(),
                       const SizedBox(height: 24),
+                      _buildBanner(),
                       Padding(
                         padding: const EdgeInsets.only(bottom: 16.0),
                         child: Row(

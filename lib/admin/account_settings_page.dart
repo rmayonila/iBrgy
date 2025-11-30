@@ -4,11 +4,46 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../splash_screen.dart';
-import 'admin_notifications_page.dart';
+import 'track_activity.dart';
 import 'account.dart';
 import 'manage_moderators_page.dart';
-import 'change_password_page.dart'; // Import the separated file
-import 'help_support_page.dart'; // Import the separated file
+import 'help_support_page.dart';
+
+// --- PHONE FRAME WRAPPER ---
+class PhoneFrame extends StatelessWidget {
+  final Widget child;
+
+  const PhoneFrame({super.key, required this.child});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: const Color(0xFFF2F2F7), // Background behind phone
+      body: Center(
+        child: Container(
+          width: 375,
+          height: 812,
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(40),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.1),
+                blurRadius: 30,
+                spreadRadius: 5,
+                offset: const Offset(0, 10),
+              ),
+            ],
+          ),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(40),
+            child: child,
+          ),
+        ),
+      ),
+    );
+  }
+}
 
 class AccountSettingsPage extends StatefulWidget {
   const AccountSettingsPage({super.key});
@@ -195,7 +230,147 @@ class _AccountSettingsPageState extends State<AccountSettingsPage> {
     );
   }
 
-  // --- ENHANCED NAVBAR BUILDER ---
+  // --- NEW: Admin Terms & Conditions Page ---
+  Widget _buildAdminTermsPage() {
+    // WRAPPED IN PHONE FRAME
+    return PhoneFrame(
+      child: Scaffold(
+        backgroundColor: Colors.white,
+        appBar: AppBar(
+          title: const Text(
+            'Terms & Services',
+            style: TextStyle(
+              fontWeight: FontWeight.bold,
+              color: Colors.black87,
+              fontSize: 18,
+            ),
+          ),
+          centerTitle: true,
+          backgroundColor: Colors.white,
+          elevation: 0,
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back, color: Colors.black87),
+            onPressed: () => Navigator.pop(context),
+          ),
+          bottom: PreferredSize(
+            preferredSize: const Size.fromHeight(1.0),
+            child: Container(color: Colors.grey.shade200, height: 1.0),
+          ),
+        ),
+        body: SingleChildScrollView(
+          padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 20.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 6,
+                ),
+                decoration: BoxDecoration(
+                  color: Colors.blue.shade50,
+                  borderRadius: BorderRadius.circular(20),
+                ),
+              ),
+              const SizedBox(height: 25),
+
+              // Section 1: Authority
+              Row(
+                children: [
+                  Icon(
+                    Icons.admin_panel_settings_outlined,
+                    size: 20,
+                    color: Colors.blue.shade700,
+                  ),
+                  const SizedBox(width: 8),
+                  const Text(
+                    '1. Administrative Authority',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.black87,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              Text(
+                'As a Administrator, you hold the highest level of access within the iBrgy system. You are responsible for overseeing all content, managing  Moderators, and ensuring the digital welfare of the Barangay.',
+                style: TextStyle(
+                  fontSize: 14,
+                  height: 1.6,
+                  color: Colors.grey.shade700,
+                ),
+              ),
+              const SizedBox(height: 30),
+
+              // Section 2: Data Controller
+              Row(
+                children: [
+                  Icon(
+                    Icons.folder_shared_outlined,
+                    size: 20,
+                    color: Colors.blue.shade700,
+                  ),
+                  const SizedBox(width: 8),
+                  const Text(
+                    '2. Data Governance',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.black87,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              Text(
+                'You act as the primary Data Controller. It is your strict obligation to protect sensitive constituent data in compliance with the Data Privacy Act. You must audit Moderator actions regularly and revoke access immediately if a breach is suspected.',
+                style: TextStyle(
+                  fontSize: 14,
+                  height: 1.6,
+                  color: Colors.grey.shade700,
+                ),
+              ),
+              const SizedBox(height: 30),
+
+              // Section 3: Communications
+              Row(
+                children: [
+                  Icon(
+                    Icons.campaign_outlined,
+                    size: 20,
+                    color: Colors.blue.shade700,
+                  ),
+                  const SizedBox(width: 8),
+                  const Text(
+                    '3. Official Communications',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.black87,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              Text(
+                'Emergency alerts and broadcasts sent from this account are considered official Barangay statements. Use of the "Emergency Broadcast" feature is strictly limited to life-threatening situations, calamities, or urgent public health advisories.',
+                style: TextStyle(
+                  fontSize: 14,
+                  height: 1.6,
+                  color: Colors.grey.shade700,
+                ),
+              ),
+
+              const SizedBox(height: 20),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   Widget _buildBottomNavBar() {
     return Container(
       decoration: BoxDecoration(
@@ -292,13 +467,12 @@ class _AccountSettingsPageState extends State<AccountSettingsPage> {
                       ),
                       _buildListTile(
                         icon: Icons.notifications_none,
-                        title: 'Notifications',
+                        title: 'Track Activity',
                         onTap: () {
                           Navigator.push(
                             context,
                             MaterialPageRoute(
-                              builder: (context) =>
-                                  const AdminNotificationsPage(),
+                              builder: (context) => const TrackActivityPage(),
                             ),
                           );
                         },
@@ -339,7 +513,19 @@ class _AccountSettingsPageState extends State<AccountSettingsPage> {
                           );
                         },
                       ),
-
+                      // --- NEW: Terms & Service Button ---
+                      _buildListTile(
+                        icon: Icons.policy_outlined,
+                        title: 'Terms & Service',
+                        onTap: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => _buildAdminTermsPage(),
+                            ),
+                          );
+                        },
+                      ),
                       _buildListTile(
                         icon: Icons.logout,
                         title: 'Log Out',
@@ -420,41 +606,5 @@ class _AccountSettingsPageState extends State<AccountSettingsPage> {
         (r) => false,
       );
     }
-  }
-}
-
-// --- PHONE FRAME ---
-class PhoneFrame extends StatelessWidget {
-  final Widget child;
-
-  const PhoneFrame({super.key, required this.child});
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFFF2F2F7), // Background behind phone
-      body: Center(
-        child: Container(
-          width: 375,
-          height: 812,
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(40),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withOpacity(0.1),
-                blurRadius: 30,
-                spreadRadius: 5,
-                offset: const Offset(0, 10),
-              ),
-            ],
-          ),
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(40),
-            child: child,
-          ),
-        ),
-      ),
-    );
   }
 }
