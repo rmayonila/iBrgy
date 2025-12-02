@@ -1,3 +1,4 @@
+// ignore_for_file: use_build_context_synchronously
 import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/foundation.dart'; // For kIsWeb check
@@ -264,7 +265,7 @@ class _ModeratorAnnouncementPageState extends State<ModeratorAnnouncementPage> {
                 if (isEditing) {
                   await _db
                       .collection('important_reminders')
-                      .doc(existingDoc.id)
+                      .doc(existingDoc!.id)
                       .update({
                         'title': title,
                         'content': content,
@@ -558,7 +559,7 @@ class _ModeratorAnnouncementPageState extends State<ModeratorAnnouncementPage> {
                         if (isEditing) {
                           await _db
                               .collection('announcements')
-                              .doc(existingDoc.id)
+                              .doc(existingDoc!.id)
                               .update({
                                 'content': content,
                                 'imageUrl': finalImageString,
@@ -654,7 +655,7 @@ class _ModeratorAnnouncementPageState extends State<ModeratorAnnouncementPage> {
         ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.05),
+            color: Colors.black.withOpacity(0.05),
             blurRadius: 15,
             offset: const Offset(0, 5),
           ),
@@ -705,7 +706,7 @@ class _ModeratorAnnouncementPageState extends State<ModeratorAnnouncementPage> {
     );
   }
 
-  // --- SECTION HEADER (Modified with Tooltip) ---
+  // --- SECTION HEADER (Modified with Tooltip and corrected withOpacity) ---
   Widget _buildSectionTitle(String title, VoidCallback? onAdd) {
     final isReminder = title.contains("REMINDERS");
     final color = isReminder ? Colors.orange.shade800 : Colors.blue;
@@ -733,7 +734,7 @@ class _ModeratorAnnouncementPageState extends State<ModeratorAnnouncementPage> {
                 borderRadius: BorderRadius.circular(8),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.1),
+                    color: Colors.black.withOpacity(0.1),
                     blurRadius: 4,
                     offset: const Offset(0, 2),
                   ),
@@ -751,7 +752,7 @@ class _ModeratorAnnouncementPageState extends State<ModeratorAnnouncementPage> {
     );
   }
 
-  // --- REMINDER CARD (Modified with Tooltip) ---
+  // --- REMINDER CARD (Corrected withOpacity) ---
   Widget _buildImportantReminderCard(DocumentSnapshot doc) {
     final data = doc.data() as Map<String, dynamic>;
     return Container(
@@ -815,7 +816,7 @@ class _ModeratorAnnouncementPageState extends State<ModeratorAnnouncementPage> {
                     borderRadius: BorderRadius.circular(8),
                     boxShadow: [
                       BoxShadow(
-                        color: Colors.black.withValues(alpha: 0.1),
+                        color: Colors.black.withOpacity(0.1),
                         blurRadius: 4,
                         offset: const Offset(0, 2),
                       ),
@@ -850,7 +851,11 @@ class _ModeratorAnnouncementPageState extends State<ModeratorAnnouncementPage> {
                         value: 'delete',
                         child: Row(
                           children: [
-                            Icon(Icons.delete, color: Colors.red, size: 18),
+                            Icon(
+                              Icons.delete_outline_rounded,
+                              size: 20,
+                              color: Colors.red,
+                            ),
                             SizedBox(width: 8),
                             Text('Delete', style: TextStyle(color: Colors.red)),
                           ],
@@ -886,7 +891,7 @@ class _ModeratorAnnouncementPageState extends State<ModeratorAnnouncementPage> {
         border: Border.all(color: Colors.grey.shade200),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.02),
+            color: Colors.black.withOpacity(0.02),
             blurRadius: 8,
             offset: const Offset(0, 2),
           ),
@@ -913,7 +918,7 @@ class _ModeratorAnnouncementPageState extends State<ModeratorAnnouncementPage> {
     );
   }
 
-  // --- POST CARD (Modified with Tooltip) ---
+  // --- POST CARD (Corrected withOpacity) ---
   Widget _buildPostCard(DocumentSnapshot doc) {
     final data = doc.data() as Map<String, dynamic>;
     final imageUrl = data['imageUrl']?.toString() ?? '';
@@ -935,7 +940,7 @@ class _ModeratorAnnouncementPageState extends State<ModeratorAnnouncementPage> {
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.03),
+            color: Colors.black.withOpacity(0.03),
             blurRadius: 10,
             offset: const Offset(0, 4),
           ),
@@ -1003,7 +1008,7 @@ class _ModeratorAnnouncementPageState extends State<ModeratorAnnouncementPage> {
                     borderRadius: BorderRadius.circular(8),
                     boxShadow: [
                       BoxShadow(
-                        color: Colors.black.withValues(alpha: 0.1),
+                        color: Colors.black.withOpacity(0.1),
                         blurRadius: 4,
                         offset: const Offset(0, 2),
                       ),
@@ -1085,7 +1090,7 @@ class _ModeratorAnnouncementPageState extends State<ModeratorAnnouncementPage> {
         color: Colors.white,
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.05),
+            color: Colors.black.withOpacity(0.05),
             blurRadius: 10,
             offset: const Offset(0, -5),
           ),
@@ -1127,13 +1132,12 @@ class _ModeratorAnnouncementPageState extends State<ModeratorAnnouncementPage> {
     );
   }
 
-  // --- NEW: Info Card for purpose note ---
-  Widget _buildInfoCard() {
+  // --- NEW WIDGET: Instructional Note ---
+  Widget _buildInstructionalNote() {
     return Container(
-      margin: const EdgeInsets.only(top: 8, bottom: 20),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.blue.shade50, // Light blue background
+        color: Colors.blue.shade50,
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: Colors.blue.shade100),
       ),
@@ -1141,15 +1145,29 @@ class _ModeratorAnnouncementPageState extends State<ModeratorAnnouncementPage> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Icon(Icons.info_outline, color: Colors.blue.shade700, size: 20),
-          const SizedBox(width: 10),
-          const Expanded(
-            child: Text(
-              'The Barangay Updates provides the important reminders and recent updates from the barangay office.',
-              style: TextStyle(
-                fontSize: 13,
-                color: Colors.black87,
-                height: 1.4,
-              ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Quick Guide',
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 16,
+                    color: Colors.blue.shade900,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                const Text(
+                  'The Barangay Updates provides the important reminders and recent updates from the barangay office.',
+                  style: TextStyle(
+                    fontSize: 13,
+                    color: Colors.black87,
+                    height: 1.4,
+                  ),
+                ),
+              ],
             ),
           ),
         ],
@@ -1180,7 +1198,7 @@ class _ModeratorAnnouncementPageState extends State<ModeratorAnnouncementPage> {
                           borderRadius: BorderRadius.circular(16),
                           boxShadow: [
                             BoxShadow(
-                              color: Colors.black.withValues(alpha: 0.03),
+                              color: Colors.black.withOpacity(0.03),
                               blurRadius: 10,
                               offset: const Offset(0, 4),
                             ),
@@ -1210,6 +1228,11 @@ class _ModeratorAnnouncementPageState extends State<ModeratorAnnouncementPage> {
                         ),
                       ),
                       const SizedBox(height: 24),
+
+                      _buildInstructionalNote(),
+                      const SizedBox(height: 20),
+
+                      // 1. --- MAIN TITLE --- (First element after search)
                       const Text(
                         'Barangay Updates',
                         style: TextStyle(
@@ -1218,11 +1241,9 @@ class _ModeratorAnnouncementPageState extends State<ModeratorAnnouncementPage> {
                           color: Colors.black87,
                         ),
                       ),
-                      const SizedBox(height: 16),
+                      // Removed SizedBox(height: 16)
 
-                      // --- NEW: Info Card is placed here ---
-                      _buildInfoCard(),
-
+                      // 3. --- SECTIONS START HERE ---
                       _buildSectionTitle(
                         "IMPORTANT REMINDERS",
                         () => _showAddReminderDialog(),
@@ -1404,7 +1425,7 @@ class _ExpandableTextState extends State<_ExpandableText> {
           style: TextStyle(
             fontSize: 14,
             height: 1.5,
-            color: Colors.black87.withValues(alpha: 0.8),
+            color: Colors.black87.withOpacity(0.8),
           ),
         );
 
@@ -1428,7 +1449,7 @@ class _ExpandableTextState extends State<_ExpandableText> {
                 style: TextStyle(
                   fontSize: 14,
                   height: 1.5,
-                  color: Colors.black87.withValues(alpha: 0.8),
+                  color: Colors.black87.withOpacity(0.8),
                 ),
               ),
               const SizedBox(height: 4),
@@ -1455,7 +1476,7 @@ class _ExpandableTextState extends State<_ExpandableText> {
             style: TextStyle(
               fontSize: 14,
               height: 1.5,
-              color: Colors.black87.withValues(alpha: 0.8),
+              color: Colors.black87.withOpacity(0.8),
             ),
           );
         }
@@ -1481,7 +1502,7 @@ class PhoneFrame extends StatelessWidget {
             borderRadius: BorderRadius.circular(40),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withValues(alpha: 0.1),
+                color: Colors.black.withOpacity(0.1),
                 blurRadius: 30,
                 spreadRadius: 5,
                 offset: const Offset(0, 10),

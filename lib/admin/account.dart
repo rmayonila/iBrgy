@@ -550,14 +550,14 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
     required bool obscureText,
     required VoidCallback onToggleVisibility,
   }) {
-    final bool showSuffixIcon = controller.text.isNotEmpty;
+    // Determine visibility and interaction state
+    final bool hasText = controller.text.isNotEmpty;
 
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       child: TextField(
         controller: controller,
         obscureText: obscureText,
-        // Text Color Black
         style: const TextStyle(color: Colors.black, fontSize: 16),
         decoration: InputDecoration(
           hintText: hintText,
@@ -576,18 +576,22 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
           ),
           filled: true,
           fillColor: Colors.white,
-          // Dynamic Eye Icon
-          suffixIcon: showSuffixIcon
-              ? IconButton(
-                  icon: Icon(
-                    obscureText
-                        ? Icons.visibility_outlined
-                        : Icons.visibility_off_outlined,
-                    color: Colors.grey,
-                  ),
-                  onPressed: onToggleVisibility,
-                )
-              : null,
+          // FIX IMPLEMENTATION: Always render the SuffixIcon, but control its appearance and functionality
+          suffixIcon: Opacity(
+            // 1. Hide the icon by setting opacity to 0.0 when there is no text.
+            opacity: hasText ? 1.0 : 0.0,
+            child: IconButton(
+              // The icon state changes based on obscureText
+              icon: Icon(
+                obscureText
+                    ? Icons.visibility_off_outlined
+                    : Icons.visibility_outlined,
+                color: Colors.grey,
+              ),
+              // 2. Disable interaction by setting onPressed to null when hidden/empty.
+              onPressed: hasText ? onToggleVisibility : null,
+            ),
+          ),
         ),
       ),
     );

@@ -66,67 +66,6 @@ class HelpSupportPage extends StatelessWidget {
                       'For urgent technical issues affecting barangay services, contact our emergency tech support line at +63 (2) 8123-4567 (Emergency Line). Available 24/7 for critical system outages.',
                 ),
                 const SizedBox(height: 30),
-
-                // Contact Buttons
-                Column(
-                  children: [
-                    SizedBox(
-                      width: double.infinity,
-                      height: 50,
-                      child: ElevatedButton(
-                        onPressed: () {
-                          _showContactDialog(
-                            context,
-                            'Email Support',
-                            'We will open your email client to send a message to support@ibrgy.com',
-                          );
-                        },
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.blue,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                        ),
-                        child: const Text(
-                          'Contact Support via Email',
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w600,
-                            color: Colors.white,
-                          ),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    SizedBox(
-                      width: double.infinity,
-                      height: 50,
-                      child: OutlinedButton(
-                        onPressed: () {
-                          _showContactDialog(
-                            context,
-                            'Phone Support',
-                            'Calling support number: +63 (2) 8123-4567',
-                          );
-                        },
-                        style: OutlinedButton.styleFrom(
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          side: const BorderSide(color: Colors.blue),
-                        ),
-                        child: const Text(
-                          'Call Support',
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w600,
-                            color: Colors.blue,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
               ],
             ),
           ),

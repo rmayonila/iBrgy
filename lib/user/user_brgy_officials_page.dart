@@ -119,11 +119,11 @@ class _UserBrgyOfficialsPageState extends State<UserBrgyOfficialsPage> {
     final category = data['category']?.toString() ?? '';
     final imageUrl = data['imageUrl']?.toString() ?? '';
 
-    // Create Combined Position Title (CATEGORY + TITLE)
-    String combinedPosition = title;
-    if (category.isNotEmpty) {
-      combinedPosition = "$category $title";
-    }
+    // --- FIX: Always use 'title' (Position) as the combined position ---
+    // We strictly follow the request to show only the position/title,
+    // ignoring the category for the display field.
+    final String combinedPosition = title;
+    // ------------------------------------------------------------------
 
     // Helper for image in modal
     ImageProvider? getProfileImage() {
@@ -231,7 +231,7 @@ class _UserBrgyOfficialsPageState extends State<UserBrgyOfficialsPage> {
                     const SizedBox(height: 24),
 
                     // Details List
-                    // Showing Combined Position
+                    // Showing Position only
                     _buildDetailRow(
                       Icons.work_outline_rounded,
                       "Position",

@@ -46,7 +46,7 @@ class _ModeratorBrgyOfficialsPageState
   void _onItemTapped(int index) {
     // Standard Navigation logic
     if (index == 0) {
-      // Stay/Nav to Home
+      Navigator.pushReplacementNamed(context, '/moderator-home');
     } else if (index == 1) {
       Navigator.pushReplacementNamed(context, '/moderator-emergency-hotline');
     } else if (index == 2) {
@@ -159,12 +159,12 @@ class _ModeratorBrgyOfficialsPageState
                 return FileImage(File(pickedImageFile!.path));
               }
             } else if (currentImageBase64 != null &&
-                currentImageBase64.isNotEmpty) {
+                currentImageBase64!.isNotEmpty) {
               try {
-                if (currentImageBase64.startsWith('http')) {
-                  return NetworkImage(currentImageBase64);
+                if (currentImageBase64!.startsWith('http')) {
+                  return NetworkImage(currentImageBase64!);
                 } else {
-                  return MemoryImage(base64Decode(currentImageBase64));
+                  return MemoryImage(base64Decode(currentImageBase64!));
                 }
               } catch (e) {
                 return null;
@@ -372,7 +372,10 @@ class _ModeratorBrgyOfficialsPageState
                   final address = addressController.text.trim();
 
                   if (category.isEmpty || title.isEmpty || name.isEmpty) {
-                    // Show error if empty
+                    _showSnackBar(
+                      'Category, Position Title, and Name are required.',
+                      isError: true,
+                    );
                     return;
                   }
 
@@ -399,7 +402,7 @@ class _ModeratorBrgyOfficialsPageState
                     if (isEditing) {
                       await _db
                           .collection('officials')
-                          .doc(existingDoc.id)
+                          .doc(existingDoc!.id)
                           .update(dataToSave);
                       _showSnackBar('Official updated successfully');
                     } else {
@@ -438,56 +441,89 @@ class _ModeratorBrgyOfficialsPageState
     final confirmDelete = await showDialog<bool>(
       context: context,
       useRootNavigator: false, // Inside frame
-      builder: (ctx) => AlertDialog(
-        backgroundColor: Colors.white, // 1. Change background color to WHITE
-        title: const Text(
-          'Confirm Deletion',
-          style: TextStyle(color: Colors.black),
-        ),
-        content: Text(
-          'Are you sure you want to delete "$title"?',
-          style: const TextStyle(color: Colors.black87),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(false),
-            child: const Text('Cancel'),
+      builder: (ctx) => Padding(
+        // Ensure dialog respects outer constraints
+        padding: const EdgeInsets.symmetric(horizontal: 20.0),
+        child: AlertDialog(
+          backgroundColor: Colors.white,
+          surfaceTintColor: Colors.white,
+          // Use rounded corners to match the image
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
           ),
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(true),
-            child: const Text('Delete', style: TextStyle(color: Colors.red)),
+
+          title: Text(
+            'Confirm Deletion',
+            // Use a muted color and bold font to match the image's style
+            style: TextStyle(
+              color: Colors.grey.shade600,
+              fontWeight: FontWeight.bold,
+              fontSize: 22,
+            ),
           ),
-        ],
+          content: Text(
+            'Are you sure you want to delete "$title"?',
+            style: const TextStyle(color: Colors.black87),
+          ),
+          actions: [
+            // 1. Cancel Button (Light color, non-bold text)
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(false),
+              child: Text(
+                'Cancel',
+                style: TextStyle(
+                  color: Colors.blue.shade400, // Light blue/grey tone
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ),
+            // 2. Delete Button (Large, Red, Elevated)
+            ElevatedButton(
+              onPressed: () => Navigator.of(ctx).pop(true),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.red, // Red background
+                foregroundColor: Colors.white, // White text
+                elevation: 2,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10), // Rounded corners
+                ),
+                minimumSize: const Size(90, 40), // Ensures it's a decent size
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+              ),
+              child: const Text(
+                'Delete',
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
+            ),
+          ],
+        ),
       ),
     );
 
     if (confirmDelete == true) {
       try {
         await _db.collection('officials').doc(docId).delete();
-        _showSnackBar(
-          'Official deleted successfully',
-        ); // 5. Success message with background
+        _showSnackBar('Official deleted successfully');
       } catch (e) {
         _showSnackBar('Failed to delete: $e', isError: true);
       }
     }
   }
 
-  // --- SHOW DETAILS MODAL ---
+  // --- SHOW DETAILS MODAL (Read-Only Version) ---
   void _showOfficialDetails(Map<String, dynamic> data) {
     final title = data['title']?.toString() ?? '';
     final name = data['name']?.toString() ?? '';
     final nickname = data['nickname']?.toString() ?? '';
-    final age = data['age']?.toString() ?? '';
+    final age = data['age']?.toString() ?? ''; // Added Age
     final address = data['address']?.toString() ?? '';
-    final category = data['category']?.toString() ?? '';
     final imageUrl = data['imageUrl']?.toString() ?? '';
 
-    String combinedPosition = title;
-    if (category.isNotEmpty) {
-      combinedPosition = "$category $title";
-    }
+    // --- FINAL FIX: Only use 'title' (Position) as the position text ---
+    final String positionText = title;
+    // ------------------------------------------------------------------
 
+    // Helper for image in modal
     ImageProvider? getProfileImage() {
       if (imageUrl.isEmpty) return null;
       try {
@@ -503,7 +539,7 @@ class _ModeratorBrgyOfficialsPageState
 
     showDialog(
       context: context,
-      useRootNavigator: false,
+      useRootNavigator: false, // CRITICAL: Keeps modal inside the "phone frame"
       builder: (ctx) => Dialog(
         backgroundColor: Colors.transparent,
         insetPadding: const EdgeInsets.symmetric(horizontal: 30, vertical: 24),
@@ -515,7 +551,7 @@ class _ModeratorBrgyOfficialsPageState
             borderRadius: BorderRadius.circular(24),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withValues(alpha: 0.25),
+                color: const Color.fromRGBO(0, 0, 0, 0.25), // Fixed Opacity
                 blurRadius: 25,
                 offset: const Offset(0, 10),
               ),
@@ -523,11 +559,13 @@ class _ModeratorBrgyOfficialsPageState
           ),
           child: Stack(
             children: [
+              // MAIN CONTENT
               SingleChildScrollView(
                 padding: const EdgeInsets.fromLTRB(24, 40, 24, 32),
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
+                    // Large Image
                     Container(
                       width: 130,
                       height: 130,
@@ -554,6 +592,8 @@ class _ModeratorBrgyOfficialsPageState
                           : null,
                     ),
                     const SizedBox(height: 20),
+
+                    // Name & Nickname
                     Text(
                       name,
                       textAlign: TextAlign.center,
@@ -578,14 +618,19 @@ class _ModeratorBrgyOfficialsPageState
                           ),
                         ),
                       ),
+
                     const SizedBox(height: 24),
                     const Divider(height: 1, thickness: 0.5),
                     const SizedBox(height: 24),
+
+                    // Details List
+                    // Showing Position only (using corrected logic)
                     _buildDetailRow(
                       Icons.work_outline_rounded,
                       "Position",
-                      combinedPosition.toUpperCase(),
+                      positionText.toUpperCase(),
                     ),
+                    // 2. Added Age Row
                     if (age.isNotEmpty)
                       _buildDetailRow(
                         Icons.calendar_today_rounded,
@@ -601,6 +646,8 @@ class _ModeratorBrgyOfficialsPageState
                   ],
                 ),
               ),
+
+              // CLOSE BUTTON ("X" at Upper Right)
               Positioned(
                 top: 8,
                 right: 8,
@@ -617,6 +664,52 @@ class _ModeratorBrgyOfficialsPageState
             ],
           ),
         ),
+      ),
+    );
+  }
+
+  // Helper widget for the details modal
+  Widget _buildDetailRow(IconData icon, String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 16.0),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: Colors.blue.shade50,
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Icon(icon, size: 20, color: Colors.blue.shade700),
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  label,
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Colors.grey.shade500,
+                    fontWeight: FontWeight.w600,
+                    letterSpacing: 0.5,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  value,
+                  style: const TextStyle(
+                    fontSize: 16,
+                    color: Colors.black87,
+                    fontWeight: FontWeight.w400,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -691,7 +784,7 @@ class _ModeratorBrgyOfficialsPageState
         ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.05),
+            color: Colors.black.withOpacity(0.05), // Corrected Opacity
             blurRadius: 15,
             offset: const Offset(0, 5),
           ),
@@ -737,14 +830,6 @@ class _ModeratorBrgyOfficialsPageState
               ],
             ),
           ),
-          const Spacer(),
-          IconButton(
-            onPressed: () {},
-            icon: const Icon(
-              Icons.notifications_none_rounded,
-              color: Colors.black87,
-            ),
-          ),
         ],
       ),
     );
@@ -764,7 +849,7 @@ class _ModeratorBrgyOfficialsPageState
         borderRadius: BorderRadius.circular(20),
         boxShadow: [
           BoxShadow(
-            color: Colors.blue.withValues(alpha: 0.3),
+            color: Colors.blue.withOpacity(0.3), // Corrected Opacity
             blurRadius: 10,
             offset: const Offset(0, 5),
           ),
@@ -798,7 +883,7 @@ class _ModeratorBrgyOfficialsPageState
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.03),
+            color: Colors.black.withOpacity(0.03), // Corrected Opacity
             blurRadius: 10,
             offset: const Offset(0, 4),
           ),
@@ -807,7 +892,6 @@ class _ModeratorBrgyOfficialsPageState
       child: TextField(
         controller: _searchController,
         onChanged: _updateSearch,
-        // 2. Changed text color to Black for visibility
         style: const TextStyle(color: Colors.black87),
         decoration: InputDecoration(
           hintText: "Search official...",
@@ -843,9 +927,10 @@ class _ModeratorBrgyOfficialsPageState
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.grey.shade200),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.02),
+            color: Colors.black.withOpacity(0.02), // Corrected Opacity
             blurRadius: 10,
             offset: const Offset(0, 4),
           ),
@@ -887,7 +972,7 @@ class _ModeratorBrgyOfficialsPageState
         ),
         onTap: () => _showOfficialDetails(data),
         trailing: PopupMenuButton<String>(
-          // 3. Change popup background to White
+          // Change popup background to White
           color: Colors.white,
           icon: Icon(Icons.more_vert, color: Colors.grey.shade400),
           onSelected: (value) {
@@ -902,9 +987,13 @@ class _ModeratorBrgyOfficialsPageState
               value: 'edit',
               child: Row(
                 children: [
-                  Icon(Icons.edit_rounded, size: 20, color: Colors.blue),
+                  Icon(
+                    Icons.edit_rounded,
+                    size: 20,
+                    color: Color.fromARGB(255, 9, 9, 9),
+                  ),
                   SizedBox(width: 8),
-                  // 4. Change "Edit" text color to Black
+                  // Change "Edit" text color to Black
                   Text('Edit', style: TextStyle(color: Colors.black)),
                 ],
               ),
@@ -925,51 +1014,6 @@ class _ModeratorBrgyOfficialsPageState
             ),
           ],
         ),
-      ),
-    );
-  }
-
-  Widget _buildDetailRow(IconData icon, String label, String value) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 16.0),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-            padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              color: Colors.blue.shade50,
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Icon(icon, size: 20, color: Colors.blue.shade700),
-          ),
-          const SizedBox(width: 16),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  label,
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: Colors.grey.shade500,
-                    fontWeight: FontWeight.w600,
-                    letterSpacing: 0.5,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  value,
-                  style: const TextStyle(
-                    fontSize: 16,
-                    color: Colors.black87,
-                    fontWeight: FontWeight.w400,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
       ),
     );
   }
@@ -1086,7 +1130,7 @@ class _ModeratorBrgyOfficialsPageState
         color: Colors.white,
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.05),
+            color: Colors.black.withOpacity(0.05), // Corrected Opacity
             blurRadius: 10,
             offset: const Offset(0, -5),
           ),
@@ -1193,7 +1237,48 @@ class _ModeratorBrgyOfficialsPageState
                           }
                           final officialDocs = snapshot.data?.docs ?? [];
 
-                          // Group Data
+                          if (officialDocs.isEmpty) {
+                            if (_searchQuery.isNotEmpty) {
+                              return Center(
+                                child: Padding(
+                                  padding: const EdgeInsets.only(top: 20),
+                                  child: Text(
+                                    "No matching officials found",
+                                    style: TextStyle(color: Colors.grey[500]),
+                                  ),
+                                ),
+                              );
+                            }
+                            // Empty Placeholder
+                            return Container(
+                              width: double.infinity,
+                              padding: const EdgeInsets.all(24),
+                              decoration: BoxDecoration(
+                                color: Colors.white,
+                                borderRadius: BorderRadius.circular(16),
+                                border: Border.all(color: Colors.grey.shade200),
+                              ),
+                              child: Column(
+                                children: [
+                                  Icon(
+                                    Icons.people_outline,
+                                    size: 40,
+                                    color: Colors.grey.shade300,
+                                  ),
+                                  const SizedBox(height: 12),
+                                  Text(
+                                    "No officials added yet",
+                                    style: TextStyle(
+                                      color: Colors.grey.shade500,
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            );
+                          }
+
+                          // Filter and Group Data
                           final Map<String, List<DocumentSnapshot>> grouped =
                               {};
                           for (var doc in officialDocs) {
@@ -1223,7 +1308,7 @@ class _ModeratorBrgyOfficialsPageState
                               child: Padding(
                                 padding: const EdgeInsets.only(top: 20),
                                 child: Text(
-                                  "No officials found",
+                                  "No matching officials found",
                                   style: TextStyle(color: Colors.grey[500]),
                                 ),
                               ),
@@ -1326,7 +1411,7 @@ class PhoneFrame extends StatelessWidget {
             borderRadius: BorderRadius.circular(40),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withValues(alpha: 0.1),
+                color: Colors.black.withOpacity(0.1), // Corrected Opacity
                 blurRadius: 30,
                 spreadRadius: 5,
                 offset: const Offset(0, 10),

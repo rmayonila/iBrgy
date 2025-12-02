@@ -261,7 +261,7 @@ class _UserHomePageState extends State<UserHomePage> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Hello there!',
+                  'Quick Guide',
                   style: TextStyle(
                     fontWeight: FontWeight.bold,
                     fontSize: 16,

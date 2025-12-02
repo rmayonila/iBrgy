@@ -212,7 +212,7 @@ class _AdminHomePageState extends State<AdminHomePage> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Hello there!',
+                  'Quick Guide',
                   style: TextStyle(
                     fontWeight: FontWeight.bold,
                     fontSize: 16,

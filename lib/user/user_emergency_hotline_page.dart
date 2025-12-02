@@ -653,7 +653,16 @@ class _UserEmergencyHotlinePageState extends State<UserEmergencyHotlinePage> {
           // 1. Search Bar
           _buildSearchBar(),
           const SizedBox(height: 24),
-          // 2. Page Title
+
+          // 2. Quick Guide Note (MOVED HERE)
+          _buildDescriptionNote(),
+
+          // 3. Safety Quote (MOVED HERE: Immediately after Quick Guide)
+          _buildSafetyQuote(),
+          // Note: The original image structure has this quote followed by the
+          // main title and then the first section.
+
+          // 4. Page Title (Emergency Hotlines) - MOVED HERE, below Quick Guide and Quote
           const Text(
             "Emergency Hotlines",
             style: TextStyle(
@@ -662,13 +671,7 @@ class _UserEmergencyHotlinePageState extends State<UserEmergencyHotlinePage> {
               color: Colors.black87,
             ),
           ),
-          const SizedBox(height: 16),
-          // 3. Description Note (New)
-          _buildDescriptionNote(),
-          // 4. Safety Quote (New)
-          _buildSafetyQuote(),
-          const SizedBox(height: 4),
-
+          const SizedBox(height: 16), // Space before the first section header
           // NATIONAL
           _buildSectionTitle("NATIONAL EMERGENCY"),
           if (nationalItems.isEmpty && _searchQuery.isEmpty)

@@ -220,13 +220,12 @@ class _UserAnnouncementPageState extends State<UserAnnouncementPage> {
     );
   }
 
-  // --- NEW: Info Card for purpose note ---
-  Widget _buildInfoCard() {
+  // --- NEW WIDGET: Instructional Note ---
+  Widget _buildInstructionalNote() {
     return Container(
-      margin: const EdgeInsets.only(top: 8, bottom: 20),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.blue.shade50, // Light blue background
+        color: Colors.blue.shade50,
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: Colors.blue.shade100),
       ),
@@ -234,15 +233,29 @@ class _UserAnnouncementPageState extends State<UserAnnouncementPage> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Icon(Icons.info_outline, color: Colors.blue.shade700, size: 20),
-          const SizedBox(width: 10),
-          const Expanded(
-            child: Text(
-              'The Barangay Updates provides the important reminders and recent updates from the barangay office.',
-              style: TextStyle(
-                fontSize: 13,
-                color: Colors.black87,
-                height: 1.4,
-              ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Quick Guide',
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 16,
+                    color: Colors.blue.shade900,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                const Text(
+                  'The Barangay Updates provides the important reminders and recent updates from the barangay office.',
+                  style: TextStyle(
+                    fontSize: 13,
+                    color: Colors.black87,
+                    height: 1.4,
+                  ),
+                ),
+              ],
             ),
           ),
         ],
@@ -585,6 +598,8 @@ class _UserAnnouncementPageState extends State<UserAnnouncementPage> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       _buildSearchBar(),
+                      const SizedBox(height: 20), // Adjusted spacing
+                      _buildInstructionalNote(), // <<< NEW INSTRUCTIONAL NOTE
                       const SizedBox(height: 24),
                       const Text(
                         'Barangay Updates',
@@ -594,9 +609,6 @@ class _UserAnnouncementPageState extends State<UserAnnouncementPage> {
                           color: Colors.black87,
                         ),
                       ),
-
-                      // --- NEW: Info Card is placed here ---
-                      _buildInfoCard(),
 
                       // --- SECTION 1: IMPORTANT REMINDERS ---
                       _buildSectionTitle("IMPORTANT REMINDERS"),

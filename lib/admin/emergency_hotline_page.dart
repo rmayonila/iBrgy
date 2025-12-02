@@ -642,8 +642,17 @@ class _EmergencyHotlinePageState extends State<EmergencyHotlinePage> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          // 1. Search Bar
           _buildSearchBar(),
           const SizedBox(height: 24),
+
+          // 2. Description Note (Quick Guide) - MOVED HERE
+          _buildDescriptionNote(),
+
+          // 3. Safety Quote - MOVED HERE
+          _buildSafetyQuote(),
+
+          // 4. Page Title (Emergency Hotlines)
           const Text(
             "Emergency Hotlines",
             style: TextStyle(
@@ -652,17 +661,13 @@ class _EmergencyHotlinePageState extends State<EmergencyHotlinePage> {
               color: Colors.black87,
             ),
           ),
+          // Retaining the original admin subtitle below the title
           const SizedBox(height: 4),
           Text(
             "Tap to copy the number",
             style: TextStyle(color: Colors.grey.shade500, fontSize: 13),
           ),
           const SizedBox(height: 16),
-          // Description Note
-          _buildDescriptionNote(),
-          // Safety Quote
-          _buildSafetyQuote(),
-          const SizedBox(height: 4),
 
           // Show "No results" message when searching with no results
           if (isSearching && !hasSearchResults) _buildNoSearchResults(),

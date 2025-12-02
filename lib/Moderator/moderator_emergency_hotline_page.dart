@@ -1,3 +1,4 @@
+// ignore_for_file: use_build_context_synchronously
 import 'package:flutter/foundation.dart'; // For web check
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -76,6 +77,68 @@ class _ModeratorEmergencyHotlinePageState
   }
 
   // --- DIALOGS ---
+
+  Widget _buildDialogTitle(IconData icon, String title, MaterialColor color) {
+    return Row(
+      children: [
+        Container(
+          padding: const EdgeInsets.all(8),
+          decoration: BoxDecoration(
+            color: color.shade50,
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Icon(icon, color: color.shade700, size: 28),
+        ),
+        const SizedBox(width: 16),
+        Text(
+          title,
+          style: const TextStyle(
+            color: Colors.black87,
+            fontSize: 22,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildTextField({
+    required TextEditingController controller,
+    required String label,
+    IconData? icon,
+    TextInputType inputType = TextInputType.text,
+  }) {
+    return TextField(
+      controller: controller,
+      style: const TextStyle(color: Colors.black87),
+      keyboardType: inputType,
+      decoration: InputDecoration(
+        labelText: label,
+        filled: true,
+        fillColor: Colors.grey.shade50,
+        prefixIcon: icon != null
+            ? Icon(icon, color: Colors.blue.shade700)
+            : null,
+        labelStyle: TextStyle(color: Colors.grey.shade700),
+        contentPadding: const EdgeInsets.symmetric(
+          vertical: 16,
+          horizontal: 20,
+        ),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide(color: Colors.grey.shade300),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide(color: Colors.grey.shade200),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide(color: Colors.blue.shade700, width: 2),
+        ),
+      ),
+    );
+  }
 
   // Enhanced Add Hotline Dialog
   Future<void> _showAddHotlineDialog({String? presetType}) async {
@@ -438,68 +501,6 @@ class _ModeratorEmergencyHotlinePageState
 
   // --- WIDGET BUILDERS ---
 
-  Widget _buildDialogTitle(IconData icon, String title, MaterialColor color) {
-    return Row(
-      children: [
-        Container(
-          padding: const EdgeInsets.all(8),
-          decoration: BoxDecoration(
-            color: color.shade50,
-            borderRadius: BorderRadius.circular(8),
-          ),
-          child: Icon(icon, color: color.shade700, size: 28),
-        ),
-        const SizedBox(width: 16),
-        Text(
-          title,
-          style: const TextStyle(
-            color: Colors.black87,
-            fontSize: 22,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildTextField({
-    required TextEditingController controller,
-    required String label,
-    IconData? icon,
-    TextInputType inputType = TextInputType.text,
-  }) {
-    return TextField(
-      controller: controller,
-      style: const TextStyle(color: Colors.black87),
-      keyboardType: inputType,
-      decoration: InputDecoration(
-        labelText: label,
-        filled: true,
-        fillColor: Colors.grey.shade50,
-        prefixIcon: icon != null
-            ? Icon(icon, color: Colors.blue.shade700)
-            : null,
-        labelStyle: TextStyle(color: Colors.grey.shade700),
-        contentPadding: const EdgeInsets.symmetric(
-          vertical: 16,
-          horizontal: 20,
-        ),
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide(color: Colors.grey.shade300),
-        ),
-        enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide(color: Colors.grey.shade200),
-        ),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide(color: Colors.blue.shade700, width: 2),
-        ),
-      ),
-    );
-  }
-
   Widget _buildHeader() {
     return Container(
       decoration: BoxDecoration(
@@ -510,7 +511,7 @@ class _ModeratorEmergencyHotlinePageState
         ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.05),
+            color: Colors.black.withOpacity(0.05), // FIXED
             blurRadius: 15,
             offset: const Offset(0, 5),
           ),
@@ -568,7 +569,7 @@ class _ModeratorEmergencyHotlinePageState
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.03),
+            color: Colors.black.withOpacity(0.03), // FIXED
             blurRadius: 10,
             offset: const Offset(0, 4),
           ),
@@ -679,7 +680,7 @@ class _ModeratorEmergencyHotlinePageState
               borderRadius: BorderRadius.circular(8),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.1),
+                  color: Colors.black.withOpacity(0.1), // FIXED
                   blurRadius: 4,
                 ),
               ],
@@ -708,8 +709,8 @@ class _ModeratorEmergencyHotlinePageState
         boxShadow: [
           BoxShadow(
             color: isUrgent
-                ? Colors.red.withValues(alpha: 0.3)
-                : Colors.black.withValues(alpha: 0.03),
+                ? Colors.red.withOpacity(0.3) // FIXED
+                : Colors.black.withOpacity(0.03), // FIXED
             blurRadius: 10,
             offset: const Offset(0, 4),
           ),
@@ -721,7 +722,7 @@ class _ModeratorEmergencyHotlinePageState
           padding: const EdgeInsets.all(10),
           decoration: BoxDecoration(
             color: isUrgent
-                ? Colors.white.withValues(alpha: 0.2)
+                ? Colors.white.withOpacity(0.2) // FIXED
                 : Colors.red.shade50,
             borderRadius: BorderRadius.circular(12),
           ),
@@ -745,7 +746,7 @@ class _ModeratorEmergencyHotlinePageState
             item['number'],
             style: TextStyle(
               color: isUrgent
-                  ? Colors.white.withValues(alpha: 0.9)
+                  ? Colors.white.withOpacity(0.9) // FIXED
                   : Colors.grey.shade600,
               fontSize: 15,
               fontWeight: FontWeight.w500,
@@ -766,7 +767,11 @@ class _ModeratorEmergencyHotlinePageState
               value: 'edit',
               child: Row(
                 children: [
-                  Icon(Icons.edit, size: 20, color: Colors.grey),
+                  Icon(
+                    Icons.edit,
+                    size: 20,
+                    color: Color.fromARGB(255, 10, 10, 10),
+                  ),
                   SizedBox(width: 8),
                   // Fixed: Black text for Edit
                   Text('Edit', style: TextStyle(color: Colors.black)),
@@ -777,7 +782,11 @@ class _ModeratorEmergencyHotlinePageState
               value: 'delete',
               child: Row(
                 children: [
-                  Icon(Icons.delete, size: 20, color: Colors.red),
+                  Icon(
+                    Icons.delete_outline_rounded,
+                    size: 20,
+                    color: Colors.red,
+                  ),
                   SizedBox(width: 8),
                   Text('Delete', style: TextStyle(color: Colors.red)),
                 ],
@@ -890,33 +899,53 @@ class _ModeratorEmergencyHotlinePageState
 
                     // If searching and everything is empty, show "No results"
                     if (_searchQuery.isNotEmpty && filteredItems.isEmpty) {
-                      return Center(
+                      return SingleChildScrollView(
+                        padding: const EdgeInsets.all(20),
                         child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
+                          crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Icon(
-                              Icons.search_off,
-                              size: 50,
-                              color: Colors.grey.shade300,
-                            ),
-                            const SizedBox(height: 16),
-                            Text(
-                              "No hotlines found for \"$_searchQuery\"",
-                              style: TextStyle(color: Colors.grey.shade500),
+                            _buildSearchBar(),
+                            const SizedBox(height: 24),
+                            Center(
+                              child: Column(
+                                children: [
+                                  Icon(
+                                    Icons.search_off,
+                                    size: 50,
+                                    color: Colors.grey.shade300,
+                                  ),
+                                  const SizedBox(height: 16),
+                                  Text(
+                                    "No hotlines found for \"$_searchQuery\"",
+                                    style: TextStyle(
+                                      color: Colors.grey.shade500,
+                                    ),
+                                  ),
+                                ],
+                              ),
                             ),
                           ],
                         ),
                       );
                     }
 
-                    // Build UI
+                    // Build UI with the new structure
                     return SingleChildScrollView(
                       padding: const EdgeInsets.all(20),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
+                          // 1. Search Bar
                           _buildSearchBar(),
                           const SizedBox(height: 24),
+
+                          // 2. Quick Guide Note
+                          _buildDescriptionNote(),
+
+                          // 3. Safety Quote
+                          _buildSafetyQuote(),
+
+                          // 4. Page Title (Emergency Hotlines)
                           const Text(
                             "Emergency Hotlines",
                             style: TextStyle(
@@ -925,6 +954,7 @@ class _ModeratorEmergencyHotlinePageState
                               color: Colors.black87,
                             ),
                           ),
+                          // Retaining the admin subtitle
                           const SizedBox(height: 4),
                           Text(
                             "Manage emergency contact numbers",
@@ -934,13 +964,8 @@ class _ModeratorEmergencyHotlinePageState
                             ),
                           ),
                           const SizedBox(height: 16),
-                          // 3. Description Note (New)
-                          _buildDescriptionNote(),
-                          // 4. Safety Quote (New)
-                          _buildSafetyQuote(),
-                          const SizedBox(height: 4),
 
-                          // Sections (Hide header if searching and empty)
+                          // Sections
                           if (_searchQuery.isEmpty ||
                               nationalHotlines.isNotEmpty) ...[
                             _buildSectionTitle(
@@ -1009,7 +1034,7 @@ class _ModeratorEmergencyHotlinePageState
             color: Colors.white,
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withValues(alpha: 0.05),
+                color: Colors.black.withOpacity(0.05), // FIXED
                 blurRadius: 10,
                 offset: const Offset(0, -5),
               ),
@@ -1085,7 +1110,7 @@ class PhoneFrame extends StatelessWidget {
             borderRadius: BorderRadius.circular(40),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withValues(alpha: 0.1),
+                color: Colors.black.withOpacity(0.1), // FIXED
                 blurRadius: 30,
                 spreadRadius: 5,
                 offset: const Offset(0, 10),
