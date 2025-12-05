@@ -1,9 +1,13 @@
+// ignore_for_file: use_build_context_synchronously
 import 'package:flutter/foundation.dart'; // For web check
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'moderator_nav.dart';
-import '../audit_log_service.dart';
+
+// ▼▼▼ CHANGED: Imported the correct service ▼▼▼
+import '../services/activity_service.dart';
+// ▲▲▲ END CHANGE ▲▲▲
 
 // --- 1. UPDATED CATEGORY CONFIGURATION ---
 const Map<String, Map<String, dynamic>> categoryConfig = {
@@ -101,13 +105,15 @@ class _ModeratorHomePageState extends State<ModeratorHomePage> {
       'createdAt': FieldValue.serverTimestamp(),
     });
 
-    // ADD THIS LINE:
-    await AuditLogService.logActivity(
-      action: 'added',
-      page: 'services',
-      title: title,
-      message: 'New service posted',
-    );
+    // ▼▼▼ TRACKING: ADD SERVICE ▼▼▼
+    if (mounted) {
+      await ActivityService().logActivity(
+        context,
+        actionTitle: 'Added Service',
+        details: 'Added new service: $title',
+      );
+    }
+    // ▲▲▲ END TRACKING ▲▲▲
   }
 
   Future<void> _updateService(
@@ -123,25 +129,29 @@ class _ModeratorHomePageState extends State<ModeratorHomePage> {
       'updatedAt': FieldValue.serverTimestamp(),
     });
 
-    // ADD THIS LINE:
-    await AuditLogService.logActivity(
-      action: 'edited',
-      page: 'services',
-      title: title,
-      message: 'Service details updated',
-    );
+    // ▼▼▼ TRACKING: EDIT SERVICE ▼▼▼
+    if (mounted) {
+      await ActivityService().logActivity(
+        context,
+        actionTitle: 'Updated Service',
+        details: 'Updated service details for: $title',
+      );
+    }
+    // ▲▲▲ END TRACKING ▲▲▲
   }
 
   Future<void> _deleteService(String docId) async {
     await _db.collection('barangay_services').doc(docId).delete();
 
-    // ADD THIS LINE:
-    await AuditLogService.logActivity(
-      action: 'deleted',
-      page: 'services',
-      title: 'Service',
-      message: 'A service was removed',
-    );
+    // ▼▼▼ TRACKING: DELETE SERVICE ▼▼▼
+    if (mounted) {
+      await ActivityService().logActivity(
+        context,
+        actionTitle: 'Deleted Service',
+        details: 'Deleted service ID: $docId',
+      );
+    }
+    // ▲▲▲ END TRACKING ▲▲▲
   }
 
   // --- DIALOGS ---
@@ -477,7 +487,7 @@ class _ModeratorHomePageState extends State<ModeratorHomePage> {
         ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.05),
+            color: Colors.black.withOpacity(0.05),
             blurRadius: 15,
             offset: const Offset(0, 5),
           ),
@@ -535,7 +545,7 @@ class _ModeratorHomePageState extends State<ModeratorHomePage> {
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.03),
+            color: Colors.black.withOpacity(0.03),
             blurRadius: 10,
             offset: const Offset(0, 4),
           ),
@@ -608,11 +618,9 @@ class _ModeratorHomePageState extends State<ModeratorHomePage> {
     final title = data['title'] ?? 'Service';
     final category = data['category'] ?? 'Other';
     final steps = data['steps'] ?? '';
-
     final config =
         categoryConfig[category] ??
         {'color': const Color(0xFF9E9E9E), 'icon': Icons.info};
-
     final isExpanded = _expandedStates[docId] ?? false;
 
     return Container(
@@ -622,7 +630,7 @@ class _ModeratorHomePageState extends State<ModeratorHomePage> {
         borderRadius: BorderRadius.circular(12),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.05),
+            color: Colors.black.withOpacity(0.05),
             blurRadius: 8,
             offset: const Offset(0, 2),
           ),
@@ -635,7 +643,7 @@ class _ModeratorHomePageState extends State<ModeratorHomePage> {
               height: 40,
               width: 40,
               decoration: BoxDecoration(
-                color: (config['color'] as Color).withValues(alpha: 0.1),
+                color: (config['color'] as Color).withOpacity(0.1),
                 borderRadius: BorderRadius.circular(8),
               ),
               child: Icon(
@@ -780,7 +788,7 @@ class _ModeratorHomePageState extends State<ModeratorHomePage> {
                               borderRadius: BorderRadius.circular(8),
                               boxShadow: [
                                 BoxShadow(
-                                  color: Colors.black.withValues(alpha: 0.1),
+                                  color: Colors.black.withOpacity(0.1),
                                   blurRadius: 4,
                                 ),
                               ],
@@ -820,7 +828,6 @@ class _ModeratorHomePageState extends State<ModeratorHomePage> {
                                       .toLowerCase();
                                   return t.contains(_searchQuery);
                                 }).toList();
-
                           if (filteredDocs.isEmpty) {
                             return Center(
                               child: Padding(
@@ -852,7 +859,7 @@ class _ModeratorHomePageState extends State<ModeratorHomePage> {
             color: Colors.white,
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withValues(alpha: 0.05),
+                color: Colors.black.withOpacity(0.05),
                 blurRadius: 10,
                 offset: const Offset(0, -5),
               ),
@@ -928,7 +935,7 @@ class PhoneFrame extends StatelessWidget {
             borderRadius: BorderRadius.circular(40),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withValues(alpha: 0.1),
+                color: Colors.black.withOpacity(0.1),
                 blurRadius: 30,
                 spreadRadius: 5,
                 offset: const Offset(0, 10),

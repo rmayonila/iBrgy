@@ -5,7 +5,10 @@ import 'package:flutter/foundation.dart'; // For kIsWeb check
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:image_picker/image_picker.dart'; // Required for gallery
-import '../audit_log_service.dart'; // <--- ADDED IMPORT
+
+// ▼▼▼ CHANGED: Imported the correct service ▼▼▼
+import '../services/activity_service.dart';
+// ▲▲▲ END CHANGE ▲▲▲
 
 class ModeratorBrgyOfficialsPage extends StatefulWidget {
   const ModeratorBrgyOfficialsPage({super.key});
@@ -371,7 +374,6 @@ class _ModeratorBrgyOfficialsPageState
                   final nickname = nicknameController.text.trim();
                   final age = ageController.text.trim();
                   final address = addressController.text.trim();
-
                   if (category.isEmpty || title.isEmpty || name.isEmpty) {
                     _showSnackBar(
                       'Category, Position Title, and Name are required.',
@@ -380,7 +382,8 @@ class _ModeratorBrgyOfficialsPageState
                     return;
                   }
 
-                  Navigator.of(ctx).pop(); // Close dialog
+                  Navigator.of(ctx).pop();
+                  // Close dialog
 
                   try {
                     String finalImageString = currentImageBase64 ?? '';
@@ -399,32 +402,31 @@ class _ModeratorBrgyOfficialsPageState
                       if (!isEditing) 'createdAt': FieldValue.serverTimestamp(),
                       if (isEditing) 'updatedAt': FieldValue.serverTimestamp(),
                     };
-
                     if (isEditing) {
                       await _db
                           .collection('officials')
                           .doc(existingDoc!.id)
                           .update(dataToSave);
 
-                      // --- TRACKING: EDIT OFFICIAL ---
-                      await AuditLogService.logActivity(
-                        action: 'edited',
-                        page: 'officials',
-                        title: name,
-                        message: 'Official profile updated',
+                      // ▼▼▼ TRACKING: EDIT OFFICIAL ▼▼▼
+                      await ActivityService().logActivity(
+                        context,
+                        actionTitle: 'Edited Official',
+                        details: 'Updated profile for: $name ($title)',
                       );
+                      // ▲▲▲ END TRACKING ▲▲▲
 
                       _showSnackBar('Official updated successfully');
                     } else {
                       await _db.collection('officials').add(dataToSave);
 
-                      // --- TRACKING: ADD OFFICIAL ---
-                      await AuditLogService.logActivity(
-                        action: 'added',
-                        page: 'officials',
-                        title: name,
-                        message: 'New official added',
+                      // ▼▼▼ TRACKING: ADD OFFICIAL ▼▼▼
+                      await ActivityService().logActivity(
+                        context,
+                        actionTitle: 'Added Official',
+                        details: 'Added new official: $name ($title)',
                       );
+                      // ▲▲▲ END TRACKING ▲▲▲
 
                       _showSnackBar('Official added successfully');
                     }
@@ -473,7 +475,6 @@ class _ModeratorBrgyOfficialsPageState
 
           title: Text(
             'Confirm Deletion',
-            // Use a muted color and bold font to match the image's style
             style: TextStyle(
               color: Colors.grey.shade600,
               fontWeight: FontWeight.bold,
@@ -518,18 +519,17 @@ class _ModeratorBrgyOfficialsPageState
         ),
       ),
     );
-
     if (confirmDelete == true) {
       try {
         await _db.collection('officials').doc(docId).delete();
 
-        // --- TRACKING: DELETE OFFICIAL ---
-        await AuditLogService.logActivity(
-          action: 'deleted',
-          page: 'officials',
-          title: officialName,
-          message: 'Official removed',
+        // ▼▼▼ TRACKING: DELETE OFFICIAL ▼▼▼
+        await ActivityService().logActivity(
+          context,
+          actionTitle: 'Deleted Official',
+          details: 'Removed official: $officialName',
         );
+        // ▲▲▲ END TRACKING ▲▲▲
 
         _showSnackBar('Official deleted successfully');
       } catch (e) {
@@ -543,10 +543,10 @@ class _ModeratorBrgyOfficialsPageState
     final title = data['title']?.toString() ?? '';
     final name = data['name']?.toString() ?? '';
     final nickname = data['nickname']?.toString() ?? '';
-    final age = data['age']?.toString() ?? ''; // Added Age
+    final age = data['age']?.toString() ?? '';
+    // Added Age
     final address = data['address']?.toString() ?? '';
     final imageUrl = data['imageUrl']?.toString() ?? '';
-
     // --- FINAL FIX: Only use 'title' (Position) as the position text ---
     final String positionText = title;
     // ------------------------------------------------------------------
@@ -750,7 +750,6 @@ class _ModeratorBrgyOfficialsPageState
     String currentValue,
   ) async {
     final inputController = TextEditingController(text: currentValue);
-
     final result = await showDialog<String>(
       context: context,
       useRootNavigator: false, // Inside frame
@@ -783,7 +782,6 @@ class _ModeratorBrgyOfficialsPageState
         ],
       ),
     );
-
     inputController.dispose();
 
     if (result != null) {
@@ -792,6 +790,14 @@ class _ModeratorBrgyOfficialsPageState
           field: result,
           'updatedAt': FieldValue.serverTimestamp(),
         }, SetOptions(merge: true));
+
+        // ▼▼▼ TRACKING: EDIT CONTACT INFO ▼▼▼
+        await ActivityService().logActivity(
+          context,
+          actionTitle: 'Updated Contact Info',
+          details: 'Updated $label for $category to: $result',
+        );
+        // ▲▲▲ END TRACKING ▲▲▲
 
         _showSnackBar('Contact info updated');
       } catch (e) {
@@ -1051,7 +1057,6 @@ class _ModeratorBrgyOfficialsPageState
     final address = contacts['address']?.toString() ?? '';
     final hours = contacts['hours']?.toString() ?? '';
     final phone = contacts['contacts']?.toString() ?? '';
-
     if (address.isEmpty && hours.isEmpty && phone.isEmpty) {
       return const SizedBox.shrink();
     }
@@ -1321,7 +1326,6 @@ class _ModeratorBrgyOfficialsPageState
                             final category =
                                 (data['category'] ?? 'Uncategorized')
                                     .toString();
-
                             if (_searchQuery.isEmpty ||
                                 name.contains(_searchQuery) ||
                                 title.contains(_searchQuery)) {
@@ -1366,7 +1370,6 @@ class _ModeratorBrgyOfficialsPageState
                                         'hours': '',
                                         'contacts': '',
                                       };
-
                                   return Column(
                                     crossAxisAlignment:
                                         CrossAxisAlignment.start,
