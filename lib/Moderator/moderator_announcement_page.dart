@@ -1,4 +1,5 @@
 // ignore_for_file: use_build_context_synchronously
+
 import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/foundation.dart'; // For kIsWeb check
@@ -7,7 +8,10 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:image_picker/image_picker.dart'; // Required
 import 'moderator_nav.dart';
-import '../audit_log_service.dart'; // <--- Added Import
+
+// ▼▼▼ IMPORT THE SERVICE HERE ▼▼▼
+import '../services/activity_service.dart';
+// ▲▲▲ END IMPORT ▲▲▲
 
 class ModeratorAnnouncementPage extends StatefulWidget {
   const ModeratorAnnouncementPage({super.key});
@@ -273,13 +277,13 @@ class _ModeratorAnnouncementPageState extends State<ModeratorAnnouncementPage> {
                         'updatedAt': FieldValue.serverTimestamp(),
                       });
 
-                  // --- TRACKING: EDIT REMINDER ---
-                  await AuditLogService.logActivity(
-                    action: 'edited',
-                    page: 'updates',
-                    title: title,
-                    message: 'Reminder updated',
+                  // ▼▼▼ TRACKING: EDIT REMINDER (UPDATED WITH CONTEXT) ▼▼▼
+                  await ActivityService().logActivity(
+                    context, // <--- ADDED CONTEXT
+                    actionTitle: 'Edited Reminder',
+                    details: 'Edited reminder titled: $title',
                   );
+                  // ▲▲▲ END TRACKING ▲▲▲
 
                   _showSnackBar('Reminder Updated Successfully', Colors.green);
                 } else {
@@ -290,13 +294,13 @@ class _ModeratorAnnouncementPageState extends State<ModeratorAnnouncementPage> {
                     'author': 'Admin',
                   });
 
-                  // --- TRACKING: ADD REMINDER ---
-                  await AuditLogService.logActivity(
-                    action: 'added',
-                    page: 'updates',
-                    title: title,
-                    message: 'New reminder posted',
+                  // ▼▼▼ TRACKING: ADD REMINDER (UPDATED WITH CONTEXT) ▼▼▼
+                  await ActivityService().logActivity(
+                    context, // <--- ADDED CONTEXT
+                    actionTitle: 'Posted Reminder',
+                    details: 'Added new reminder: $title',
                   );
+                  // ▲▲▲ END TRACKING ▲▲▲
 
                   _showSnackBar('Reminder Added Successfully', Colors.green);
                 }
@@ -357,13 +361,13 @@ class _ModeratorAnnouncementPageState extends State<ModeratorAnnouncementPage> {
     if (confirm == true) {
       await _db.collection('important_reminders').doc(docId).delete();
 
-      // --- TRACKING: DELETE REMINDER ---
-      await AuditLogService.logActivity(
-        action: 'deleted',
-        page: 'updates',
-        title: 'Reminder',
-        message: 'Reminder removed',
+      // ▼▼▼ TRACKING: DELETE REMINDER (UPDATED WITH CONTEXT) ▼▼▼
+      await ActivityService().logActivity(
+        context, // <--- ADDED CONTEXT
+        actionTitle: 'Deleted Reminder',
+        details: 'Deleted reminder ID: $docId',
       );
+      // ▲▲▲ END TRACKING ▲▲▲
 
       _showSnackBar('Reminder Deleted', Colors.red);
     }
@@ -594,13 +598,14 @@ class _ModeratorAnnouncementPageState extends State<ModeratorAnnouncementPage> {
                                 'updatedAt': FieldValue.serverTimestamp(),
                               });
 
-                          // --- TRACKING: EDIT ANNOUNCEMENT ---
-                          await AuditLogService.logActivity(
-                            action: 'edited',
-                            page: 'updates',
-                            title: 'Announcement',
-                            message: 'Announcement content edited',
+                          // ▼▼▼ TRACKING: EDIT ANNOUNCEMENT (UPDATED WITH CONTEXT) ▼▼▼
+                          await ActivityService().logActivity(
+                            context, // <--- ADDED CONTEXT
+                            actionTitle: 'Edited Announcement',
+                            details:
+                                'Updated content of announcement ID: ${existingDoc.id}',
                           );
+                          // ▲▲▲ END TRACKING ▲▲▲
 
                           _showSnackBar(
                             'Update Edited Successfully',
@@ -614,13 +619,13 @@ class _ModeratorAnnouncementPageState extends State<ModeratorAnnouncementPage> {
                             'createdAt': FieldValue.serverTimestamp(),
                           });
 
-                          // --- TRACKING: ADD ANNOUNCEMENT ---
-                          await AuditLogService.logActivity(
-                            action: 'added',
-                            page: 'updates',
-                            title: 'New Announcement',
-                            message: 'New announcement posted',
+                          // ▼▼▼ TRACKING: ADD ANNOUNCEMENT (UPDATED WITH CONTEXT) ▼▼▼
+                          await ActivityService().logActivity(
+                            context, // <--- ADDED CONTEXT
+                            actionTitle: 'Posted Announcement',
+                            details: 'Posted new announcement: $content',
                           );
+                          // ▲▲▲ END TRACKING ▲▲▲
 
                           _showSnackBar('Posted Successfully', Colors.green);
                         }
@@ -686,13 +691,13 @@ class _ModeratorAnnouncementPageState extends State<ModeratorAnnouncementPage> {
     if (confirm == true) {
       await _db.collection('announcements').doc(docId).delete();
 
-      // --- TRACKING: DELETE ANNOUNCEMENT ---
-      await AuditLogService.logActivity(
-        action: 'deleted',
-        page: 'updates',
-        title: 'Announcement',
-        message: 'Announcement removed',
+      // ▼▼▼ TRACKING: DELETE ANNOUNCEMENT (UPDATED WITH CONTEXT) ▼▼▼
+      await ActivityService().logActivity(
+        context, // <--- ADDED CONTEXT
+        actionTitle: 'Deleted Announcement',
+        details: 'Deleted announcement ID: $docId',
       );
+      // ▲▲▲ END TRACKING ▲▲▲
 
       _showSnackBar('Post Deleted', Colors.red);
     }
@@ -924,10 +929,19 @@ class _ModeratorAnnouncementPageState extends State<ModeratorAnnouncementPage> {
             const SizedBox(height: 12),
             Text(
               data['content'] ?? '',
-              style: TextStyle(
-                color: Colors.grey.shade800,
+              style: const TextStyle(
                 fontSize: 14,
-                height: 1.4,
+                color: Colors.black87,
+                height: 1.5,
+              ),
+            ),
+            const SizedBox(height: 12),
+            Text(
+              _formatTimestamp(data['createdAt']),
+              style: TextStyle(
+                fontSize: 11,
+                color: Colors.orange.shade800.withOpacity(0.6),
+                fontWeight: FontWeight.w500,
               ),
             ),
           ],
@@ -1246,6 +1260,47 @@ class _ModeratorAnnouncementPageState extends State<ModeratorAnnouncementPage> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
+                      // ▼▼▼ PASTE TEST BUTTON HERE (IF YOU STILL WANT TO TEST) ▼▼▼
+                      ElevatedButton(
+                        onPressed: () async {
+                          try {
+                            print("Attempting to write to test_db...");
+                            await FirebaseFirestore.instance
+                                .collection('test_db')
+                                .add({
+                                  'message': 'Hello from App',
+                                  'timestamp': FieldValue.serverTimestamp(),
+                                });
+                            print("SUCCESS! Data written.");
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text(
+                                  "Test Write SUCCESS! Rules are working.",
+                                ),
+                              ),
+                            );
+                          } catch (e) {
+                            print("FAIL: $e");
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text("Test Write FAILED: $e"),
+                                backgroundColor: Colors.red,
+                              ),
+                            );
+                          }
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.green,
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.all(
+                            20,
+                          ), // Big padding to make it huge
+                        ),
+                        child: const Text("TEST DATABASE CONNECTION"),
+                      ),
+                      const SizedBox(height: 20),
+                      // ▲▲▲ END TEST BUTTON ▲▲▲
+
                       // --- SEARCH BAR ---
                       Container(
                         decoration: BoxDecoration(
@@ -1324,7 +1379,6 @@ class _ModeratorAnnouncementPageState extends State<ModeratorAnnouncementPage> {
                           final docs = snapshot.data?.docs ?? [];
                           final searchQuery = _searchController.text
                               .toLowerCase();
-
                           final filteredDocs = docs.where((doc) {
                             final data = doc.data() as Map<String, dynamic>;
                             final title = (data['title'] ?? '')
