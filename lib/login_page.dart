@@ -24,11 +24,6 @@ class _LoginPageState extends State<LoginPage> {
   DateTime? _lastAttempt;
   int _attemptCount = 0;
 
-  // Seeded admin credentials
-  static const String _seededAdminEmail = "admin@ibrgy.com";
-  // This is the fallback if no custom password is found in Firestore
-  static const String _seededAdminPassword = "admin1234";
-
   @override
   void initState() {
     super.initState();
@@ -95,77 +90,13 @@ class _LoginPageState extends State<LoginPage> {
 
     setState(() => _loading = true);
 
-    // ---------------------------------------------------------
-    // 1. CHECK FOR SEEDED ADMIN (With Firestore Dynamic Password)
-    // ---------------------------------------------------------
-    if (email.toLowerCase() == _seededAdminEmail) {
-      try {
-        // Fetch the dynamic password from Firestore
-        // Note: Matches the 'AccountPage' logic (collection: settings, doc: admin_auth)
-        final doc = await FirebaseFirestore.instance
-            .collection('settings')
-            .doc('admin_auth')
-            .get();
-
-        String validPassword = _seededAdminPassword; // Default: 'admin1234'
-
-        // If a custom password exists in database, use it
-        if (doc.exists && doc.data() != null) {
-          final storedPw = doc.data()?['currentPassword'];
-          if (storedPw != null && storedPw.toString().isNotEmpty) {
-            validPassword = storedPw;
-          }
-        }
-
-        // Validate Input
-        if (password == validPassword) {
-          if (mounted) setState(() => _loading = false);
-          Navigator.pushReplacement(
-            context,
-            MaterialPageRoute(
-              builder: (ctx) => PhoneFrame(child: admin.AdminHomePage()),
-            ),
-          );
-          return; // Stop here, admin is logged in
-        } else {
-          // Password incorrect
-          if (mounted) {
-            setState(() {
-              _loading = false;
-              _errorMessage = 'Incorrect password';
-            });
-          }
-          return;
-        }
-      } catch (e) {
-        // Fallback for network errors: try hardcoded password if Firestore fails
-        // purely to prevent lockout during offline, though risky if pw changed.
-        // For strict security, you might want to show "Network error" instead.
-        if (password == _seededAdminPassword) {
-          if (mounted) setState(() => _loading = false);
-          Navigator.pushReplacement(
-            context,
-            MaterialPageRoute(
-              builder: (ctx) => PhoneFrame(child: admin.AdminHomePage()),
-            ),
-          );
-          return;
-        }
-
-        if (mounted) {
-          setState(() {
-            _loading = false;
-            _errorMessage = 'Login failed. Please check your connection.';
-          });
-        }
-        return;
-      }
-    }
-
-    // ---------------------------------------------------------
-    // 2. CHECK FOR STANDARD FIREBASE USERS
-    // ---------------------------------------------------------
     try {
+      // ---------------------------------------------------------
+      // ✅ CORRECTED FLOW: ALWAYS USE FIREBASE AUTH
+      // ---------------------------------------------------------
+      // This ensures that even the Admin gets a valid session token.
+      // Without this, Firestore Security Rules will block you.
+
       final cred = await FirebaseAuth.instance.signInWithEmailAndPassword(
         email: email,
         password: password,
@@ -174,12 +105,14 @@ class _LoginPageState extends State<LoginPage> {
       final uid = cred.user?.uid;
       if (uid == null) throw FirebaseAuthException(code: 'no-user');
 
+      // 2. Fetch User Document from Firestore
       final doc = await FirebaseFirestore.instance
           .collection('users')
           .doc(uid)
           .get();
 
       if (!doc.exists) {
+        // If the user authenticates but has no profile, sign them out.
         await FirebaseAuth.instance.signOut();
         if (mounted) {
           setState(() {
@@ -189,19 +122,24 @@ class _LoginPageState extends State<LoginPage> {
         return;
       }
 
-      final roleFromDb = (doc.data()?['role'] ?? '').toString().toLowerCase();
+      // 3. Get Role
+      final roleFromDb = (doc.data()?['role'] ?? '').toString();
 
       if (mounted) {
-        if (roleFromDb == 'admin') {
+        // 4. Route based on Role
+        // NOTE: We check for 'Admin' (Capital 'A') to match your database exactly.
+        if (roleFromDb == 'Admin') {
           Navigator.pushReplacement(
             context,
             MaterialPageRoute(
               builder: (ctx) => PhoneFrame(child: admin.AdminHomePage()),
             ),
           );
-        } else if (roleFromDb == 'moderator') {
+        } else if (roleFromDb.toLowerCase() == 'moderator') {
+          // Moderator check is usually safe to be case-insensitive
           Navigator.pushReplacementNamed(context, '/moderator-home');
         } else {
+          // Unauthorized role
           await FirebaseAuth.instance.signOut();
           if (mounted) {
             setState(() {

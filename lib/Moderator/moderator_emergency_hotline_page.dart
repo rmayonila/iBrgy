@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart'; // For web check
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'moderator_nav.dart';
+import '../audit_log_service.dart';
 
 class ModeratorEmergencyHotlinePage extends StatefulWidget {
   const ModeratorEmergencyHotlinePage({super.key});
@@ -290,6 +291,14 @@ class _ModeratorEmergencyHotlinePageState
         'createdAt': FieldValue.serverTimestamp(),
       });
       _showSnackBar('Hotline Added Successfully', Colors.green);
+
+      // ADD THIS LINE:
+      await AuditLogService.logActivity(
+        action: 'added',
+        page: 'emergency',
+        title: name,
+        message: 'New hotline added',
+      );
     } catch (e) {
       _showSnackBar('Failed to add hotline: $e', Colors.red);
     }
@@ -448,6 +457,13 @@ class _ModeratorEmergencyHotlinePageState
         'updatedAt': FieldValue.serverTimestamp(),
       });
       _showSnackBar('Hotline Updated Successfully', Colors.green);
+      // ADD THIS LINE:
+      await AuditLogService.logActivity(
+        action: 'edited',
+        page: 'emergency',
+        title: name,
+        message: 'Hotline info updated',
+      );
     } catch (e) {
       _showSnackBar('Failed to update: $e', Colors.red);
     }
@@ -493,6 +509,14 @@ class _ModeratorEmergencyHotlinePageState
       try {
         await _db.collection('hotlines').doc(id).delete();
         _showSnackBar('Hotline Deleted', Colors.red);
+
+        // ADD THIS LINE:
+        await AuditLogService.logActivity(
+          action: 'deleted',
+          page: 'emergency',
+          title: hotline['name'],
+          message: 'Hotline removed',
+        );
       } catch (e) {
         _showSnackBar('Failed to delete: $e', Colors.red);
       }

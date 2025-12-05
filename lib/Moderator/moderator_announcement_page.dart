@@ -7,6 +7,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:image_picker/image_picker.dart'; // Required
 import 'moderator_nav.dart';
+import '../audit_log_service.dart'; // <--- Added Import
 
 class ModeratorAnnouncementPage extends StatefulWidget {
   const ModeratorAnnouncementPage({super.key});
@@ -271,6 +272,15 @@ class _ModeratorAnnouncementPageState extends State<ModeratorAnnouncementPage> {
                         'content': content,
                         'updatedAt': FieldValue.serverTimestamp(),
                       });
+
+                  // --- TRACKING: EDIT REMINDER ---
+                  await AuditLogService.logActivity(
+                    action: 'edited',
+                    page: 'updates',
+                    title: title,
+                    message: 'Reminder updated',
+                  );
+
                   _showSnackBar('Reminder Updated Successfully', Colors.green);
                 } else {
                   await _db.collection('important_reminders').add({
@@ -279,6 +289,15 @@ class _ModeratorAnnouncementPageState extends State<ModeratorAnnouncementPage> {
                     'createdAt': FieldValue.serverTimestamp(),
                     'author': 'Admin',
                   });
+
+                  // --- TRACKING: ADD REMINDER ---
+                  await AuditLogService.logActivity(
+                    action: 'added',
+                    page: 'updates',
+                    title: title,
+                    message: 'New reminder posted',
+                  );
+
                   _showSnackBar('Reminder Added Successfully', Colors.green);
                 }
               } catch (e) {
@@ -337,6 +356,15 @@ class _ModeratorAnnouncementPageState extends State<ModeratorAnnouncementPage> {
 
     if (confirm == true) {
       await _db.collection('important_reminders').doc(docId).delete();
+
+      // --- TRACKING: DELETE REMINDER ---
+      await AuditLogService.logActivity(
+        action: 'deleted',
+        page: 'updates',
+        title: 'Reminder',
+        message: 'Reminder removed',
+      );
+
       _showSnackBar('Reminder Deleted', Colors.red);
     }
   }
@@ -565,6 +593,15 @@ class _ModeratorAnnouncementPageState extends State<ModeratorAnnouncementPage> {
                                 'imageUrl': finalImageString,
                                 'updatedAt': FieldValue.serverTimestamp(),
                               });
+
+                          // --- TRACKING: EDIT ANNOUNCEMENT ---
+                          await AuditLogService.logActivity(
+                            action: 'edited',
+                            page: 'updates',
+                            title: 'Announcement',
+                            message: 'Announcement content edited',
+                          );
+
                           _showSnackBar(
                             'Update Edited Successfully',
                             Colors.green,
@@ -576,6 +613,15 @@ class _ModeratorAnnouncementPageState extends State<ModeratorAnnouncementPage> {
                             'imageUrl': finalImageString,
                             'createdAt': FieldValue.serverTimestamp(),
                           });
+
+                          // --- TRACKING: ADD ANNOUNCEMENT ---
+                          await AuditLogService.logActivity(
+                            action: 'added',
+                            page: 'updates',
+                            title: 'New Announcement',
+                            message: 'New announcement posted',
+                          );
+
                           _showSnackBar('Posted Successfully', Colors.green);
                         }
                       } catch (e) {
@@ -639,6 +685,15 @@ class _ModeratorAnnouncementPageState extends State<ModeratorAnnouncementPage> {
 
     if (confirm == true) {
       await _db.collection('announcements').doc(docId).delete();
+
+      // --- TRACKING: DELETE ANNOUNCEMENT ---
+      await AuditLogService.logActivity(
+        action: 'deleted',
+        page: 'updates',
+        title: 'Announcement',
+        message: 'Announcement removed',
+      );
+
       _showSnackBar('Post Deleted', Colors.red);
     }
   }

@@ -2,7 +2,8 @@ import 'package:flutter/foundation.dart'; // For web check
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'moderator_nav.dart'; // Assuming this file contains navigateModeratorIndex
+import 'moderator_nav.dart';
+import '../audit_log_service.dart';
 
 // --- 1. UPDATED CATEGORY CONFIGURATION ---
 const Map<String, Map<String, dynamic>> categoryConfig = {
@@ -99,6 +100,14 @@ class _ModeratorHomePageState extends State<ModeratorHomePage> {
       'steps': steps,
       'createdAt': FieldValue.serverTimestamp(),
     });
+
+    // ADD THIS LINE:
+    await AuditLogService.logActivity(
+      action: 'added',
+      page: 'services',
+      title: title,
+      message: 'New service posted',
+    );
   }
 
   Future<void> _updateService(
@@ -113,10 +122,26 @@ class _ModeratorHomePageState extends State<ModeratorHomePage> {
       'steps': steps,
       'updatedAt': FieldValue.serverTimestamp(),
     });
+
+    // ADD THIS LINE:
+    await AuditLogService.logActivity(
+      action: 'edited',
+      page: 'services',
+      title: title,
+      message: 'Service details updated',
+    );
   }
 
   Future<void> _deleteService(String docId) async {
     await _db.collection('barangay_services').doc(docId).delete();
+
+    // ADD THIS LINE:
+    await AuditLogService.logActivity(
+      action: 'deleted',
+      page: 'services',
+      title: 'Service',
+      message: 'A service was removed',
+    );
   }
 
   // --- DIALOGS ---

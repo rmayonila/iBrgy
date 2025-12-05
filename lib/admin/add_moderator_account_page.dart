@@ -1,9 +1,11 @@
 // ignore_for_file: use_build_context_synchronously
+import 'dart:convert';
 import 'package:flutter/foundation.dart'; // For kIsWeb check
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:http/http.dart' as http;
 
 class AddModeratorAccountPage extends StatefulWidget {
   const AddModeratorAccountPage({super.key});
@@ -14,205 +16,335 @@ class AddModeratorAccountPage extends StatefulWidget {
 }
 
 class _AddModeratorAccountPageState extends State<AddModeratorAccountPage> {
+  // Controllers
   final _nameController = TextEditingController();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
+  final _confirmPasswordController = TextEditingController();
+
+  // State Variables
   bool _isLoading = false;
+  bool _obscurePassword = true;
+  bool _obscureConfirmPassword = true;
+  bool _isFormFilled = false;
+
+  final _scaffoldMessengerKey = GlobalKey<ScaffoldMessengerState>();
   final _formKey = GlobalKey<FormState>();
+
+  @override
+  void initState() {
+    super.initState();
+    void checkForm() {
+      setState(() {
+        _isFormFilled =
+            _nameController.text.isNotEmpty &&
+            _emailController.text.isNotEmpty &&
+            _passwordController.text.isNotEmpty &&
+            _confirmPasswordController.text.isNotEmpty;
+      });
+    }
+
+    _nameController.addListener(checkForm);
+    _emailController.addListener(checkForm);
+    _passwordController.addListener(checkForm);
+    _confirmPasswordController.addListener(checkForm);
+  }
+
+  @override
+  void dispose() {
+    _nameController.dispose();
+    _emailController.dispose();
+    _passwordController.dispose();
+    _confirmPasswordController.dispose();
+    super.dispose();
+  }
+
+  // --- HELPER: Custom SnackBar to appear ABOVE the button ---
+  void _showMessage(String message, {bool isError = false}) {
+    _scaffoldMessengerKey.currentState?.hideCurrentSnackBar();
+    _scaffoldMessengerKey.currentState?.showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: isError ? Colors.redAccent : const Color(0xFF4CAF50),
+        behavior: SnackBarBehavior.floating,
+        // MARGIN: Pushes the snackbar up by 100px so it sits ABOVE the button
+        margin: const EdgeInsets.only(bottom: 100, left: 20, right: 20),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      ),
+    );
+  }
 
   Future<void> _createModeratorAccount() async {
     if (!_formKey.currentState!.validate()) return;
 
-    setState(() => _isLoading = true);
-
     String name = _nameController.text.trim();
     String email = _emailController.text.trim();
     String password = _passwordController.text.trim();
+    String confirmPassword = _confirmPasswordController.text.trim();
 
-    FirebaseApp? tempApp;
+    // Specific check for password length (Extra safety)
+    if (password.length < 6) {
+      _showMessage('Password must be at least 6 characters.', isError: true);
+      return;
+    }
+
+    if (password != confirmPassword) {
+      _showMessage('Passwords do not match.', isError: true);
+      return;
+    }
+
+    setState(() => _isLoading = true);
 
     try {
-      // 1. Create a unique name for the temp app to avoid conflicts
-      String appName = 'tempRegister_${DateTime.now().millisecondsSinceEpoch}';
-
-      // 2. Initialize the temporary app
-      tempApp = await Firebase.initializeApp(
-        name: appName,
-        options: Firebase.app().options,
+      final apiKey = Firebase.app().options.apiKey;
+      final url = Uri.parse(
+        'https://identitytoolkit.googleapis.com/v1/accounts:signUp?key=$apiKey',
       );
 
-      // 3. Get the Auth instance for this temp app
-      FirebaseAuth tempAuth = FirebaseAuth.instanceFor(app: tempApp);
+      final response = await http.post(
+        url,
+        body: json.encode({
+          'email': email,
+          'password': password,
+          'returnSecureToken': true,
+        }),
+        headers: {'Content-Type': 'application/json'},
+      );
 
-      // ---------------------------------------------------------
-      // THE FIX FOR WEB: DISABLE PERSISTENCE
-      // ---------------------------------------------------------
-      // This tells Firebase: "Don't save this login to the browser."
-      // This prevents it from overwriting your Admin session.
-      if (kIsWeb) {
-        await tempAuth.setPersistence(Persistence.NONE);
+      final responseData = json.decode(response.body);
+
+      if (response.statusCode != 200) {
+        String errorMessage = 'An error occurred';
+        if (responseData['error'] != null) {
+          errorMessage = responseData['error']['message'] ?? errorMessage;
+        }
+        if (errorMessage.contains('EMAIL_EXISTS')) {
+          errorMessage = 'The email address is already in use.';
+        } else if (errorMessage.contains('WEAK_PASSWORD')) {
+          errorMessage = 'The password is too weak.';
+        }
+        throw FirebaseAuthException(code: 'api-error', message: errorMessage);
       }
 
-      // 4. Create the user using the TEMP auth instance
-      UserCredential userCredential = await tempAuth
-          .createUserWithEmailAndPassword(email: email, password: password);
+      final newUserId = responseData['localId'];
 
-      // 5. Save details to Firestore using the MAIN instance (Admin permissions)
-      // In _createStaffAccount() method, change this line:
-      await FirebaseFirestore.instance
-          .collection('users')
-          .doc(userCredential.user!.uid)
-          .set({
-            'uid': userCredential.user!.uid,
-            'name': name,
-            'email': email,
-            'role': 'moderator', // CHANGE FROM 'staff' TO 'moderator'
-            'createdAt': FieldValue.serverTimestamp(),
-          });
-
-      // 6. Cleanup
-      await tempApp.delete();
+      await FirebaseFirestore.instance.collection('users').doc(newUserId).set({
+        'uid': newUserId,
+        'name': name,
+        'email': email,
+        'password': password,
+        'role': 'moderator',
+        'createdAt': FieldValue.serverTimestamp(),
+      });
 
       if (!mounted) return;
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Staff account created successfully!')),
-      );
-      Navigator.pop(context);
-    } on FirebaseAuthException catch (e) {
-      String message = 'An error occurred';
-      if (e.code == 'email-already-in-use') {
-        message = 'The email address is already in use.';
-      } else if (e.code == 'weak-password') {
-        message = 'The password is too weak.';
-      }
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(message), backgroundColor: Colors.red),
-      );
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
-      );
-    } finally {
-      // Ensure temp app is deleted even if error occurs
-      try {
-        if (tempApp != null) {
-          await tempApp.delete();
-        }
-      } catch (_) {}
+      _showMessage('Moderator account created successfully!');
 
+      await Future.delayed(const Duration(seconds: 2));
+      if (mounted) Navigator.pop(context);
+    } on FirebaseAuthException catch (e) {
+      _showMessage(e.message ?? 'Error', isError: true);
+    } catch (e) {
+      _showMessage('Error: $e', isError: true);
+    } finally {
       if (mounted) {
         setState(() => _isLoading = false);
       }
     }
   }
 
+  Widget _buildStyledTextField({
+    required TextEditingController controller,
+    required String hintText,
+    TextInputType? keyboardType,
+    bool isPassword = false,
+    bool? obscureText,
+    VoidCallback? onToggleVisibility,
+    String? Function(String?)? validator,
+  }) {
+    bool showIcon = isPassword && controller.text.isNotEmpty;
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 16),
+      child: TextFormField(
+        controller: controller,
+        obscureText: obscureText ?? false,
+        keyboardType: keyboardType,
+        style: const TextStyle(color: Colors.black, fontSize: 16),
+        decoration: InputDecoration(
+          hintText: hintText,
+          hintStyle: TextStyle(color: Colors.grey.shade400, fontSize: 15),
+          contentPadding: const EdgeInsets.symmetric(
+            horizontal: 20,
+            vertical: 18,
+          ),
+          enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: BorderSide(color: Colors.grey.shade300, width: 1),
+          ),
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: const BorderSide(color: Colors.blue, width: 1.5),
+          ),
+          errorBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: const BorderSide(color: Colors.redAccent, width: 1),
+          ),
+          focusedErrorBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: const BorderSide(color: Colors.redAccent, width: 1.5),
+          ),
+          filled: true,
+          fillColor: Colors.white,
+          suffixIcon: showIcon
+              ? IconButton(
+                  icon: Icon(
+                    (obscureText ?? false)
+                        ? Icons.visibility_off_outlined
+                        : Icons.visibility_outlined,
+                    color: Colors.grey,
+                  ),
+                  onPressed: onToggleVisibility,
+                )
+              : null,
+        ),
+        validator: validator,
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    // 1. Define Mobile UI
-    Widget mobileContent = Scaffold(
-      backgroundColor: Colors.white,
-      appBar: AppBar(
-        title: const Text(
-          "Add Moderator",
-          style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold),
-        ),
+    Widget mobileContent = ScaffoldMessenger(
+      key: _scaffoldMessengerKey,
+      child: Scaffold(
         backgroundColor: Colors.white,
-        elevation: 0,
-        centerTitle: true,
-        iconTheme: const IconThemeData(color: Colors.black),
-        bottom: PreferredSize(
-          preferredSize: const Size.fromHeight(1.0),
-          child: Container(color: Colors.grey.shade200, height: 1.0),
+        appBar: AppBar(
+          backgroundColor: Colors.white,
+          elevation: 0,
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back, color: Colors.black87),
+            onPressed: () => Navigator.pop(context),
+          ),
         ),
-      ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(24.0),
-        child: Form(
-          key: _formKey,
+        body: SafeArea(
           child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text(
-                "Moderator Details",
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(height: 8),
-              const Text(
-                "Create an account for a moderator. They will use these credentials to log in.",
-                style: TextStyle(color: Colors.grey),
-              ),
-              const SizedBox(height: 24),
-
-              TextFormField(
-                controller: _nameController,
-                decoration: InputDecoration(
-                  labelText: "Full Name",
-                  prefixIcon: const Icon(Icons.person_outline),
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                ),
-                validator: (v) => v!.isEmpty ? "Name is required" : null,
-              ),
-              const SizedBox(height: 16),
-
-              TextFormField(
-                controller: _emailController,
-                keyboardType: TextInputType.emailAddress,
-                decoration: InputDecoration(
-                  labelText: "Email Address",
-                  prefixIcon: const Icon(Icons.email_outlined),
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                ),
-                validator: (v) =>
-                    v!.contains('@') ? null : "Enter a valid email",
-              ),
-              const SizedBox(height: 16),
-
-              TextFormField(
-                controller: _passwordController,
-                obscureText: true,
-                decoration: InputDecoration(
-                  labelText: "Password",
-                  prefixIcon: const Icon(Icons.lock_outline),
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                ),
-                validator: (v) =>
-                    v!.length < 6 ? "Password must be at least 6 chars" : null,
-              ),
-              const SizedBox(height: 32),
-
-              SizedBox(
-                width: double.infinity,
-                height: 50,
-                child: ElevatedButton(
-                  onPressed: _isLoading ? null : _createModeratorAccount,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.blue,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    elevation: 2,
-                  ),
-                  child: _isLoading
-                      ? const SizedBox(
-                          height: 24,
-                          width: 24,
-                          child: CircularProgressIndicator(color: Colors.white),
-                        )
-                      : const Text(
-                          "Create Account",
+              Expanded(
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.symmetric(horizontal: 24.0),
+                  child: Form(
+                    key: _formKey,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const SizedBox(height: 8),
+                        const Text(
+                          'Create Moderator',
                           style: TextStyle(
-                            fontSize: 16,
+                            fontSize: 26,
                             fontWeight: FontWeight.bold,
-                            color: Colors.white,
+                            color: Colors.black,
                           ),
                         ),
+                        const SizedBox(height: 12),
+                        Text(
+                          'Create an account for a moderator. They will use these credentials to log in.',
+                          style: TextStyle(
+                            fontSize: 15,
+                            color: Colors.grey.shade600,
+                            height: 1.5,
+                          ),
+                        ),
+                        const SizedBox(height: 32),
+
+                        _buildStyledTextField(
+                          controller: _nameController,
+                          hintText: 'Full Name',
+                          validator: (v) =>
+                              v!.isEmpty ? "Name is required" : null,
+                        ),
+
+                        _buildStyledTextField(
+                          controller: _emailController,
+                          hintText: 'Email address',
+                          keyboardType: TextInputType.emailAddress,
+                          validator: (v) =>
+                              v!.contains('@') ? null : "Enter a valid email",
+                        ),
+
+                        _buildStyledTextField(
+                          controller: _passwordController,
+                          hintText: 'Password',
+                          isPassword: true,
+                          obscureText: _obscurePassword,
+                          onToggleVisibility: () => setState(
+                            () => _obscurePassword = !_obscurePassword,
+                          ),
+                          // VALIDATOR UPDATED: Checks for 6 characters
+                          validator: (v) => (v == null || v.length < 6)
+                              ? "Password must be at least 6 characters"
+                              : null,
+                        ),
+
+                        _buildStyledTextField(
+                          controller: _confirmPasswordController,
+                          hintText: 'Confirm Password',
+                          isPassword: true,
+                          obscureText: _obscureConfirmPassword,
+                          onToggleVisibility: () => setState(
+                            () => _obscureConfirmPassword =
+                                !_obscureConfirmPassword,
+                          ),
+                          validator: (v) =>
+                              v!.isEmpty ? "Confirm your password" : null,
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+
+              Padding(
+                padding: const EdgeInsets.all(24.0),
+                child: SizedBox(
+                  width: double.infinity,
+                  height: 56,
+                  child: ElevatedButton(
+                    onPressed: (_isFormFilled && !_isLoading)
+                        ? _createModeratorAccount
+                        : null,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF1565C0),
+                      disabledBackgroundColor: const Color(0xFFBBDEFB),
+
+                      // 1. VISIBLE TEXT WHEN DISABLED
+                      disabledForegroundColor: Colors.white,
+                      foregroundColor: Colors.white,
+
+                      elevation: 0,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(30),
+                      ),
+                    ),
+                    child: _isLoading
+                        ? const SizedBox(
+                            height: 24,
+                            width: 24,
+                            child: CircularProgressIndicator(
+                              color: Colors.white,
+                              strokeWidth: 2.5,
+                            ),
+                          )
+                        : const Text(
+                            "Create account",
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                  ),
                 ),
               ),
             ],
@@ -228,7 +360,7 @@ class _AddModeratorAccountPageState extends State<AddModeratorAccountPage> {
   }
 }
 
-// Phone Frame Design
+// --- PHONE FRAME UTILITY ---
 class PhoneFrame extends StatelessWidget {
   final Widget child;
   const PhoneFrame({super.key, required this.child});

@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'moderator_nav.dart';
-import '../splash_screen.dart';
-import 'moderator_help_support_page.dart';
+import 'moderator_nav.dart'; // Ensure this exists in your project
+import '../splash_screen.dart'; // Ensure this exists in your project
+import 'moderator_help_support_page.dart'; // Ensure this exists in your project
 
 // --- 1. SHARED PHONE FRAME WIDGET ---
 class PhoneFrame extends StatelessWidget {
@@ -14,7 +14,7 @@ class PhoneFrame extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white, // Background behind the phone
+      backgroundColor: Colors.white,
       body: Center(
         child: Container(
           width: 375, // iPhone-like width
@@ -102,6 +102,7 @@ class _PasswordInfoCardState extends State<PasswordInfoCard> {
                 ),
                 const SizedBox(height: 4),
                 Text(
+                  // Logic: Show dots if obscured, show actual string if not
                   _isObscured ? '••••••••••••' : widget.placeholderPassword,
                   style: const TextStyle(
                     fontSize: 16,
@@ -144,9 +145,12 @@ class ModeratorAccountSettingsPage extends StatefulWidget {
 class _ModeratorAccountSettingsPageState
     extends State<ModeratorAccountSettingsPage> {
   int _selectedIndex = 4; // Profile tab
-  String moderatorName = 'MODERATOR';
-  String moderatorEmail = 'moderator@ibrgy.com';
+
+  // Data Variables
+  String moderatorName = 'Loading...';
+  String moderatorEmail = 'Loading...';
   String moderatorRole = 'Content Moderator';
+  String moderatorPassword = ''; // Variable to hold fetched password
 
   @override
   void initState() {
@@ -154,12 +158,14 @@ class _ModeratorAccountSettingsPageState
     _loadModeratorProfile();
   }
 
+  // UPDATED: Fetches password from Firestore
   Future<void> _loadModeratorProfile() async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) {
       setState(() {
         moderatorName = 'Moderator';
         moderatorEmail = 'moderator@ibrgy.com';
+        moderatorPassword = 'Not Available';
       });
       return;
     }
@@ -169,6 +175,7 @@ class _ModeratorAccountSettingsPageState
           .collection('users')
           .doc(user.uid)
           .get();
+
       if (doc.exists) {
         final data = doc.data();
         setState(() {
@@ -176,14 +183,22 @@ class _ModeratorAccountSettingsPageState
               (data?['name'] as String?) ?? user.displayName ?? 'Moderator';
           moderatorEmail = (data?['email'] as String?) ?? user.email ?? '';
           moderatorRole = (data?['role'] as String?) ?? 'Content Moderator';
+
+          // FETCH PASSWORD
+          moderatorPassword =
+              (data?['password'] as String?) ?? 'Not Saved in DB';
         });
         return;
       }
-    } catch (_) {}
+    } catch (_) {
+      // Handle errors silently
+    }
 
+    // Fallback
     setState(() {
       moderatorName = user.displayName ?? 'Moderator';
       moderatorEmail = user.email ?? '';
+      moderatorPassword = 'Not Saved';
     });
   }
 
@@ -338,7 +353,6 @@ class _ModeratorAccountSettingsPageState
     required String label,
     required String value,
     required IconData icon,
-    bool isPassword = false,
   }) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
@@ -388,12 +402,6 @@ class _ModeratorAccountSettingsPageState
               ],
             ),
           ),
-          if (isPassword)
-            Icon(
-              Icons.visibility_off_outlined,
-              color: Colors.grey.shade400,
-              size: 22,
-            ),
         ],
       ),
     );
@@ -402,7 +410,6 @@ class _ModeratorAccountSettingsPageState
   // --- MAIN PAGE BUILD ---
   @override
   Widget build(BuildContext context) {
-    // WRAPPED IN PHONE FRAME
     return PhoneFrame(
       child: Scaffold(
         backgroundColor: Colors.white,
@@ -420,7 +427,7 @@ class _ModeratorAccountSettingsPageState
                       _buildGroupContainer([
                         _buildListTile(
                           icon: Icons.person_search_outlined,
-                          title: 'My Account Details',
+                          title: 'Account Details',
                           showDivider: false,
                           onTap: () {
                             Navigator.push(
@@ -485,7 +492,7 @@ class _ModeratorAccountSettingsPageState
     );
   }
 
-  // --- PAGE 2: ACCOUNT DETAILS (Matches Admin UI) ---
+  // --- PAGE 2: ACCOUNT DETAILS (Displays Password) ---
   Widget _buildAccountDetailsPage() {
     return PhoneFrame(
       child: Scaffold(
@@ -507,7 +514,7 @@ class _ModeratorAccountSettingsPageState
         body: SingleChildScrollView(
           child: Column(
             children: [
-              // Top Profile Section (Centered Shield)
+              // Top Profile Section
               Container(
                 width: double.infinity,
                 color: Colors.white,
@@ -544,7 +551,7 @@ class _ModeratorAccountSettingsPageState
                     ),
                     const SizedBox(height: 8),
                     Text(
-                      'Manage your account details',
+                      'View your account details',
                       style: TextStyle(
                         fontSize: 14,
                         color: Colors.grey.shade500,
@@ -584,11 +591,13 @@ class _ModeratorAccountSettingsPageState
                       icon: Icons.email_outlined,
                     ),
                     const SizedBox(height: 15),
-                    // Functional Password Card
-                    const PasswordInfoCard(
+
+                    // --- PASSING THE FETCHED PASSWORD HERE ---
+                    PasswordInfoCard(
                       label: 'Password',
-                      placeholderPassword: 'hong123456',
+                      placeholderPassword: moderatorPassword,
                     ),
+
                     const SizedBox(height: 30),
                     Padding(
                       padding: const EdgeInsets.only(left: 4, bottom: 10),

@@ -138,7 +138,7 @@ class _TrackActivityPageState extends State<TrackActivityPage> {
             onPressed: () => Navigator.of(context).pop(),
           ),
           automaticallyImplyLeading: false,
-          title: const Text('Notifications'),
+          title: const Text('Track Activity'),
           backgroundColor: Colors.white,
           foregroundColor: Colors.black,
           elevation: 1,

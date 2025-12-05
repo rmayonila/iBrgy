@@ -2,10 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
-// ---------------------------------------------------------------------------
-// PAGE 1: ACCOUNT PAGE
-// ---------------------------------------------------------------------------
-
 class AccountPage extends StatefulWidget {
   final String? initialName;
   final String? initialEmail;
@@ -24,7 +20,9 @@ class _AccountPageState extends State<AccountPage> {
   bool _showPassword = false;
 
   // We store the current admin password in a variable so it can be updated
-  String _currentAdminPassword = 'admin1234';
+  String _currentAdminPassword = 'admin1234'; // Default for Seeded Admin
+  String?
+  _firestorePassword; // NEW: Variable to store password for regular admins
 
   bool get _isSeededAdmin {
     final currentEmail = emailController.text.trim().toLowerCase();
@@ -46,8 +44,7 @@ class _AccountPageState extends State<AccountPage> {
     setState(() => isLoading = true);
     try {
       if (_isSeededAdmin) {
-        // Try to fetch the updated admin password from Firestore if it exists
-        // This makes the change persist even for the "Seeded" admin
+        // ... (Seeded Admin Logic - unchanged)
         try {
           final doc = await FirebaseFirestore.instance
               .collection('settings')
@@ -85,6 +82,9 @@ class _AccountPageState extends State<AccountPage> {
                     (data?['name'] as String?) ?? user.displayName ?? '';
                 emailController.text =
                     (data?['email'] as String?) ?? user.email ?? '';
+
+                // NEW: Fetch the password field so the eye icon works
+                _firestorePassword = (data?['password'] as String?);
               });
             }
           }
@@ -259,12 +259,28 @@ class _AccountPageState extends State<AccountPage> {
 
   @override
   Widget build(BuildContext context) {
-    String passwordDisplay;
-    Widget? passwordSuffix;
-
+    // --- 1. NEW LOGIC TO HANDLE EYE ICON FOR EVERYONE ---
+    String effectivePassword;
     if (_isSeededAdmin) {
-      // Use the local variable _currentAdminPassword
-      passwordDisplay = _showPassword ? _currentAdminPassword : '••••••••••••';
+      effectivePassword = _currentAdminPassword;
+    } else {
+      // Use fetched DB password or empty string
+      effectivePassword = _firestorePassword ?? '';
+    }
+
+    // Determine what to display (dots or text)
+    String passwordDisplay;
+    bool hasPassword = effectivePassword.isNotEmpty;
+
+    if (_showPassword && hasPassword) {
+      passwordDisplay = effectivePassword;
+    } else {
+      passwordDisplay = '••••••••••••';
+    }
+
+    // Create the Eye Icon Button if password exists
+    Widget? passwordSuffix;
+    if (hasPassword) {
       passwordSuffix = IconButton(
         icon: Icon(
           _showPassword
@@ -274,10 +290,8 @@ class _AccountPageState extends State<AccountPage> {
         ),
         onPressed: () => setState(() => _showPassword = !_showPassword),
       );
-    } else {
-      passwordDisplay = '••••••••••••';
-      passwordSuffix = null;
     }
+    // ----------------------------------------------------
 
     return PhoneFrame(
       child: Scaffold(
@@ -328,12 +342,15 @@ class _AccountPageState extends State<AccountPage> {
                           : emailController.text,
                       Icons.email_outlined,
                     ),
+
+                    // MODIFIED: Pass the new variables here
                     _buildReadOnlyField(
                       'Password',
                       passwordDisplay,
                       Icons.lock_outline,
-                      suffix: passwordSuffix,
+                      suffix: passwordSuffix, // Adds the eye icon
                     ),
+
                     const SizedBox(height: 24),
                     const Text(
                       "SECURITY",
@@ -353,7 +370,6 @@ class _AccountPageState extends State<AccountPage> {
     );
   }
 }
-
 // ---------------------------------------------------------------------------
 // PAGE 2: CHANGE PASSWORD PAGE
 // ---------------------------------------------------------------------------

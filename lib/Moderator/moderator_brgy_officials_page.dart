@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart'; // For kIsWeb check
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:image_picker/image_picker.dart'; // Required for gallery
+import '../audit_log_service.dart'; // <--- ADDED IMPORT
 
 class ModeratorBrgyOfficialsPage extends StatefulWidget {
   const ModeratorBrgyOfficialsPage({super.key});
@@ -404,9 +405,27 @@ class _ModeratorBrgyOfficialsPageState
                           .collection('officials')
                           .doc(existingDoc!.id)
                           .update(dataToSave);
+
+                      // --- TRACKING: EDIT OFFICIAL ---
+                      await AuditLogService.logActivity(
+                        action: 'edited',
+                        page: 'officials',
+                        title: name,
+                        message: 'Official profile updated',
+                      );
+
                       _showSnackBar('Official updated successfully');
                     } else {
                       await _db.collection('officials').add(dataToSave);
+
+                      // --- TRACKING: ADD OFFICIAL ---
+                      await AuditLogService.logActivity(
+                        action: 'added',
+                        page: 'officials',
+                        title: name,
+                        message: 'New official added',
+                      );
+
                       _showSnackBar('Official added successfully');
                     }
                   } catch (e) {
@@ -437,7 +456,7 @@ class _ModeratorBrgyOfficialsPageState
   }
 
   // --- DELETE OFFICIAL ---
-  Future<void> _deleteOfficial(String docId, String title) async {
+  Future<void> _deleteOfficial(String docId, String officialName) async {
     final confirmDelete = await showDialog<bool>(
       context: context,
       useRootNavigator: false, // Inside frame
@@ -462,7 +481,7 @@ class _ModeratorBrgyOfficialsPageState
             ),
           ),
           content: Text(
-            'Are you sure you want to delete "$title"?',
+            'Are you sure you want to delete "$officialName"?',
             style: const TextStyle(color: Colors.black87),
           ),
           actions: [
@@ -503,6 +522,15 @@ class _ModeratorBrgyOfficialsPageState
     if (confirmDelete == true) {
       try {
         await _db.collection('officials').doc(docId).delete();
+
+        // --- TRACKING: DELETE OFFICIAL ---
+        await AuditLogService.logActivity(
+          action: 'deleted',
+          page: 'officials',
+          title: officialName,
+          message: 'Official removed',
+        );
+
         _showSnackBar('Official deleted successfully');
       } catch (e) {
         _showSnackBar('Failed to delete: $e', isError: true);
@@ -979,7 +1007,8 @@ class _ModeratorBrgyOfficialsPageState
             if (value == 'edit') {
               _showOfficialDialog(existingDoc: doc);
             } else if (value == 'delete') {
-              _deleteOfficial(doc.id, title);
+              // PASS THE NAME INSTEAD OF TITLE SO LOG SAYS "Deleted Juan" instead of "Deleted Captain"
+              _deleteOfficial(doc.id, name);
             }
           },
           itemBuilder: (context) => [
