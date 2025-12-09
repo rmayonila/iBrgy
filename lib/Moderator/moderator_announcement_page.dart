@@ -138,7 +138,6 @@ class _ModeratorAnnouncementPageState extends State<ModeratorAnnouncementPage> {
   }
 
   // --- CRUD: IMPORTANT REMINDERS ---
-
   Future<void> _showAddReminderDialog({DocumentSnapshot? existingDoc}) async {
     final isEditing = existingDoc != null;
     final titleController = TextEditingController(
@@ -183,146 +182,177 @@ class _ModeratorAnnouncementPageState extends State<ModeratorAnnouncementPage> {
     await showDialog(
       context: context,
       useRootNavigator: false,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: Colors.white,
-        surfaceTintColor: Colors.white,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        titlePadding: const EdgeInsets.fromLTRB(24, 24, 24, 0),
-        contentPadding: const EdgeInsets.fromLTRB(24, 20, 24, 24),
-        actionsPadding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
-        title: Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: Colors.orange.shade50,
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Icon(
-                Icons.push_pin_rounded,
-                color: Colors.orange.shade800,
-                size: 28,
-              ),
-            ),
-            const SizedBox(width: 16),
-            Expanded(
-              child: Text(
-                isEditing ? 'Edit Reminder' : 'Add Reminder',
-                style: const TextStyle(
-                  color: Colors.black87,
-                  fontSize: 22,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ),
-          ],
-        ),
-        content: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
+      // GI-USAB NAKO DIRI: Gihimo nakong block { ... } imbes arrow =>
+      builder: (ctx) {
+        // ---------------------------------------------------------
+        // 1. INSERTED CODE BLOCK STARTS HERE
+        // ---------------------------------------------------------
+
+        // 1. Kuhaa ang width sa screen (para sa real device)
+        double screenWidth = MediaQuery.of(context).size.width;
+        double dialogWidth = kIsWeb ? 290 : screenWidth * 0.85;
+
+        // ---------------------------------------------------------
+        // INSERTED CODE BLOCK ENDS HERE
+        // ---------------------------------------------------------
+
+        return AlertDialog(
+          backgroundColor: Colors.white,
+          surfaceTintColor: Colors.white,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
+          titlePadding: const EdgeInsets.fromLTRB(24, 24, 24, 0),
+          contentPadding: const EdgeInsets.fromLTRB(24, 20, 24, 24),
+          actionsPadding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
+          title: Row(
             children: [
-              TextField(
-                controller: titleController,
-                style: const TextStyle(color: Colors.black87),
-                decoration: buildInputDecoration(
-                  label: 'Title',
-                  hint: 'e.g. Office Hours',
-                  icon: Icons.title_rounded,
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: Colors.orange.shade50,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Icon(
+                  Icons.push_pin_rounded,
+                  color: Colors.orange.shade800,
+                  size: 28,
                 ),
               ),
-              const SizedBox(height: 16),
-              TextField(
-                controller: contentController,
-                style: const TextStyle(color: Colors.black87),
-                maxLines: 4,
-                decoration: buildInputDecoration(
-                  label: 'Content',
-                  hint: 'Enter reminder details...',
-                  icon: Icons.description_outlined,
+              const SizedBox(width: 16),
+              Expanded(
+                child: Text(
+                  isEditing ? 'Edit Reminder' : 'Add Reminder',
+                  style: const TextStyle(
+                    color: Colors.black87,
+                    fontSize: 22,
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
               ),
             ],
           ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(),
-            style: TextButton.styleFrom(foregroundColor: Colors.grey.shade700),
-            child: const Text(
-              'Cancel',
-              style: TextStyle(fontWeight: FontWeight.w600),
+
+          // ---------------------------------------------------------
+          // 2. GI-APPLY ANG WIDTH SA CONTENT
+          // ---------------------------------------------------------
+          content: SizedBox(
+            width: dialogWidth, // <--- Gamita ang variable nga atong gi-compute
+
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  TextField(
+                    controller: titleController,
+                    style: const TextStyle(color: Colors.black87),
+                    decoration: buildInputDecoration(
+                      label: 'Title',
+                      hint: 'e.g. Office Hours',
+                      icon: Icons.title_rounded,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  TextField(
+                    controller: contentController,
+                    style: const TextStyle(color: Colors.black87),
+                    maxLines: 4,
+                    decoration: buildInputDecoration(
+                      label: 'Content',
+                      hint: 'Enter reminder details...',
+                      icon: Icons.description_outlined,
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
-          ElevatedButton.icon(
-            onPressed: () async {
-              final title = titleController.text.trim();
-              final content = contentController.text.trim();
 
-              if (title.isEmpty || content.isEmpty) {
-                _showSnackBar('Please fill all fields', Colors.red);
-                return;
-              }
+          // ---------------------------------------------------------
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(),
+              style: TextButton.styleFrom(
+                foregroundColor: Colors.grey.shade700,
+              ),
+              child: const Text(
+                'Cancel',
+                style: TextStyle(fontWeight: FontWeight.w600),
+              ),
+            ),
+            ElevatedButton.icon(
+              onPressed: () async {
+                final title = titleController.text.trim();
+                final content = contentController.text.trim();
 
-              Navigator.of(ctx).pop();
-
-              try {
-                await _ensureSignedIn();
-                if (isEditing) {
-                  await _db
-                      .collection('important_reminders')
-                      .doc(existingDoc!.id)
-                      .update({
-                        'title': title,
-                        'content': content,
-                        'updatedAt': FieldValue.serverTimestamp(),
-                      });
-
-                  // ▼▼▼ TRACKING: EDIT REMINDER (UPDATED WITH CONTEXT) ▼▼▼
-                  await ActivityService().logActivity(
-                    context, // <--- ADDED CONTEXT
-                    actionTitle: 'Edited Reminder',
-                    details: 'Edited reminder titled: $title',
-                  );
-                  // ▲▲▲ END TRACKING ▲▲▲
-
-                  _showSnackBar('Reminder Updated Successfully', Colors.green);
-                } else {
-                  await _db.collection('important_reminders').add({
-                    'title': title,
-                    'content': content,
-                    'createdAt': FieldValue.serverTimestamp(),
-                    'author': 'Admin',
-                  });
-
-                  // ▼▼▼ TRACKING: ADD REMINDER (UPDATED WITH CONTEXT) ▼▼▼
-                  await ActivityService().logActivity(
-                    context, // <--- ADDED CONTEXT
-                    actionTitle: 'Posted Reminder',
-                    details: 'Added new reminder: $title',
-                  );
-                  // ▲▲▲ END TRACKING ▲▲▲
-
-                  _showSnackBar('Reminder Added Successfully', Colors.green);
+                if (title.isEmpty || content.isEmpty) {
+                  _showSnackBar('Please fill all fields', Colors.red);
+                  return;
                 }
-              } catch (e) {
-                _showSnackBar('Error: $e', Colors.red);
-              }
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.orange.shade800,
-              foregroundColor: Colors.white,
-              elevation: 2,
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-              shape: const StadiumBorder(),
+
+                Navigator.of(ctx).pop();
+
+                try {
+                  await _ensureSignedIn();
+                  if (isEditing) {
+                    await _db
+                        .collection('important_reminders')
+                        .doc(existingDoc!.id)
+                        .update({
+                          'title': title,
+                          'content': content,
+                          'updatedAt': FieldValue.serverTimestamp(),
+                        });
+
+                    await ActivityService().logActivity(
+                      context,
+                      actionTitle: 'Edited Reminder',
+                      details: 'Edited reminder titled: $title',
+                    );
+
+                    _showSnackBar(
+                      'Reminder Updated Successfully',
+                      Colors.green,
+                    );
+                  } else {
+                    await _db.collection('important_reminders').add({
+                      'title': title,
+                      'content': content,
+                      'createdAt': FieldValue.serverTimestamp(),
+                      'author': 'Admin',
+                    });
+
+                    await ActivityService().logActivity(
+                      context,
+                      actionTitle: 'Posted Reminder',
+                      details: 'Added new reminder: $title',
+                    );
+
+                    _showSnackBar('Reminder Added Successfully', Colors.green);
+                  }
+                } catch (e) {
+                  _showSnackBar('Error: $e', Colors.red);
+                }
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.orange.shade800,
+                foregroundColor: Colors.white,
+                elevation: 2,
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 20,
+                  vertical: 12,
+                ),
+                shape: const StadiumBorder(),
+              ),
+              icon: const Icon(Icons.check, size: 18),
+              label: Text(
+                isEditing ? 'Update' : 'Post',
+                style: const TextStyle(fontWeight: FontWeight.bold),
+              ),
             ),
-            icon: const Icon(Icons.check, size: 18),
-            label: Text(
-              isEditing ? 'Update' : 'Post',
-              style: const TextStyle(fontWeight: FontWeight.bold),
-            ),
-          ),
-        ],
-      ),
+          ],
+        );
+      },
     );
   }
 
@@ -330,32 +360,34 @@ class _ModeratorAnnouncementPageState extends State<ModeratorAnnouncementPage> {
     final confirm = await showDialog<bool>(
       context: context,
       useRootNavigator: false,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: Colors.white,
-        surfaceTintColor: Colors.white,
-        title: const Text(
-          'Delete Reminder',
-          style: TextStyle(fontWeight: FontWeight.bold),
-        ),
-        content: const Text(
-          'Are you sure you want to delete this reminder?',
-          style: TextStyle(color: Colors.black87),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(false),
-            child: const Text('Cancel', style: TextStyle(color: Colors.grey)),
+      builder: (ctx) {
+        return AlertDialog(
+          backgroundColor: Colors.white,
+          surfaceTintColor: Colors.white,
+          title: const Text(
+            'Delete Reminder',
+            style: TextStyle(fontWeight: FontWeight.bold),
           ),
-          ElevatedButton(
-            onPressed: () => Navigator.of(ctx).pop(true),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.red,
-              foregroundColor: Colors.white,
+          content: const Text(
+            'Are you sure you want to delete this reminder?',
+            style: TextStyle(color: Colors.black87),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(false),
+              child: const Text('Cancel', style: TextStyle(color: Colors.grey)),
             ),
-            child: const Text('Delete'),
-          ),
-        ],
-      ),
+            ElevatedButton(
+              onPressed: () => Navigator.of(ctx).pop(true),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.red,
+                foregroundColor: Colors.white,
+              ),
+              child: const Text('Delete'),
+            ),
+          ],
+        );
+      },
     );
 
     if (confirm == true) {
@@ -418,241 +450,262 @@ class _ModeratorAnnouncementPageState extends State<ModeratorAnnouncementPage> {
     await showDialog(
       context: context,
       useRootNavigator: false,
-      builder: (ctx) => StatefulBuilder(
-        builder: (context, setDialogState) {
-          // Helper to show selected image
-          Widget buildImagePreview() {
-            ImageProvider? provider;
-            if (pickedImageFile != null) {
-              if (kIsWeb) {
-                provider = NetworkImage(pickedImageFile!.path);
-              } else {
-                provider = FileImage(File(pickedImageFile!.path));
+      builder: (ctx) {
+        // ---------------------------------------------------------
+        // 1. INSERTED CODE BLOCK: CALCULATE WIDTH
+        // ---------------------------------------------------------
+        double screenWidth = MediaQuery.of(context).size.width;
+        double dialogWidth = kIsWeb ? 290 : screenWidth * 0.85;
+        // ---------------------------------------------------------
+
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            // Helper to show selected image
+            Widget buildImagePreview() {
+              ImageProvider? provider;
+              if (pickedImageFile != null) {
+                if (kIsWeb) {
+                  provider = NetworkImage(pickedImageFile!.path);
+                } else {
+                  provider = FileImage(File(pickedImageFile!.path));
+                }
+              } else if (currentImageBase64 != null &&
+                  currentImageBase64!.isNotEmpty) {
+                try {
+                  provider = MemoryImage(base64Decode(currentImageBase64!));
+                } catch (e) {
+                  // ignore error
+                }
               }
-            } else if (currentImageBase64 != null &&
-                currentImageBase64!.isNotEmpty) {
-              try {
-                provider = MemoryImage(base64Decode(currentImageBase64!));
-              } catch (e) {
-                // ignore error
+
+              if (provider != null) {
+                return Stack(
+                  children: [
+                    Container(
+                      height: 150,
+                      width: double.infinity,
+                      margin: const EdgeInsets.only(bottom: 16),
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: Colors.grey.shade300),
+                        image: DecorationImage(
+                          image: provider,
+                          fit: BoxFit.cover,
+                        ),
+                      ),
+                    ),
+                    Positioned(
+                      top: 8,
+                      right: 8,
+                      child: GestureDetector(
+                        onTap: () {
+                          setDialogState(() {
+                            pickedImageFile = null;
+                            currentImageBase64 = null;
+                          });
+                        },
+                        child: Container(
+                          padding: const EdgeInsets.all(4),
+                          decoration: const BoxDecoration(
+                            color: Colors.black54,
+                            shape: BoxShape.circle,
+                          ),
+                          child: const Icon(
+                            Icons.close,
+                            color: Colors.white,
+                            size: 16,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                );
               }
+              return const SizedBox.shrink();
             }
 
-            if (provider != null) {
-              return Stack(
+            return AlertDialog(
+              backgroundColor: Colors.white,
+              surfaceTintColor: Colors.white,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(20),
+              ),
+              title: Row(
                 children: [
                   Container(
-                    height: 150,
-                    width: double.infinity,
-                    margin: const EdgeInsets.only(bottom: 16),
+                    padding: const EdgeInsets.all(8),
                     decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: Colors.grey.shade300),
-                      image: DecorationImage(
-                        image: provider,
-                        fit: BoxFit.cover,
-                      ),
+                      color: Colors.blue.shade50,
+                      borderRadius: BorderRadius.circular(8),
                     ),
-                  ),
-                  Positioned(
-                    top: 8,
-                    right: 8,
-                    child: GestureDetector(
-                      onTap: () {
-                        setDialogState(() {
-                          pickedImageFile = null;
-                          currentImageBase64 = null;
-                        });
-                      },
-                      child: Container(
-                        padding: const EdgeInsets.all(4),
-                        decoration: const BoxDecoration(
-                          color: Colors.black54,
-                          shape: BoxShape.circle,
-                        ),
-                        child: const Icon(
-                          Icons.close,
-                          color: Colors.white,
-                          size: 16,
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
-              );
-            }
-            return const SizedBox.shrink();
-          }
-
-          return AlertDialog(
-            backgroundColor: Colors.white,
-            surfaceTintColor: Colors.white,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(20),
-            ),
-            title: Row(
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: Colors.blue.shade50,
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Icon(
-                    isEditing ? Icons.edit_rounded : Icons.campaign_rounded,
-                    color: Colors.blue,
-                    size: 28,
-                  ),
-                ),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: Text(
-                    isEditing ? 'Edit Update' : 'Create Update',
-                    style: const TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 20,
-                      color: Colors.black87,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            content: SingleChildScrollView(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  buildImagePreview(),
-                  TextField(
-                    controller: contentController,
-                    maxLines: 5,
-                    style: const TextStyle(fontSize: 15, color: Colors.black87),
-                    decoration: buildBlueDecoration(
-                      label: 'Content',
-                      hint: "What's happening in the barangay?",
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            actions: [
-              Row(
-                children: [
-                  IconButton(
-                    onPressed: () async {
-                      final XFile? image = await _picker.pickImage(
-                        source: ImageSource.gallery,
-                        imageQuality: 50,
-                        maxWidth: 600,
-                      );
-                      if (image != null) {
-                        setDialogState(() {
-                          pickedImageFile = image;
-                        });
-                      }
-                    },
-                    icon: const Icon(
-                      Icons.add_photo_alternate_rounded,
+                    child: Icon(
+                      isEditing ? Icons.edit_rounded : Icons.campaign_rounded,
                       color: Colors.blue,
                       size: 28,
                     ),
-                    tooltip: 'Add Photo',
                   ),
-                  const Spacer(),
-                  TextButton(
-                    onPressed: () => Navigator.of(ctx).pop(),
-                    style: TextButton.styleFrom(foregroundColor: Colors.grey),
-                    child: const Text(
-                      'Cancel',
-                      style: TextStyle(fontWeight: FontWeight.bold),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  ElevatedButton(
-                    onPressed: () async {
-                      final content = contentController.text.trim();
-                      if (content.isEmpty &&
-                          pickedImageFile == null &&
-                          currentImageBase64 == null) {
-                        return;
-                      }
-
-                      Navigator.of(ctx).pop();
-
-                      try {
-                        await _ensureSignedIn();
-
-                        String finalImageString = currentImageBase64 ?? '';
-                        if (pickedImageFile != null) {
-                          finalImageString = await _imageToBase64(
-                            pickedImageFile!,
-                          );
-                        }
-
-                        if (isEditing) {
-                          await _db
-                              .collection('announcements')
-                              .doc(existingDoc!.id)
-                              .update({
-                                'content': content,
-                                'imageUrl': finalImageString,
-                                'updatedAt': FieldValue.serverTimestamp(),
-                              });
-
-                          // ▼▼▼ TRACKING: EDIT ANNOUNCEMENT (UPDATED WITH CONTEXT) ▼▼▼
-                          await ActivityService().logActivity(
-                            context, // <--- ADDED CONTEXT
-                            actionTitle: 'Edited Announcement',
-                            details:
-                                'Updated content of announcement ID: ${existingDoc.id}',
-                          );
-                          // ▲▲▲ END TRACKING ▲▲▲
-
-                          _showSnackBar(
-                            'Update Edited Successfully',
-                            Colors.green,
-                          );
-                        } else {
-                          await _db.collection('announcements').add({
-                            'author': 'Barangay Office',
-                            'content': content,
-                            'imageUrl': finalImageString,
-                            'createdAt': FieldValue.serverTimestamp(),
-                          });
-
-                          // ▼▼▼ TRACKING: ADD ANNOUNCEMENT (UPDATED WITH CONTEXT) ▼▼▼
-                          await ActivityService().logActivity(
-                            context, // <--- ADDED CONTEXT
-                            actionTitle: 'Posted Announcement',
-                            details: 'Posted new announcement: $content',
-                          );
-                          // ▲▲▲ END TRACKING ▲▲▲
-
-                          _showSnackBar('Posted Successfully', Colors.green);
-                        }
-                      } catch (e) {
-                        _showSnackBar('Error posting update', Colors.red);
-                      }
-                    },
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.blue,
-                      foregroundColor: Colors.white,
-                      shape: const StadiumBorder(),
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 20,
-                        vertical: 10,
-                      ),
-                    ),
+                  const SizedBox(width: 16),
+                  Expanded(
                     child: Text(
-                      isEditing ? 'Save' : 'Post',
-                      style: const TextStyle(fontWeight: FontWeight.bold),
+                      isEditing ? 'Edit Update' : 'Create Update',
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 20,
+                        color: Colors.black87,
+                      ),
                     ),
                   ),
                 ],
               ),
-            ],
-          );
-        },
-      ),
+
+              // ---------------------------------------------------------
+              // 2. GI-APPLY ANG WIDTH SA CONTENT
+              // ---------------------------------------------------------
+              content: SizedBox(
+                width: dialogWidth, // <--- Apply the calculated width here
+                child: SingleChildScrollView(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      buildImagePreview(),
+                      TextField(
+                        controller: contentController,
+                        maxLines: 5,
+                        style: const TextStyle(
+                          fontSize: 15,
+                          color: Colors.black87,
+                        ),
+                        decoration: buildBlueDecoration(
+                          label: 'Content',
+                          hint: "What's happening in the barangay?",
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+
+              // ---------------------------------------------------------
+              actions: [
+                Row(
+                  children: [
+                    IconButton(
+                      onPressed: () async {
+                        final XFile? image = await _picker.pickImage(
+                          source: ImageSource.gallery,
+                          imageQuality: 50,
+                          maxWidth: 600,
+                        );
+                        if (image != null) {
+                          setDialogState(() {
+                            pickedImageFile = image;
+                          });
+                        }
+                      },
+                      icon: const Icon(
+                        Icons.add_photo_alternate_rounded,
+                        color: Colors.blue,
+                        size: 28,
+                      ),
+                      tooltip: 'Add Photo',
+                    ),
+                    const Spacer(),
+                    TextButton(
+                      onPressed: () => Navigator.of(ctx).pop(),
+                      style: TextButton.styleFrom(foregroundColor: Colors.grey),
+                      child: const Text(
+                        'Cancel',
+                        style: TextStyle(fontWeight: FontWeight.bold),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    ElevatedButton(
+                      onPressed: () async {
+                        final content = contentController.text.trim();
+                        if (content.isEmpty &&
+                            pickedImageFile == null &&
+                            currentImageBase64 == null) {
+                          return;
+                        }
+
+                        Navigator.of(ctx).pop();
+
+                        try {
+                          await _ensureSignedIn();
+
+                          String finalImageString = currentImageBase64 ?? '';
+                          if (pickedImageFile != null) {
+                            finalImageString = await _imageToBase64(
+                              pickedImageFile!,
+                            );
+                          }
+
+                          if (isEditing) {
+                            await _db
+                                .collection('announcements')
+                                .doc(existingDoc!.id)
+                                .update({
+                                  'content': content,
+                                  'imageUrl': finalImageString,
+                                  'updatedAt': FieldValue.serverTimestamp(),
+                                });
+
+                            // ▼▼▼ TRACKING: EDIT ANNOUNCEMENT (UPDATED WITH CONTEXT) ▼▼▼
+                            await ActivityService().logActivity(
+                              context, // <--- ADDED CONTEXT
+                              actionTitle: 'Edited Announcement',
+                              details:
+                                  'Updated content of announcement ID: ${existingDoc.id}',
+                            );
+                            // ▲▲▲ END TRACKING ▲▲▲
+
+                            _showSnackBar(
+                              'Update Edited Successfully',
+                              Colors.green,
+                            );
+                          } else {
+                            await _db.collection('announcements').add({
+                              'author': 'Barangay Office',
+                              'content': content,
+                              'imageUrl': finalImageString,
+                              'createdAt': FieldValue.serverTimestamp(),
+                            });
+
+                            // ▼▼▼ TRACKING: ADD ANNOUNCEMENT (UPDATED WITH CONTEXT) ▼▼▼
+                            await ActivityService().logActivity(
+                              context, // <--- ADDED CONTEXT
+                              actionTitle: 'Posted Announcement',
+                              details: 'Posted new announcement: $content',
+                            );
+                            // ▲▲▲ END TRACKING ▲▲▲
+
+                            _showSnackBar('Posted Successfully', Colors.green);
+                          }
+                        } catch (e) {
+                          _showSnackBar('Error posting update', Colors.red);
+                        }
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.blue,
+                        foregroundColor: Colors.white,
+                        shape: const StadiumBorder(),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 20,
+                          vertical: 10,
+                        ),
+                      ),
+                      child: Text(
+                        isEditing ? 'Save' : 'Post',
+                        style: const TextStyle(fontWeight: FontWeight.bold),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            );
+          },
+        );
+      },
     );
   }
 
@@ -1260,47 +1313,6 @@ class _ModeratorAnnouncementPageState extends State<ModeratorAnnouncementPage> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      // ▼▼▼ PASTE TEST BUTTON HERE (IF YOU STILL WANT TO TEST) ▼▼▼
-                      ElevatedButton(
-                        onPressed: () async {
-                          try {
-                            print("Attempting to write to test_db...");
-                            await FirebaseFirestore.instance
-                                .collection('test_db')
-                                .add({
-                                  'message': 'Hello from App',
-                                  'timestamp': FieldValue.serverTimestamp(),
-                                });
-                            print("SUCCESS! Data written.");
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                content: Text(
-                                  "Test Write SUCCESS! Rules are working.",
-                                ),
-                              ),
-                            );
-                          } catch (e) {
-                            print("FAIL: $e");
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(
-                                content: Text("Test Write FAILED: $e"),
-                                backgroundColor: Colors.red,
-                              ),
-                            );
-                          }
-                        },
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.green,
-                          foregroundColor: Colors.white,
-                          padding: const EdgeInsets.all(
-                            20,
-                          ), // Big padding to make it huge
-                        ),
-                        child: const Text("TEST DATABASE CONNECTION"),
-                      ),
-                      const SizedBox(height: 20),
-                      // ▲▲▲ END TEST BUTTON ▲▲▲
-
                       // --- SEARCH BAR ---
                       Container(
                         decoration: BoxDecoration(

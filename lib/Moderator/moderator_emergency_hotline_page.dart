@@ -2,12 +2,11 @@
 import 'package:flutter/foundation.dart'; // For web check
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'moderator_nav.dart';
 
-// ▼▼▼ CHANGED: Imported the correct service ▼▼▼
+// ▼▼▼ IMPORT THE SERVICE HERE ▼▼▼
 import '../services/activity_service.dart';
-// ▲▲▲ END CHANGE ▲▲▲
+// ▲▲▲ END IMPORT ▲▲▲
 
 class ModeratorEmergencyHotlinePage extends StatefulWidget {
   const ModeratorEmergencyHotlinePage({super.key});
@@ -21,7 +20,6 @@ class _ModeratorEmergencyHotlinePageState
     extends State<ModeratorEmergencyHotlinePage> {
   int _selectedIndex = 1;
   final FirebaseFirestore _db = FirebaseFirestore.instance;
-  final FirebaseAuth _auth = FirebaseAuth.instance;
   final TextEditingController _searchController = TextEditingController();
   String _searchQuery = '';
 
@@ -42,39 +40,19 @@ class _ModeratorEmergencyHotlinePageState
   }
 
   IconData _getIconForType(String type) {
-    switch (type.toLowerCase()) {
-      case 'police':
-        return Icons.local_police_rounded;
-      case 'hospital':
-      case 'ambulance':
-        return Icons.medical_services_rounded;
-      case 'fire':
-        return Icons.local_fire_department_rounded;
-      case 'disaster':
+    switch (type) {
+      case 'national':
         return Icons.warning_amber_rounded;
+      case 'local':
+        return Icons.medical_services_outlined;
+      case 'barangay':
+        return Icons.local_police_outlined;
       default:
-        return Icons.phone_in_talk_rounded;
-    }
-  }
-
-  Color _getColorForType(String type) {
-    switch (type.toLowerCase()) {
-      case 'police':
-        return Colors.blue.shade700;
-      case 'hospital':
-      case 'ambulance':
-        return Colors.red.shade600;
-      case 'fire':
-        return Colors.orange.shade700;
-      case 'disaster':
-        return Colors.amber.shade800;
-      default:
-        return Colors.grey.shade700;
+        return Icons.call_rounded;
     }
   }
 
   void _onItemTapped(int index) {
-    // Navigate using the centralized logic
     navigateModeratorIndex(
       context,
       index,
@@ -83,52 +61,72 @@ class _ModeratorEmergencyHotlinePageState
     );
   }
 
-  Future<void> _ensureSignedIn() async {
-    try {
-      if (_auth.currentUser == null) {
-        await _auth.signInAnonymously();
-      }
-    } catch (e) {
-      // ignore sign-in errors
-    }
+  void _updateSearch(String query) {
+    setState(() {
+      _searchQuery = query.toLowerCase();
+    });
   }
 
-  // --- HELPER: SHOW SNACKBAR INSIDE FRAME ---
-  void _showSnackBar(String message, {bool isError = false}) {
+  // --- HELPER: Show Snackbar inside Frame ---
+  void _showSnackBar(String message, Color color) {
     _scaffoldMessengerKey.currentState?.showSnackBar(
       SnackBar(
-        content: Text(
-          message,
-          style: const TextStyle(fontWeight: FontWeight.bold),
-        ),
-        backgroundColor: isError ? Colors.red : Colors.green,
+        content: Text(message, style: const TextStyle(color: Colors.white)),
+        backgroundColor: color,
         behavior: SnackBarBehavior.floating,
         margin: const EdgeInsets.all(16),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
       ),
     );
   }
 
-  // --- ADD / EDIT DIALOG ---
-  Future<void> _showAddEditDialog({DocumentSnapshot? existingDoc}) async {
-    final isEditing = existingDoc != null;
-    final data = isEditing ? existingDoc.data() as Map<String, dynamic> : {};
+  // --- DIALOG WIDGETS ---
 
-    final nameController = TextEditingController(text: data['name'] ?? '');
-    final numberController = TextEditingController(text: data['number'] ?? '');
-    String selectedType = data['type'] ?? 'Police';
+  Widget _buildDialogTitle(IconData icon, String title, MaterialColor color) {
+    return Row(
+      children: [
+        Container(
+          padding: const EdgeInsets.all(8),
+          decoration: BoxDecoration(
+            color: color.shade50,
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Icon(icon, color: color.shade700, size: 28),
+        ),
+        const SizedBox(width: 16),
+        Text(
+          title,
+          style: const TextStyle(
+            color: Colors.black87,
+            fontSize: 22,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+      ],
+    );
+  }
 
-    final types = ['Police', 'Fire', 'Hospital', 'Disaster', 'Other'];
-
-    InputDecoration buildDecoration(String label, IconData icon) {
-      return InputDecoration(
+  Widget _buildTextField({
+    required TextEditingController controller,
+    required String label,
+    IconData? icon,
+    TextInputType inputType = TextInputType.text,
+  }) {
+    return TextField(
+      controller: controller,
+      style: const TextStyle(color: Colors.black87),
+      keyboardType: inputType,
+      decoration: InputDecoration(
         labelText: label,
-        prefixIcon: Icon(icon, color: Colors.blue.shade700),
         filled: true,
         fillColor: Colors.grey.shade50,
+        prefixIcon: icon != null
+            ? Icon(icon, color: Colors.blue.shade700)
+            : null,
+        labelStyle: TextStyle(color: Colors.grey.shade700),
         contentPadding: const EdgeInsets.symmetric(
-          horizontal: 16,
-          vertical: 12,
+          vertical: 16,
+          horizontal: 20,
         ),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
@@ -142,199 +140,403 @@ class _ModeratorEmergencyHotlinePageState
           borderRadius: BorderRadius.circular(12),
           borderSide: BorderSide(color: Colors.blue.shade700, width: 2),
         ),
-      );
-    }
-
-    await showDialog(
-      context: context,
-      useRootNavigator: false, // Ensures dialog stays in phone frame
-      builder: (ctx) => StatefulBuilder(
-        builder: (context, setDialogState) {
-          return AlertDialog(
-            backgroundColor: Colors.white,
-            surfaceTintColor: Colors.white,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(20),
-            ),
-            title: Row(
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: Colors.blue.shade50,
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Icon(
-                    isEditing ? Icons.edit_rounded : Icons.add_call,
-                    color: Colors.blue.shade700,
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Text(
-                  isEditing ? 'Edit Hotline' : 'Add Hotline',
-                  style: const TextStyle(
-                    fontWeight: FontWeight.bold,
-                    fontSize: 20,
-                  ),
-                ),
-              ],
-            ),
-            content: SingleChildScrollView(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  TextField(
-                    controller: nameController,
-                    style: const TextStyle(color: Colors.black87),
-                    decoration: buildDecoration(
-                      'Name (e.g., Police Station)',
-                      Icons.business_rounded,
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  TextField(
-                    controller: numberController,
-                    keyboardType: TextInputType.phone,
-                    style: const TextStyle(color: Colors.black87),
-                    decoration: buildDecoration(
-                      'Phone Number',
-                      Icons.phone_rounded,
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  DropdownButtonFormField<String>(
-                    value: selectedType,
-                    style: const TextStyle(color: Colors.black87, fontSize: 16),
-                    dropdownColor: Colors.white,
-                    decoration: buildDecoration(
-                      'Category',
-                      Icons.category_rounded,
-                    ),
-                    items: types
-                        .map((t) => DropdownMenuItem(value: t, child: Text(t)))
-                        .toList(),
-                    onChanged: (val) {
-                      if (val != null) {
-                        setDialogState(() => selectedType = val);
-                      }
-                    },
-                  ),
-                ],
-              ),
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.of(ctx).pop(),
-                child: Text(
-                  'Cancel',
-                  style: TextStyle(color: Colors.grey.shade600),
-                ),
-              ),
-              ElevatedButton(
-                onPressed: () async {
-                  final name = nameController.text.trim();
-                  final number = numberController.text.trim();
-
-                  if (name.isEmpty || number.isEmpty) {
-                    _showSnackBar('Please fill all fields', isError: true);
-                    return;
-                  }
-
-                  Navigator.of(ctx).pop();
-
-                  try {
-                    await _ensureSignedIn();
-                    if (isEditing) {
-                      await _db
-                          .collection('hotlines')
-                          .doc(existingDoc!.id)
-                          .update({
-                            'name': name,
-                            'number': number,
-                            'type': selectedType,
-                            'updatedAt': FieldValue.serverTimestamp(),
-                          });
-
-                      // ▼▼▼ TRACKING: EDIT HOTLINE ▼▼▼
-                      await ActivityService().logActivity(
-                        context,
-                        actionTitle: 'Edited Hotline',
-                        details: 'Updated hotline: $name',
-                      );
-                      // ▲▲▲ END TRACKING ▲▲▲
-
-                      _showSnackBar('Hotline updated successfully');
-                    } else {
-                      await _db.collection('hotlines').add({
-                        'name': name,
-                        'number': number,
-                        'type': selectedType,
-                        'createdAt': FieldValue.serverTimestamp(),
-                      });
-
-                      // ▼▼▼ TRACKING: ADD HOTLINE ▼▼▼
-                      await ActivityService().logActivity(
-                        context,
-                        actionTitle: 'Added Hotline',
-                        details: 'Added hotline: $name ($number)',
-                      );
-                      // ▲▲▲ END TRACKING ▲▲▲
-
-                      _showSnackBar('Hotline added successfully');
-                    }
-                  } catch (e) {
-                    _showSnackBar('Error: $e', isError: true);
-                  }
-                },
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.blue.shade700,
-                  foregroundColor: Colors.white,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                ),
-                child: Text(isEditing ? 'Save' : 'Add'),
-              ),
-            ],
-          );
-        },
       ),
     );
   }
 
-  // --- DELETE DIALOG ---
-  Future<void> _deleteHotline(String docId, String name) async {
-    final confirm = await showDialog<bool>(
+  // --- ADD HOTLINE ---
+
+  Future<void> _showAddHotlineDialog({String? presetType}) async {
+    final nameController = TextEditingController();
+    final numberController = TextEditingController();
+    String selectedType = presetType ?? 'national';
+    bool isUrgent = false;
+
+    await showDialog(
+      context: context,
+      useRootNavigator: false,
+      builder: (ctx) {
+        // Calculate width inside the showDialog builder
+        double screenWidth = MediaQuery.of(context).size.width;
+        double dialogWidth = kIsWeb ? 290 : screenWidth * 0.85;
+
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return AlertDialog(
+              backgroundColor: Colors.white,
+              surfaceTintColor: Colors.white,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(20),
+              ),
+              title: _buildDialogTitle(
+                Icons.add_call,
+                'Add Hotline',
+                Colors.blue,
+              ),
+              content: SizedBox(
+                width: dialogWidth,
+                child: SingleChildScrollView(
+                  child: Padding(
+                    padding: EdgeInsets.only(
+                      bottom: MediaQuery.of(ctx).viewInsets.bottom,
+                    ),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        _buildTextField(
+                          controller: nameController,
+                          label: 'Name / Service',
+                          icon: Icons.label_outline,
+                        ),
+                        const SizedBox(height: 12),
+                        _buildTextField(
+                          controller: numberController,
+                          label: 'Phone Number',
+                          icon: Icons.phone_outlined,
+                          inputType: TextInputType.phone,
+                        ),
+                        const SizedBox(height: 16),
+                        const Text(
+                          'Hotline Type:',
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 14,
+                            color: Colors.black87,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Wrap(
+                          spacing: 8,
+                          children: ['national', 'local', 'barangay'].map((
+                            type,
+                          ) {
+                            final isSelected = selectedType == type;
+                            return ChoiceChip(
+                              label: Text(
+                                type[0].toUpperCase() + type.substring(1),
+                                style: TextStyle(
+                                  color: isSelected
+                                      ? Colors.white
+                                      : Colors.black87,
+                                ),
+                              ),
+                              selected: isSelected,
+                              selectedColor: Colors.blue,
+                              backgroundColor: Colors.grey.shade100,
+                              onSelected: (selected) {
+                                setDialogState(() {
+                                  selectedType = type;
+                                });
+                              },
+                            );
+                          }).toList(),
+                        ),
+                        const SizedBox(height: 12),
+                        Row(
+                          children: [
+                            Checkbox(
+                              value: isUrgent,
+                              activeColor: Colors.red,
+                              onChanged: (value) {
+                                setDialogState(() {
+                                  isUrgent = value ?? false;
+                                });
+                              },
+                            ),
+                            const Text(
+                              'Mark as urgent',
+                              style: TextStyle(color: Colors.black87),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(ctx).pop(),
+                  child: const Text(
+                    'Cancel',
+                    style: TextStyle(color: Colors.grey),
+                  ),
+                ),
+                ElevatedButton(
+                  onPressed: () async {
+                    if (nameController.text.isEmpty ||
+                        numberController.text.isEmpty) {
+                      return;
+                    }
+                    await _addHotline(
+                      nameController.text,
+                      numberController.text,
+                      selectedType,
+                      isUrgent,
+                    );
+                    if (mounted) {
+                      Navigator.of(ctx).pop();
+                    }
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.blue,
+                    foregroundColor: Colors.white,
+                  ),
+                  child: const Text('Save'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Future<void> _addHotline(
+    String name,
+    String number,
+    String type,
+    bool isUrgent,
+  ) async {
+    try {
+      await _db.collection('hotlines').add({
+        'name': name.trim(),
+        'number': number.trim(),
+        'type': type,
+        'isUrgent': isUrgent,
+        'createdAt': FieldValue.serverTimestamp(),
+      });
+      _showSnackBar('Hotline Added Successfully', Colors.green);
+
+      // ▼▼▼ TRACKING: ADD HOTLINE ▼▼▼
+      if (mounted) {
+        await ActivityService().logActivity(
+          context,
+          actionTitle: 'Added Hotline',
+          details: 'Added hotline: $name ($number)',
+        );
+      }
+      // ▲▲▲ END TRACKING ▲▲▲
+    } catch (e) {
+      _showSnackBar('Failed to add hotline: $e', Colors.red);
+    }
+  }
+
+  // --- EDIT HOTLINE ---
+
+  Future<void> _showEditHotlineDialog(Map<String, dynamic> hotline) async {
+    final nameController = TextEditingController(text: hotline['name']);
+    final numberController = TextEditingController(text: hotline['number']);
+    String selectedType = hotline['type'] ?? 'national';
+    bool isUrgent = hotline['isUrgent'] == true;
+    final hotlineId = hotline['id'];
+
+    await showDialog(
+      context: context,
+      useRootNavigator: false,
+      builder: (ctx) {
+        // 1. Kuhaa ang width sa screen ug i-calculate ang dialog width
+        double screenWidth = MediaQuery.of(context).size.width;
+        // Note: Make sure na-import nimo ang 'package:flutter/foundation.dart' para sa kIsWeb
+        double dialogWidth = kIsWeb ? 300 : screenWidth * 0.85;
+
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return AlertDialog(
+              backgroundColor: Colors.white,
+              surfaceTintColor: Colors.white,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(20),
+              ),
+              title: _buildDialogTitle(
+                Icons.edit_rounded,
+                'Edit Hotline',
+                Colors.orange,
+              ),
+              // 2. Gamita ang dialogWidth diri sa SizedBox
+              content: SizedBox(
+                width: dialogWidth,
+                child: SingleChildScrollView(
+                  child: Padding(
+                    padding: EdgeInsets.only(
+                      bottom: MediaQuery.of(ctx).viewInsets.bottom,
+                    ),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        _buildTextField(
+                          controller: nameController,
+                          label: 'Name / Service',
+                          icon: Icons.label_outline,
+                        ),
+                        const SizedBox(height: 12),
+                        _buildTextField(
+                          controller: numberController,
+                          label: 'Phone Number',
+                          icon: Icons.phone_outlined,
+                          inputType: TextInputType.phone,
+                        ),
+                        const SizedBox(height: 16),
+                        const Text(
+                          'Hotline Type:',
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 14,
+                            color: Colors.black87,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Wrap(
+                          spacing: 8,
+                          children: ['national', 'local', 'barangay'].map((
+                            type,
+                          ) {
+                            final isSelected = selectedType == type;
+                            return ChoiceChip(
+                              label: Text(
+                                type[0].toUpperCase() + type.substring(1),
+                                style: TextStyle(
+                                  color: isSelected
+                                      ? Colors.white
+                                      : Colors.black87,
+                                ),
+                              ),
+                              selected: isSelected,
+                              selectedColor: Colors.orange,
+                              backgroundColor: Colors.grey.shade100,
+                              onSelected: (selected) {
+                                setDialogState(() {
+                                  selectedType = type;
+                                });
+                              },
+                            );
+                          }).toList(),
+                        ),
+                        const SizedBox(height: 12),
+                        Row(
+                          children: [
+                            Checkbox(
+                              value: isUrgent,
+                              activeColor: Colors.red,
+                              onChanged: (value) {
+                                setDialogState(() {
+                                  isUrgent = value ?? false;
+                                });
+                              },
+                            ),
+                            const Text(
+                              'Mark as urgent',
+                              style: TextStyle(color: Colors.black87),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(ctx).pop(),
+                  child: const Text(
+                    'Cancel',
+                    style: TextStyle(color: Colors.grey),
+                  ),
+                ),
+                ElevatedButton(
+                  onPressed: () async {
+                    if (nameController.text.isEmpty ||
+                        numberController.text.isEmpty) {
+                      return;
+                    }
+                    await _updateHotline(
+                      hotlineId,
+                      nameController.text,
+                      numberController.text,
+                      selectedType,
+                      isUrgent,
+                    );
+                    if (mounted) {
+                      Navigator.of(ctx).pop();
+                    }
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.orange,
+                    foregroundColor: Colors.white,
+                  ),
+                  child: const Text('Update'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Future<void> _updateHotline(
+    String id,
+    String name,
+    String number,
+    String type,
+    bool isUrgent,
+  ) async {
+    try {
+      await _db.collection('hotlines').doc(id).update({
+        'name': name.trim(),
+        'number': number.trim(),
+        'type': type,
+        'isUrgent': isUrgent,
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+      _showSnackBar('Hotline Updated Successfully', Colors.green);
+
+      // ▼▼▼ TRACKING: EDIT HOTLINE ▼▼▼
+      if (mounted) {
+        await ActivityService().logActivity(
+          context,
+          actionTitle: 'Edited Hotline',
+          details: 'Updated hotline: $name',
+        );
+      }
+      // ▲▲▲ END TRACKING ▲▲▲
+    } catch (e) {
+      _showSnackBar('Failed to update: $e', Colors.red);
+    }
+  }
+
+  // --- DELETE HOTLINE ---
+
+  Future<void> _deleteHotline(Map<String, dynamic> hotline) async {
+    final id = hotline['id'];
+
+    final confirmDelete = await showDialog<bool>(
       context: context,
       useRootNavigator: false,
       builder: (ctx) => AlertDialog(
         backgroundColor: Colors.white,
         surfaceTintColor: Colors.white,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         title: const Text(
-          'Delete Hotline',
+          'Confirm Deletion',
           style: TextStyle(fontWeight: FontWeight.bold),
         ),
         content: Text(
-          'Are you sure you want to delete "$name"?',
+          'Are you sure you want to delete "${hotline['name']}"?',
           style: const TextStyle(color: Colors.black87),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(false),
-            child: Text(
-              'Cancel',
-              style: TextStyle(color: Colors.grey.shade600),
-            ),
+            child: const Text('Cancel', style: TextStyle(color: Colors.grey)),
           ),
           ElevatedButton(
             onPressed: () => Navigator.of(ctx).pop(true),
             style: ElevatedButton.styleFrom(
               backgroundColor: Colors.red,
               foregroundColor: Colors.white,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(8),
-              ),
             ),
             child: const Text('Delete'),
           ),
@@ -342,26 +544,27 @@ class _ModeratorEmergencyHotlinePageState
       ),
     );
 
-    if (confirm == true) {
+    if (confirmDelete == true && id != null) {
       try {
-        await _db.collection('hotlines').doc(docId).delete();
+        await _db.collection('hotlines').doc(id).delete();
+        _showSnackBar('Hotline Deleted', Colors.red);
 
         // ▼▼▼ TRACKING: DELETE HOTLINE ▼▼▼
-        await ActivityService().logActivity(
-          context,
-          actionTitle: 'Deleted Hotline',
-          details: 'Deleted hotline: $name',
-        );
+        if (mounted) {
+          await ActivityService().logActivity(
+            context,
+            actionTitle: 'Deleted Hotline',
+            details: 'Deleted hotline: ${hotline['name']}',
+          );
+        }
         // ▲▲▲ END TRACKING ▲▲▲
-
-        _showSnackBar('Hotline deleted successfully');
       } catch (e) {
-        _showSnackBar('Error deleting: $e', isError: true);
+        _showSnackBar('Failed to delete: $e', Colors.red);
       }
     }
   }
 
-  // --- WIDGETS ---
+  // --- WIDGET BUILDERS ---
 
   Widget _buildHeader() {
     return Container(
@@ -373,7 +576,7 @@ class _ModeratorEmergencyHotlinePageState
         ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05), // Fixed Opacity
+            color: Colors.black.withOpacity(0.05),
             blurRadius: 15,
             offset: const Offset(0, 5),
           ),
@@ -389,7 +592,7 @@ class _ModeratorEmergencyHotlinePageState
               shape: BoxShape.circle,
             ),
             child: Icon(
-              Icons.emergency_rounded,
+              Icons.phone_in_talk_rounded,
               color: Colors.red.shade400,
               size: 24,
             ),
@@ -424,65 +627,6 @@ class _ModeratorEmergencyHotlinePageState
     );
   }
 
-  Widget _buildEmergencyBanner() {
-    return Container(
-      width: double.infinity,
-      margin: const EdgeInsets.only(bottom: 24),
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [Colors.red.shade600, Colors.red.shade400],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.red.withOpacity(0.3), // Fixed Opacity
-            blurRadius: 10,
-            offset: const Offset(0, 5),
-          ),
-        ],
-      ),
-      child: Row(
-        children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  "Emergency Hotlines",
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 20,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  "Manage critical contact numbers for barangay emergencies.",
-                  style: TextStyle(color: Colors.red.shade50, fontSize: 13),
-                ),
-              ],
-            ),
-          ),
-          Container(
-            padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.2),
-              shape: BoxShape.circle,
-            ),
-            child: const Icon(
-              Icons.phone_in_talk_rounded,
-              color: Colors.white,
-              size: 28,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
   Widget _buildSearchBar() {
     return Container(
       decoration: BoxDecoration(
@@ -490,7 +634,7 @@ class _ModeratorEmergencyHotlinePageState
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.03), // Fixed Opacity
+            color: Colors.black.withOpacity(0.03),
             blurRadius: 10,
             offset: const Offset(0, 4),
           ),
@@ -498,11 +642,10 @@ class _ModeratorEmergencyHotlinePageState
       ),
       child: TextField(
         controller: _searchController,
-        onChanged: (value) =>
-            setState(() => _searchQuery = value.toLowerCase()),
-        style: const TextStyle(color: Colors.black87),
+        onChanged: _updateSearch,
+        style: const TextStyle(color: Colors.black),
         decoration: InputDecoration(
-          hintText: "Search hotlines...",
+          hintText: "Search hotline...",
           hintStyle: TextStyle(color: Colors.grey.shade400, fontSize: 14),
           prefixIcon: Icon(Icons.search, color: Colors.grey.shade400),
           border: InputBorder.none,
@@ -515,77 +658,166 @@ class _ModeratorEmergencyHotlinePageState
     );
   }
 
-  Widget _buildHotlineCard(DocumentSnapshot doc) {
-    final data = doc.data() as Map<String, dynamic>;
-    final name = data['name'] ?? 'Unknown';
-    final number = data['number'] ?? '';
-    final type = data['type'] ?? 'Other';
-    final icon = _getIconForType(type);
-    final color = _getColorForType(type);
+  Widget _buildDescriptionNote() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.blue.shade50,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: Colors.blue.shade100,
+          style: BorderStyle.solid,
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.info_outline, color: Colors.blue.shade700, size: 20),
+              const SizedBox(width: 8),
+              Text(
+                "Quick Guide",
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 14,
+                  color: Colors.blue.shade700,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          const Text(
+            "Emergency Hotline provides ESSENTIAL EMERGENCY HOTLINE NUMBERS. Tap on any number to IMMEDIATELY COPY IT to your clipboard for quick pasting into your phone dialer. Your safety is our priority.",
+            style: TextStyle(fontSize: 13, color: Colors.black87, height: 1.4),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSafetyQuote() {
+    return Align(
+      alignment: Alignment.centerRight,
+      child: Padding(
+        padding: const EdgeInsets.only(top: 10, bottom: 20, right: 4),
+        child: Text(
+          "\"Keep safe and be vigilant\"",
+          style: TextStyle(
+            fontStyle: FontStyle.italic,
+            fontSize: 14,
+            color: Colors.grey.shade500,
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSectionTitle(
+    String title, {
+    String? addTooltip,
+    String? presetType,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.only(left: 4, bottom: 12, top: 8),
+      child: Row(
+        children: [
+          Text(
+            title,
+            style: TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.bold,
+              color: Colors.grey.shade600,
+              letterSpacing: 0.5,
+            ),
+          ),
+          const Spacer(),
+          Tooltip(
+            message: addTooltip ?? "Add",
+            textStyle: const TextStyle(color: Colors.black, fontSize: 12),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(8),
+              boxShadow: [
+                BoxShadow(color: Colors.black.withOpacity(0.1), blurRadius: 4),
+              ],
+            ),
+            child: IconButton(
+              onPressed: () => _showAddHotlineDialog(presetType: presetType),
+              icon: const Icon(Icons.add, size: 20),
+              color: Colors.blue,
+              padding: EdgeInsets.zero,
+              constraints: const BoxConstraints(),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildHotlineCard(Map<String, dynamic> item) {
+    bool isUrgent = item['isUrgent'] == true;
 
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: isUrgent ? const Color(0xFFD32F2F) : Colors.white,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.grey.shade100),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.02), // Fixed Opacity
-            blurRadius: 8,
-            offset: const Offset(0, 2),
+            color: isUrgent
+                ? Colors.red.withOpacity(0.3)
+                : Colors.black.withOpacity(0.03),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
           ),
         ],
       ),
       child: ListTile(
         contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
         leading: Container(
-          padding: const EdgeInsets.all(12),
+          padding: const EdgeInsets.all(10),
           decoration: BoxDecoration(
-            color: color.withOpacity(0.1),
-            shape: BoxShape.circle,
+            color: isUrgent
+                ? Colors.white.withOpacity(0.2)
+                : Colors.red.shade50,
+            borderRadius: BorderRadius.circular(12),
           ),
-          child: Icon(icon, color: color, size: 24),
+          child: Icon(
+            item['icon'],
+            color: isUrgent ? Colors.white : Colors.red.shade400,
+            size: 24,
+          ),
         ),
         title: Text(
-          name,
-          style: const TextStyle(
-            fontWeight: FontWeight.bold,
+          item['name'],
+          style: TextStyle(
+            fontWeight: FontWeight.w700,
             fontSize: 16,
-            color: Colors.black87,
+            color: isUrgent ? Colors.white : Colors.black87,
           ),
         ),
-        subtitle: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const SizedBox(height: 4),
-            Row(
-              children: [
-                Icon(
-                  Icons.phone_rounded,
-                  size: 14,
-                  color: Colors.grey.shade500,
-                ),
-                const SizedBox(width: 4),
-                Text(
-                  number,
-                  style: TextStyle(
-                    color: Colors.grey.shade700,
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-              ],
+        subtitle: Padding(
+          padding: const EdgeInsets.only(top: 4.0),
+          child: Text(
+            item['number'],
+            style: TextStyle(
+              color: isUrgent
+                  ? Colors.white.withOpacity(0.9)
+                  : Colors.grey.shade600,
+              fontSize: 15,
+              fontWeight: FontWeight.w500,
             ),
-          ],
+          ),
         ),
         trailing: PopupMenuButton<String>(
           color: Colors.white,
-          icon: Icon(Icons.more_vert, color: Colors.grey.shade400),
           onSelected: (value) {
             if (value == 'edit') {
-              _showAddEditDialog(existingDoc: doc);
+              _showEditHotlineDialog(item);
             } else if (value == 'delete') {
-              _deleteHotline(doc.id, name);
+              _deleteHotline(item);
             }
           },
           itemBuilder: (context) => [
@@ -593,9 +825,16 @@ class _ModeratorEmergencyHotlinePageState
               value: 'edit',
               child: Row(
                 children: [
-                  Icon(Icons.edit_rounded, size: 20, color: Colors.black87),
+                  Icon(
+                    Icons.edit,
+                    size: 20,
+                    color: Color.fromARGB(255, 10, 10, 10),
+                  ),
                   SizedBox(width: 8),
-                  Text('Edit', style: TextStyle(color: Colors.black87)),
+                  Text(
+                    'Edit',
+                    style: TextStyle(color: Color.fromARGB(255, 10, 10, 10)),
+                  ),
                 ],
               ),
             ),
@@ -603,18 +842,55 @@ class _ModeratorEmergencyHotlinePageState
               value: 'delete',
               child: Row(
                 children: [
-                  Icon(
-                    Icons.delete_outline_rounded,
-                    size: 20,
-                    color: Colors.red,
-                  ),
+                  Icon(Icons.delete, size: 20, color: Colors.red),
                   SizedBox(width: 8),
                   Text('Delete', style: TextStyle(color: Colors.red)),
                 ],
               ),
             ),
           ],
+          icon: Icon(
+            Icons.more_vert,
+            color: isUrgent ? Colors.white70 : Colors.grey.shade400,
+          ),
         ),
+      ),
+    );
+  }
+
+  Widget _buildEmptyState(String message, String type) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: Colors.grey.shade200,
+          style: BorderStyle.solid,
+        ),
+      ),
+      child: Column(
+        children: [
+          Icon(
+            Icons.add_ic_call_rounded,
+            size: 40,
+            color: Colors.grey.shade300,
+          ),
+          const SizedBox(height: 12),
+          Text(
+            message,
+            style: TextStyle(
+              color: Colors.grey.shade500,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            "Tap + to add new number",
+            style: TextStyle(color: Colors.grey.shade400, fontSize: 12),
+          ),
+        ],
       ),
     );
   }
@@ -625,21 +901,18 @@ class _ModeratorEmergencyHotlinePageState
         color: Colors.white,
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05), // Fixed Opacity
+            color: Colors.black.withOpacity(0.05),
             blurRadius: 10,
             offset: const Offset(0, -5),
           ),
         ],
       ),
       child: BottomNavigationBar(
-        currentIndex: _selectedIndex,
+        currentIndex: 1,
         type: BottomNavigationBarType.fixed,
         selectedItemColor: Colors.blue,
         unselectedItemColor: Colors.grey.shade400,
         backgroundColor: Colors.white,
-        showSelectedLabels: true,
-        showUnselectedLabels: true,
-        elevation: 0,
         onTap: _onItemTapped,
         items: const [
           BottomNavigationBarItem(
@@ -669,7 +942,6 @@ class _ModeratorEmergencyHotlinePageState
 
   @override
   Widget build(BuildContext context) {
-    // 1. Prepare Content Widget
     Widget mobileContent = ScaffoldMessenger(
       key: _scaffoldMessengerKey,
       child: Scaffold(
@@ -679,97 +951,172 @@ class _ModeratorEmergencyHotlinePageState
             children: [
               _buildHeader(),
               Expanded(
-                child: SingleChildScrollView(
-                  padding: const EdgeInsets.all(20),
-                  child: Column(
-                    children: [
-                      _buildSearchBar(),
-                      const SizedBox(height: 24),
-                      _buildEmergencyBanner(),
-                      Padding(
-                        padding: const EdgeInsets.only(bottom: 16.0),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                child: StreamBuilder<QuerySnapshot>(
+                  stream: _hotlinesStream,
+                  builder: (context, snapshot) {
+                    if (snapshot.connectionState == ConnectionState.waiting) {
+                      return const Center(
+                        child: Padding(
+                          padding: EdgeInsets.all(40.0),
+                          child: CircularProgressIndicator(),
+                        ),
+                      );
+                    }
+                    if (snapshot.hasError) {
+                      return Center(child: Text("Error: ${snapshot.error}"));
+                    }
+
+                    final docs = snapshot.data?.docs ?? [];
+                    final allItems = docs.map((d) {
+                      final data = d.data() as Map<String, dynamic>;
+                      return {
+                        'id': d.id,
+                        'name': (data['name'] ?? '').toString(),
+                        'number': (data['number'] ?? '').toString(),
+                        'type': (data['type'] ?? 'national').toString(),
+                        'isUrgent': data['isUrgent'] == true,
+                        'icon': _getIconForType(
+                          (data['type'] ?? 'national').toString(),
+                        ),
+                      };
+                    }).toList();
+
+                    // Apply Search Filter
+                    final filteredItems = _searchQuery.isEmpty
+                        ? allItems
+                        : allItems.where((h) {
+                            final name = h['name'].toString().toLowerCase();
+                            final num = h['number'].toString().toLowerCase();
+                            return name.contains(_searchQuery) ||
+                                num.contains(_searchQuery);
+                          }).toList();
+
+                    final nationalHotlines = filteredItems
+                        .where((i) => i['type'] == 'national')
+                        .toList();
+                    final localHotlines = filteredItems
+                        .where((i) => i['type'] == 'local')
+                        .toList();
+                    final barangayHotlines = filteredItems
+                        .where((i) => i['type'] == 'barangay')
+                        .toList();
+
+                    if (_searchQuery.isNotEmpty && filteredItems.isEmpty) {
+                      return SingleChildScrollView(
+                        padding: const EdgeInsets.all(20),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            const Text(
-                              "Hotline Numbers",
-                              style: TextStyle(
-                                fontSize: 18,
-                                fontWeight: FontWeight.bold,
-                                color: Colors.black87,
+                            _buildSearchBar(),
+                            const SizedBox(height: 24),
+                            Center(
+                              child: Column(
+                                children: [
+                                  Icon(
+                                    Icons.search_off,
+                                    size: 50,
+                                    color: Colors.grey.shade300,
+                                  ),
+                                  const SizedBox(height: 16),
+                                  Text(
+                                    "No hotlines found for \"$_searchQuery\"",
+                                    style: TextStyle(
+                                      color: Colors.grey.shade500,
+                                    ),
+                                  ),
+                                ],
                               ),
-                            ),
-                            IconButton(
-                              onPressed: () => _showAddEditDialog(),
-                              icon: const Icon(Icons.add_circle_rounded),
-                              color: Colors.blue.shade700,
-                              iconSize: 28,
-                              tooltip: 'Add Hotline',
                             ),
                           ],
                         ),
-                      ),
-                      StreamBuilder<QuerySnapshot>(
-                        stream: _hotlinesStream,
-                        builder: (context, snapshot) {
-                          if (snapshot.connectionState ==
-                              ConnectionState.waiting) {
-                            return const Center(
-                              child: Padding(
-                                padding: EdgeInsets.all(20),
-                                child: CircularProgressIndicator(),
+                      );
+                    }
+
+                    return SingleChildScrollView(
+                      padding: const EdgeInsets.all(20),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          _buildSearchBar(),
+                          const SizedBox(height: 24),
+                          _buildDescriptionNote(),
+                          _buildSafetyQuote(),
+                          const Text(
+                            "Emergency Hotlines",
+                            style: TextStyle(
+                              fontSize: 20,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.black87,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            "Manage emergency contact numbers",
+                            style: TextStyle(
+                              color: Colors.grey.shade500,
+                              fontSize: 13,
+                            ),
+                          ),
+                          const SizedBox(height: 16),
+
+                          if (_searchQuery.isEmpty ||
+                              nationalHotlines.isNotEmpty) ...[
+                            _buildSectionTitle(
+                              "NATIONAL EMERGENCY",
+                              addTooltip: "Add National Hotline",
+                              presetType: "national",
+                            ),
+                            if (nationalHotlines.isEmpty)
+                              _buildEmptyState(
+                                "No national hotlines added yet",
+                                "national",
+                              )
+                            else
+                              ...nationalHotlines.map(
+                                (h) => _buildHotlineCard(h),
                               ),
-                            );
-                          }
+                            const SizedBox(height: 20),
+                          ],
 
-                          final docs = snapshot.data?.docs ?? [];
-                          final filtered = docs.where((doc) {
-                            final data = doc.data() as Map<String, dynamic>;
-                            final name = (data['name'] ?? '')
-                                .toString()
-                                .toLowerCase();
-                            final number = (data['number'] ?? '')
-                                .toString()
-                                .toLowerCase();
-                            return name.contains(_searchQuery) ||
-                                number.contains(_searchQuery);
-                          }).toList();
+                          if (_searchQuery.isEmpty ||
+                              localHotlines.isNotEmpty) ...[
+                            _buildSectionTitle(
+                              "LOCAL HOTLINES",
+                              addTooltip: "Add Local Hotline",
+                              presetType: "local",
+                            ),
+                            if (localHotlines.isEmpty)
+                              _buildEmptyState(
+                                "No local hotlines added yet",
+                                "local",
+                              )
+                            else
+                              ...localHotlines.map((h) => _buildHotlineCard(h)),
+                            const SizedBox(height: 20),
+                          ],
 
-                          if (filtered.isEmpty) {
-                            return Center(
-                              child: Padding(
-                                padding: const EdgeInsets.only(top: 40),
-                                child: Column(
-                                  children: [
-                                    Icon(
-                                      Icons.search_off_rounded,
-                                      size: 48,
-                                      color: Colors.grey.shade300,
-                                    ),
-                                    const SizedBox(height: 12),
-                                    Text(
-                                      "No hotlines found",
-                                      style: TextStyle(
-                                        color: Colors.grey.shade500,
-                                        fontWeight: FontWeight.w500,
-                                      ),
-                                    ),
-                                  ],
-                                ),
+                          if (_searchQuery.isEmpty ||
+                              barangayHotlines.isNotEmpty) ...[
+                            _buildSectionTitle(
+                              "BARANGAY HOTLINES",
+                              addTooltip: "Add Barangay Hotline",
+                              presetType: "barangay",
+                            ),
+                            if (barangayHotlines.isEmpty)
+                              _buildEmptyState(
+                                "No barangay hotlines added yet",
+                                "barangay",
+                              )
+                            else
+                              ...barangayHotlines.map(
+                                (h) => _buildHotlineCard(h),
                               ),
-                            );
-                          }
-
-                          return Column(
-                            children: filtered
-                                .map((doc) => _buildHotlineCard(doc))
-                                .toList(),
-                          );
-                        },
+                            const SizedBox(height: 20),
+                          ],
+                        ],
                       ),
-                      const SizedBox(height: 40),
-                    ],
-                  ),
+                    );
+                  },
                 ),
               ),
             ],
@@ -779,7 +1126,6 @@ class _ModeratorEmergencyHotlinePageState
       ),
     );
 
-    // 2. Wrap for Web to constrain Dialogs/Overlays inside Phone Frame
     if (kIsWeb) {
       return PhoneFrame(
         child: MaterialApp(
@@ -798,7 +1144,6 @@ class _ModeratorEmergencyHotlinePageState
   }
 }
 
-// --- PHONE FRAME (For Web Preview) ---
 class PhoneFrame extends StatelessWidget {
   final Widget child;
   const PhoneFrame({super.key, required this.child});
@@ -815,7 +1160,7 @@ class PhoneFrame extends StatelessWidget {
             borderRadius: BorderRadius.circular(40),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withOpacity(0.1), // FIXED
+                color: Colors.black.withOpacity(0.1),
                 blurRadius: 30,
                 spreadRadius: 5,
                 offset: const Offset(0, 10),

@@ -163,13 +163,19 @@ class _ModeratorHomePageState extends State<ModeratorHomePage> {
 
     showDialog(
       context: context,
-      useRootNavigator: false, // Keep inside PhoneFrame
+      useRootNavigator: false,
       builder: (ctx) {
+        double screenWidth = MediaQuery.of(context).size.width;
+        double dialogWidth = kIsWeb ? 290 : screenWidth * 0.85;
+
         return StatefulBuilder(
           builder: (context, setStateDialog) {
             return AlertDialog(
               backgroundColor: Colors.white,
               surfaceTintColor: Colors.white,
+              // ▼▼▼ FIX 1: Add this property ▼▼▼
+              scrollable: true,
+              // ▲▲▲ This makes the dialog adapt to the keyboard ▲▲▲
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(20),
               ),
@@ -178,7 +184,15 @@ class _ModeratorHomePageState extends State<ModeratorHomePage> {
                 'Add Service',
                 Colors.blue,
               ),
-              content: SingleChildScrollView(
+
+              // ▼▼▼ FIX 2: Remove SingleChildScrollView here (it's built-in now) ▼▼▼
+              /* content: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  _buildTextField( */
+              content: SizedBox(
+                // i hard code na lang and width, for the purpose na i present siya using chrome man gud. pero if sa simulator na, pwede ra tung mediaquery
+                width: dialogWidth,
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
@@ -258,11 +272,16 @@ class _ModeratorHomePageState extends State<ModeratorHomePage> {
       context: context,
       useRootNavigator: false,
       builder: (ctx) {
+        double screenWidth = MediaQuery.of(ctx).size.width;
+        double dialogWidth = kIsWeb ? 290 : screenWidth * 0.85;
+
         return StatefulBuilder(
           builder: (context, setStateDialog) {
             return AlertDialog(
               backgroundColor: Colors.white,
               surfaceTintColor: Colors.white,
+              // ▼▼▼ FIX 1: Add scrollable: true ▼▼▼
+              scrollable: true,
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(20),
               ),
@@ -271,7 +290,11 @@ class _ModeratorHomePageState extends State<ModeratorHomePage> {
                 'Edit Service',
                 Colors.orange,
               ),
-              content: SingleChildScrollView(
+
+              content: SizedBox(
+                // i hard code na lang and width, for the purpose na i present siya using chrome man gud. pero if sa simulator na, pwede ra tung mediaquery
+                width: dialogWidth,
+
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
@@ -282,23 +305,48 @@ class _ModeratorHomePageState extends State<ModeratorHomePage> {
                       icon: Icons.title_rounded,
                     ),
                     const SizedBox(height: 16),
-                    _buildCategoryDropdown(
-                      initialValue: selectedCategory,
-                      onChanged: (val) {
-                        setStateDialog(() => selectedCategory = val!);
-                      },
-                    ),
-                    const SizedBox(height: 16),
+
+                    // Kani nga TextField dili na karon magpabungkag sa layout
                     _buildTextField(
                       controller: stepsCtrl,
                       label: 'Steps / Requirements',
-                      hint: '1. Bring valid ID...',
-                      icon: Icons.format_list_numbered_rounded,
                       maxLines: 6,
+                      hint: '...',
+                      icon: Icons.format_list_numbered_rounded,
                     ),
                   ],
                 ),
               ),
+              // ▲▲▲ END CHANGE ▲▲▲
+
+              // ▼▼▼ FIX 2: Remove SingleChildScrollView here ▼▼▼
+
+              /* content: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  _buildTextField(
+                    controller: titleCtrl,
+                    label: 'Service Title',
+                    hint: 'e.g. Barangay Clearance',
+                    icon: Icons.title_rounded,
+                  ),
+                  const SizedBox(height: 16),
+                  _buildCategoryDropdown(
+                    initialValue: selectedCategory,
+                    onChanged: (val) {
+                      setStateDialog(() => selectedCategory = val!);
+                    },
+                  ),
+                  const SizedBox(height: 16),
+                  _buildTextField(
+                    controller: stepsCtrl,
+                    label: 'Steps / Requirements',
+                    hint: '1. Bring valid ID...',
+                    icon: Icons.format_list_numbered_rounded,
+                    maxLines: 6,
+                  ),
+                ],
+              ), */
               actions: [
                 TextButton(
                   onPressed: () => Navigator.of(ctx).pop(),
