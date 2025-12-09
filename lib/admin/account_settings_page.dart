@@ -8,6 +8,7 @@ import 'track_activity.dart';
 import 'account.dart';
 import 'manage_moderators_page.dart';
 import 'help_support_page.dart';
+import 'subscription_management_page.dart';
 
 // --- PHONE FRAME WRAPPER ---
 class PhoneFrame extends StatelessWidget {
@@ -461,6 +462,19 @@ class _AccountSettingsPageState extends State<AccountSettingsPage> {
                                 initialName: adminName,
                                 initialEmail: adminEmail,
                               ),
+                            ),
+                          );
+                        },
+                      ),
+                      _buildListTile(
+                        icon: Icons.workspace_premium,
+                        title: 'Subscription',
+                        onTap: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) =>
+                                  const SubscriptionManagementPage(),
                             ),
                           );
                         },

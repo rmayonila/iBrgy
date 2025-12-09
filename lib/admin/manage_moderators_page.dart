@@ -4,6 +4,8 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'add_moderator_account_page.dart';
+import '../services/subscription_service.dart';
+import '../widgets/subscription_widgets.dart';
 
 class ManageModeratorsPage extends StatelessWidget {
   const ManageModeratorsPage({super.key});
@@ -31,13 +33,28 @@ class ManageModeratorsPage extends StatelessWidget {
         elevation: 4,
         icon: const Icon(Icons.add),
         label: const Text("Add New Moderator"),
-        onPressed: () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (context) => const AddModeratorAccountPage(),
-            ),
+        onPressed: () async {
+          // Check subscription limit before allowing add
+          final snapshot = await FirebaseFirestore.instance
+              .collection('users')
+              .where('role', whereIn: ['staff', 'moderator', 'Staff', 'Moderator'])
+              .get();
+          
+          final currentCount = snapshot.docs.length;
+          final canAdd = await checkSubscriptionLimit(
+            context: context,
+            action: 'add_moderator',
+            currentCount: currentCount,
           );
+          
+          if (canAdd) {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => const AddModeratorAccountPage(),
+              ),
+            );
+          }
         },
       ),
       body: StreamBuilder<QuerySnapshot>(
