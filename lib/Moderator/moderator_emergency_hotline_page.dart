@@ -515,33 +515,43 @@ class _ModeratorEmergencyHotlinePageState
     final confirmDelete = await showDialog<bool>(
       context: context,
       useRootNavigator: false,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: Colors.white,
-        surfaceTintColor: Colors.white,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: const Text(
-          'Confirm Deletion',
-          style: TextStyle(fontWeight: FontWeight.bold),
-        ),
-        content: Text(
-          'Are you sure you want to delete "${hotline['name']}"?',
-          style: const TextStyle(color: Colors.black87),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(false),
-            child: const Text('Cancel', style: TextStyle(color: Colors.grey)),
+      builder: (ctx) {
+        double screenWidth = MediaQuery.of(context).size.width;
+        double dialogWidth = kIsWeb ? 300 : screenWidth * 0.85;
+
+        return AlertDialog(
+          backgroundColor: Colors.white,
+          surfaceTintColor: Colors.white,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
           ),
-          ElevatedButton(
-            onPressed: () => Navigator.of(ctx).pop(true),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.red,
-              foregroundColor: Colors.white,
+          title: const Text(
+            'Confirm Deletion',
+            style: TextStyle(fontWeight: FontWeight.bold),
+          ),
+          content: SizedBox(
+            width: dialogWidth,
+            child: Text(
+              'Are you sure you want to delete "${hotline['name']}"?',
+              style: const TextStyle(color: Colors.black87),
             ),
-            child: const Text('Delete'),
           ),
-        ],
-      ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(false),
+              child: const Text('Cancel', style: TextStyle(color: Colors.grey)),
+            ),
+            ElevatedButton(
+              onPressed: () => Navigator.of(ctx).pop(true),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.red,
+                foregroundColor: Colors.white,
+              ),
+              child: const Text('Delete'),
+            ),
+          ],
+        );
+      },
     );
 
     if (confirmDelete == true && id != null) {

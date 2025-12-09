@@ -37,16 +37,19 @@ class ManageModeratorsPage extends StatelessWidget {
           // Check subscription limit before allowing add
           final snapshot = await FirebaseFirestore.instance
               .collection('users')
-              .where('role', whereIn: ['staff', 'moderator', 'Staff', 'Moderator'])
+              .where(
+                'role',
+                whereIn: ['staff', 'moderator', 'Staff', 'Moderator'],
+              )
               .get();
-          
+
           final currentCount = snapshot.docs.length;
           final canAdd = await checkSubscriptionLimit(
             context: context,
             action: 'add_moderator',
             currentCount: currentCount,
           );
-          
+
           if (canAdd) {
             Navigator.push(
               context,

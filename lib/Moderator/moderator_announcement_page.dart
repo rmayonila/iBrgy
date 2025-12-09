@@ -72,7 +72,12 @@ class _ModeratorAnnouncementPageState extends State<ModeratorAnnouncementPage> {
   String _formatTimestamp(dynamic timestamp) {
     if (timestamp is Timestamp) {
       final date = timestamp.toDate();
-      return "${date.month}/${date.day}/${date.year}";
+      final hour = date.hour > 12
+          ? date.hour - 12
+          : (date.hour == 0 ? 12 : date.hour);
+      final minute = date.minute.toString().padLeft(2, '0');
+      final period = date.hour >= 12 ? 'PM' : 'AM';
+      return "${date.month}/${date.day}/${date.year} at $hour:$minute $period";
     }
     return 'recently';
   }
@@ -361,6 +366,9 @@ class _ModeratorAnnouncementPageState extends State<ModeratorAnnouncementPage> {
       context: context,
       useRootNavigator: false,
       builder: (ctx) {
+        double screenWidth = MediaQuery.of(context).size.width;
+        double dialogWidth = kIsWeb ? 300 : screenWidth * 0.85;
+
         return AlertDialog(
           backgroundColor: Colors.white,
           surfaceTintColor: Colors.white,
@@ -368,9 +376,12 @@ class _ModeratorAnnouncementPageState extends State<ModeratorAnnouncementPage> {
             'Delete Reminder',
             style: TextStyle(fontWeight: FontWeight.bold),
           ),
-          content: const Text(
-            'Are you sure you want to delete this reminder?',
-            style: TextStyle(color: Colors.black87),
+          content: SizedBox(
+            width: dialogWidth,
+            child: const Text(
+              'Are you sure you want to delete this reminder?',
+              style: TextStyle(color: Colors.black87),
+            ),
           ),
           actions: [
             TextButton(
@@ -415,8 +426,17 @@ class _ModeratorAnnouncementPageState extends State<ModeratorAnnouncementPage> {
       text: data['content'] ?? '',
     );
 
-    String? currentImageBase64 = data['imageUrl'];
-    XFile? pickedImageFile;
+    // Support multiple images
+    List<String> currentImages = [];
+    if (data['images'] != null && data['images'] is List) {
+      currentImages = List<String>.from(data['images']);
+    } else if (data['imageUrl'] != null &&
+        data['imageUrl'].toString().isNotEmpty) {
+      // Backward compatibility: convert old single image to list
+      currentImages = [data['imageUrl'].toString()];
+    }
+
+    List<XFile> pickedImageFiles = [];
 
     // Reusable Decoration
     InputDecoration buildBlueDecoration({
@@ -460,68 +480,148 @@ class _ModeratorAnnouncementPageState extends State<ModeratorAnnouncementPage> {
 
         return StatefulBuilder(
           builder: (context, setDialogState) {
-            // Helper to show selected image
-            Widget buildImagePreview() {
-              ImageProvider? provider;
-              if (pickedImageFile != null) {
-                if (kIsWeb) {
-                  provider = NetworkImage(pickedImageFile!.path);
-                } else {
-                  provider = FileImage(File(pickedImageFile!.path));
-                }
-              } else if (currentImageBase64 != null &&
-                  currentImageBase64!.isNotEmpty) {
-                try {
-                  provider = MemoryImage(base64Decode(currentImageBase64!));
-                } catch (e) {
-                  // ignore error
-                }
-              }
+            // Helper to build individual image tile
+            Widget _buildImageTile({
+              required ImageProvider imageProvider,
+              required VoidCallback onRemove,
+            }) {
+              return Stack(
+                children: [
+                  Container(
+                    height: 120,
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: Colors.grey.shade300),
+                      image: DecorationImage(
+                        image: imageProvider,
+                        fit: BoxFit.cover,
+                      ),
+                    ),
+                  ),
+                  Positioned(
+                    top: 4,
+                    right: 4,
+                    child: GestureDetector(
+                      onTap: onRemove,
+                      child: Container(
+                        padding: const EdgeInsets.all(4),
+                        decoration: const BoxDecoration(
+                          color: Colors.black54,
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(
+                          Icons.close,
+                          color: Colors.white,
+                          size: 16,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              );
+            }
 
-              if (provider != null) {
-                return Stack(
-                  children: [
-                    Container(
-                      height: 150,
-                      width: double.infinity,
-                      margin: const EdgeInsets.only(bottom: 16),
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: Colors.grey.shade300),
-                        image: DecorationImage(
-                          image: provider,
-                          fit: BoxFit.cover,
-                        ),
-                      ),
-                    ),
-                    Positioned(
-                      top: 8,
-                      right: 8,
-                      child: GestureDetector(
-                        onTap: () {
-                          setDialogState(() {
-                            pickedImageFile = null;
-                            currentImageBase64 = null;
-                          });
-                        },
-                        child: Container(
-                          padding: const EdgeInsets.all(4),
-                          decoration: const BoxDecoration(
-                            color: Colors.black54,
-                            shape: BoxShape.circle,
-                          ),
-                          child: const Icon(
-                            Icons.close,
-                            color: Colors.white,
-                            size: 16,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
+            // Helper to show multi-image grid
+            Widget buildImagesPreview() {
+              List<Widget> imageWidgets = [];
+
+              // Add existing images
+              for (int i = 0; i < currentImages.length; i++) {
+                imageWidgets.add(
+                  _buildImageTile(
+                    imageProvider: MemoryImage(base64Decode(currentImages[i])),
+                    onRemove: () {
+                      setDialogState(() {
+                        currentImages.removeAt(i);
+                      });
+                    },
+                  ),
                 );
               }
-              return const SizedBox.shrink();
+
+              // Add newly picked images
+              for (int i = 0; i < pickedImageFiles.length; i++) {
+                ImageProvider provider;
+                if (kIsWeb) {
+                  provider = NetworkImage(pickedImageFiles[i].path);
+                } else {
+                  provider = FileImage(File(pickedImageFiles[i].path));
+                }
+                imageWidgets.add(
+                  _buildImageTile(
+                    imageProvider: provider,
+                    onRemove: () {
+                      setDialogState(() {
+                        pickedImageFiles.removeAt(i);
+                      });
+                    },
+                  ),
+                );
+              }
+
+              if (imageWidgets.isEmpty) {
+                return const SizedBox.shrink();
+              }
+
+              // Layout based on number of images
+              if (imageWidgets.length == 1) {
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 16),
+                  child: imageWidgets[0],
+                );
+              } else if (imageWidgets.length == 2) {
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 16),
+                  child: Row(
+                    children: [
+                      Expanded(child: imageWidgets[0]),
+                      const SizedBox(width: 8),
+                      Expanded(child: imageWidgets[1]),
+                    ],
+                  ),
+                );
+              } else if (imageWidgets.length == 3) {
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 16),
+                  child: Column(
+                    children: [
+                      imageWidgets[0],
+                      const SizedBox(height: 8),
+                      Row(
+                        children: [
+                          Expanded(child: imageWidgets[1]),
+                          const SizedBox(width: 8),
+                          Expanded(child: imageWidgets[2]),
+                        ],
+                      ),
+                    ],
+                  ),
+                );
+              } else {
+                // 4 images: 2x2 grid
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 16),
+                  child: Column(
+                    children: [
+                      Row(
+                        children: [
+                          Expanded(child: imageWidgets[0]),
+                          const SizedBox(width: 8),
+                          Expanded(child: imageWidgets[1]),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      Row(
+                        children: [
+                          Expanded(child: imageWidgets[2]),
+                          const SizedBox(width: 8),
+                          Expanded(child: imageWidgets[3]),
+                        ],
+                      ),
+                    ],
+                  ),
+                );
+              }
             }
 
             return AlertDialog(
@@ -567,7 +667,7 @@ class _ModeratorAnnouncementPageState extends State<ModeratorAnnouncementPage> {
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      buildImagePreview(),
+                      buildImagesPreview(),
                       TextField(
                         controller: contentController,
                         maxLines: 5,
@@ -591,6 +691,19 @@ class _ModeratorAnnouncementPageState extends State<ModeratorAnnouncementPage> {
                   children: [
                     IconButton(
                       onPressed: () async {
+                        // Check if already at limit
+                        int totalImages =
+                            currentImages.length + pickedImageFiles.length;
+                        if (totalImages >= 4) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('Maximum 4 images allowed'),
+                              backgroundColor: Colors.orange,
+                            ),
+                          );
+                          return;
+                        }
+
                         final XFile? image = await _picker.pickImage(
                           source: ImageSource.gallery,
                           imageQuality: 50,
@@ -598,16 +711,42 @@ class _ModeratorAnnouncementPageState extends State<ModeratorAnnouncementPage> {
                         );
                         if (image != null) {
                           setDialogState(() {
-                            pickedImageFile = image;
+                            pickedImageFiles.add(image);
                           });
                         }
                       },
-                      icon: const Icon(
-                        Icons.add_photo_alternate_rounded,
-                        color: Colors.blue,
-                        size: 28,
+                      icon: Stack(
+                        children: [
+                          const Icon(
+                            Icons.add_photo_alternate_rounded,
+                            color: Colors.blue,
+                            size: 28,
+                          ),
+                          if (currentImages.length + pickedImageFiles.length >
+                              0)
+                            Positioned(
+                              right: 0,
+                              top: 0,
+                              child: Container(
+                                padding: const EdgeInsets.all(2),
+                                decoration: const BoxDecoration(
+                                  color: Colors.blue,
+                                  shape: BoxShape.circle,
+                                ),
+                                child: Text(
+                                  '${currentImages.length + pickedImageFiles.length}',
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ),
+                            ),
+                        ],
                       ),
-                      tooltip: 'Add Photo',
+                      tooltip:
+                          'Add Photo (${currentImages.length + pickedImageFiles.length}/4)',
                     ),
                     const Spacer(),
                     TextButton(
@@ -622,9 +761,10 @@ class _ModeratorAnnouncementPageState extends State<ModeratorAnnouncementPage> {
                     ElevatedButton(
                       onPressed: () async {
                         final content = contentController.text.trim();
-                        if (content.isEmpty &&
-                            pickedImageFile == null &&
-                            currentImageBase64 == null) {
+                        int totalImages =
+                            currentImages.length + pickedImageFiles.length;
+
+                        if (content.isEmpty && totalImages == 0) {
                           return;
                         }
 
@@ -633,11 +773,11 @@ class _ModeratorAnnouncementPageState extends State<ModeratorAnnouncementPage> {
                         try {
                           await _ensureSignedIn();
 
-                          String finalImageString = currentImageBase64 ?? '';
-                          if (pickedImageFile != null) {
-                            finalImageString = await _imageToBase64(
-                              pickedImageFile!,
-                            );
+                          // Convert newly picked images to base64
+                          List<String> finalImages = [...currentImages];
+                          for (var file in pickedImageFiles) {
+                            String base64 = await _imageToBase64(file);
+                            finalImages.add(base64);
                           }
 
                           if (isEditing) {
@@ -646,43 +786,48 @@ class _ModeratorAnnouncementPageState extends State<ModeratorAnnouncementPage> {
                                 .doc(existingDoc!.id)
                                 .update({
                                   'content': content,
-                                  'imageUrl': finalImageString,
+                                  'images': finalImages,
                                   'updatedAt': FieldValue.serverTimestamp(),
                                 });
 
-                            // ▼▼▼ TRACKING: EDIT ANNOUNCEMENT (UPDATED WITH CONTEXT) ▼▼▼
+                            // ▼▼▼ TRACKING: EDIT ANNOUNCEMENT ▼▼▼
                             await ActivityService().logActivity(
-                              context, // <--- ADDED CONTEXT
+                              context,
                               actionTitle: 'Edited Announcement',
                               details:
-                                  'Updated content of announcement ID: ${existingDoc.id}',
+                                  'Edited announcement ID: ${existingDoc.id}',
                             );
                             // ▲▲▲ END TRACKING ▲▲▲
 
                             _showSnackBar(
-                              'Update Edited Successfully',
+                              'Update edited successfully',
                               Colors.green,
                             );
                           } else {
-                            await _db.collection('announcements').add({
-                              'author': 'Barangay Office',
-                              'content': content,
-                              'imageUrl': finalImageString,
-                              'createdAt': FieldValue.serverTimestamp(),
-                            });
+                            final newDoc = await _db
+                                .collection('announcements')
+                                .add({
+                                  'content': content,
+                                  'images': finalImages,
+                                  'createdAt': FieldValue.serverTimestamp(),
+                                  'type': 'update',
+                                });
 
-                            // ▼▼▼ TRACKING: ADD ANNOUNCEMENT (UPDATED WITH CONTEXT) ▼▼▼
+                            // ▼▼▼ TRACKING: ADD ANNOUNCEMENT ▼▼▼
                             await ActivityService().logActivity(
-                              context, // <--- ADDED CONTEXT
-                              actionTitle: 'Posted Announcement',
-                              details: 'Posted new announcement: $content',
+                              context,
+                              actionTitle: 'Added Announcement',
+                              details: 'Added announcement ID: ${newDoc.id}',
                             );
                             // ▲▲▲ END TRACKING ▲▲▲
 
-                            _showSnackBar('Posted Successfully', Colors.green);
+                            _showSnackBar(
+                              'Update posted successfully',
+                              Colors.green,
+                            );
                           }
                         } catch (e) {
-                          _showSnackBar('Error posting update', Colors.red);
+                          _showSnackBar('Error: $e', Colors.red);
                         }
                       },
                       style: ElevatedButton.styleFrom(
@@ -713,32 +858,40 @@ class _ModeratorAnnouncementPageState extends State<ModeratorAnnouncementPage> {
     final confirm = await showDialog<bool>(
       context: context,
       useRootNavigator: false,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: Colors.white,
-        surfaceTintColor: Colors.white,
-        title: const Text(
-          'Delete Update',
-          style: TextStyle(fontWeight: FontWeight.bold),
-        ),
-        content: const Text(
-          'Are you sure you want to delete this post?',
-          style: TextStyle(color: Colors.black87),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(false),
-            child: const Text('Cancel', style: TextStyle(color: Colors.grey)),
+      builder: (ctx) {
+        double screenWidth = MediaQuery.of(context).size.width;
+        double dialogWidth = kIsWeb ? 300 : screenWidth * 0.85;
+
+        return AlertDialog(
+          backgroundColor: Colors.white,
+          surfaceTintColor: Colors.white,
+          title: const Text(
+            'Delete Update',
+            style: TextStyle(fontWeight: FontWeight.bold),
           ),
-          ElevatedButton(
-            onPressed: () => Navigator.of(ctx).pop(true),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.red,
-              foregroundColor: Colors.white,
+          content: SizedBox(
+            width: dialogWidth,
+            child: const Text(
+              'Are you sure you want to delete this post?',
+              style: TextStyle(color: Colors.black87),
             ),
-            child: const Text('Delete'),
           ),
-        ],
-      ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(false),
+              child: const Text('Cancel', style: TextStyle(color: Colors.grey)),
+            ),
+            ElevatedButton(
+              onPressed: () => Navigator.of(ctx).pop(true),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.red,
+                foregroundColor: Colors.white,
+              ),
+              child: const Text('Delete'),
+            ),
+          ],
+        );
+      },
     );
 
     if (confirm == true) {
@@ -1043,15 +1196,111 @@ class _ModeratorAnnouncementPageState extends State<ModeratorAnnouncementPage> {
   // --- POST CARD (Corrected withOpacity) ---
   Widget _buildPostCard(DocumentSnapshot doc) {
     final data = doc.data() as Map<String, dynamic>;
-    final imageUrl = data['imageUrl']?.toString() ?? '';
 
-    // Helper to decode image string
-    ImageProvider? getPostImage() {
-      if (imageUrl.isEmpty) return null;
-      try {
-        return MemoryImage(base64Decode(imageUrl));
-      } catch (e) {
-        return null;
+    // Support both old single image and new multiple images
+    List<String> images = [];
+    if (data['images'] != null && data['images'] is List) {
+      images = List<String>.from(data['images']);
+    } else if (data['imageUrl'] != null &&
+        data['imageUrl'].toString().isNotEmpty) {
+      // Backward compatibility
+      images = [data['imageUrl'].toString()];
+    }
+
+    // Helper to build image grid
+    Widget? buildImageGrid() {
+      if (images.isEmpty) return null;
+
+      List<Widget> imageWidgets = [];
+      for (var img in images) {
+        try {
+          imageWidgets.add(
+            Container(
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(12),
+                image: DecorationImage(
+                  image: MemoryImage(base64Decode(img)),
+                  fit: BoxFit.cover,
+                ),
+              ),
+            ),
+          );
+        } catch (e) {
+          // Skip invalid images
+        }
+      }
+
+      if (imageWidgets.isEmpty) return null;
+
+      // Layout based on number of images
+      if (imageWidgets.length == 1) {
+        return Container(
+          height: 200,
+          margin: const EdgeInsets.only(top: 12),
+          child: imageWidgets[0],
+        );
+      } else if (imageWidgets.length == 2) {
+        return Container(
+          height: 150,
+          margin: const EdgeInsets.only(top: 12),
+          child: Row(
+            children: [
+              Expanded(child: imageWidgets[0]),
+              const SizedBox(width: 4),
+              Expanded(child: imageWidgets[1]),
+            ],
+          ),
+        );
+      } else if (imageWidgets.length == 3) {
+        return Container(
+          margin: const EdgeInsets.only(top: 12),
+          child: Column(
+            children: [
+              Container(height: 150, child: imageWidgets[0]),
+              const SizedBox(height: 4),
+              SizedBox(
+                height: 100,
+                child: Row(
+                  children: [
+                    Expanded(child: imageWidgets[1]),
+                    const SizedBox(width: 4),
+                    Expanded(child: imageWidgets[2]),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        );
+      } else {
+        // 4 images: 2x2 grid
+        return Container(
+          margin: const EdgeInsets.only(top: 12),
+          child: Column(
+            children: [
+              SizedBox(
+                height: 120,
+                child: Row(
+                  children: [
+                    Expanded(child: imageWidgets[0]),
+                    const SizedBox(width: 4),
+                    Expanded(child: imageWidgets[1]),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 4),
+              SizedBox(
+                height: 120,
+                child: Row(
+                  children: [
+                    Expanded(child: imageWidgets[2]),
+                    const SizedBox(width: 4),
+                    Expanded(child: imageWidgets[3]),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        );
       }
     }
 
@@ -1178,28 +1427,7 @@ class _ModeratorAnnouncementPageState extends State<ModeratorAnnouncementPage> {
             ),
             const SizedBox(height: 12),
             _ExpandableText(text: data['content']?.toString() ?? ''),
-            if (getPostImage() != null) ...[
-              const SizedBox(height: 12),
-              Builder(
-                builder: (context) {
-                  return GestureDetector(
-                    onTap: () => _showFullImageDialog(context, getPostImage()!),
-                    child: Container(
-                      width: double.infinity,
-                      height: 180,
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(12),
-                        color: Colors.grey.shade100,
-                        image: DecorationImage(
-                          image: getPostImage()!,
-                          fit: BoxFit.cover,
-                        ),
-                      ),
-                    ),
-                  );
-                },
-              ),
-            ],
+            if (buildImageGrid() != null) buildImageGrid()!,
           ],
         ),
       ),

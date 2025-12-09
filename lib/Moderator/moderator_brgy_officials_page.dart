@@ -214,145 +214,148 @@ class _ModeratorBrgyOfficialsPageState
                 ),
               ],
             ),
-            content: SingleChildScrollView(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  // --- IMAGE PICKER ---
-                  GestureDetector(
-                    onTap: () async {
-                      final XFile? image = await _picker.pickImage(
-                        source: ImageSource.gallery,
-                        imageQuality: 50,
-                        maxWidth: 400,
-                      );
-                      if (image != null) {
-                        setDialogState(() {
-                          pickedImageFile = image;
-                        });
-                      }
-                    },
-                    child: Container(
-                      width: 100,
-                      height: 100,
-                      decoration: BoxDecoration(
-                        color: Colors.grey.shade100,
-                        shape: BoxShape.circle,
-                        border: Border.all(
-                          color: Colors.blue.shade200,
-                          width: 2,
+            content: SizedBox(
+              width: kIsWeb ? 300 : MediaQuery.of(context).size.width * 0.85,
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    // --- IMAGE PICKER ---
+                    GestureDetector(
+                      onTap: () async {
+                        final XFile? image = await _picker.pickImage(
+                          source: ImageSource.gallery,
+                          imageQuality: 50,
+                          maxWidth: 400,
+                        );
+                        if (image != null) {
+                          setDialogState(() {
+                            pickedImageFile = image;
+                          });
+                        }
+                      },
+                      child: Container(
+                        width: 100,
+                        height: 100,
+                        decoration: BoxDecoration(
+                          color: Colors.grey.shade100,
+                          shape: BoxShape.circle,
+                          border: Border.all(
+                            color: Colors.blue.shade200,
+                            width: 2,
+                          ),
+                          image: getImageProvider() != null
+                              ? DecorationImage(
+                                  image: getImageProvider()!,
+                                  fit: BoxFit.cover,
+                                )
+                              : null,
                         ),
-                        image: getImageProvider() != null
-                            ? DecorationImage(
-                                image: getImageProvider()!,
-                                fit: BoxFit.cover,
+                        child: getImageProvider() == null
+                            ? Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Icon(
+                                    Icons.add_a_photo_rounded,
+                                    color: Colors.grey.shade400,
+                                    size: 28,
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    "Select Photo",
+                                    style: TextStyle(
+                                      color: Colors.grey.shade500,
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                ],
                               )
-                            : null,
+                            : Stack(
+                                children: [
+                                  Positioned(
+                                    bottom: 0,
+                                    right: 0,
+                                    child: Container(
+                                      padding: const EdgeInsets.all(4),
+                                      decoration: const BoxDecoration(
+                                        color: Colors.blue,
+                                        shape: BoxShape.circle,
+                                      ),
+                                      child: const Icon(
+                                        Icons.edit,
+                                        color: Colors.white,
+                                        size: 14,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
                       ),
-                      child: getImageProvider() == null
-                          ? Column(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                Icon(
-                                  Icons.add_a_photo_rounded,
-                                  color: Colors.grey.shade400,
-                                  size: 28,
-                                ),
-                                const SizedBox(height: 4),
-                                Text(
-                                  "Select Photo",
-                                  style: TextStyle(
-                                    color: Colors.grey.shade500,
-                                    fontSize: 10,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
-                              ],
-                            )
-                          : Stack(
-                              children: [
-                                Positioned(
-                                  bottom: 0,
-                                  right: 0,
-                                  child: Container(
-                                    padding: const EdgeInsets.all(4),
-                                    decoration: const BoxDecoration(
-                                      color: Colors.blue,
-                                      shape: BoxShape.circle,
-                                    ),
-                                    child: const Icon(
-                                      Icons.edit,
-                                      color: Colors.white,
-                                      size: 14,
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
                     ),
-                  ),
-                  const SizedBox(height: 24),
-                  TextField(
-                    controller: categoryController,
-                    style: const TextStyle(color: Colors.black87),
-                    decoration: buildDecoration(
-                      'Category',
-                      'e.g., Punong Barangay',
-                      Icons.category_outlined,
+                    const SizedBox(height: 24),
+                    TextField(
+                      controller: categoryController,
+                      style: const TextStyle(color: Colors.black87),
+                      decoration: buildDecoration(
+                        'Category',
+                        'e.g., Punong Barangay',
+                        Icons.category_outlined,
+                      ),
                     ),
-                  ),
-                  const SizedBox(height: 16),
-                  TextField(
-                    controller: titleController,
-                    style: const TextStyle(color: Colors.black87),
-                    decoration: buildDecoration(
-                      'Position Title',
-                      'e.g., Barangay Captain',
-                      Icons.work_outline_rounded,
+                    const SizedBox(height: 16),
+                    TextField(
+                      controller: titleController,
+                      style: const TextStyle(color: Colors.black87),
+                      decoration: buildDecoration(
+                        'Position Title',
+                        'e.g., Barangay Captain',
+                        Icons.work_outline_rounded,
+                      ),
                     ),
-                  ),
-                  const SizedBox(height: 16),
-                  TextField(
-                    controller: nameController,
-                    style: const TextStyle(color: Colors.black87),
-                    decoration: buildDecoration(
-                      'Full Name',
-                      'e.g., Juan Dela Cruz',
-                      Icons.person_outline_rounded,
+                    const SizedBox(height: 16),
+                    TextField(
+                      controller: nameController,
+                      style: const TextStyle(color: Colors.black87),
+                      decoration: buildDecoration(
+                        'Full Name',
+                        'e.g., Juan Dela Cruz',
+                        Icons.person_outline_rounded,
+                      ),
                     ),
-                  ),
-                  const SizedBox(height: 16),
-                  TextField(
-                    controller: nicknameController,
-                    style: const TextStyle(color: Colors.black87),
-                    decoration: buildDecoration(
-                      'Nickname / Alias',
-                      'e.g., Kap Juan',
-                      Icons.face_rounded,
+                    const SizedBox(height: 16),
+                    TextField(
+                      controller: nicknameController,
+                      style: const TextStyle(color: Colors.black87),
+                      decoration: buildDecoration(
+                        'Nickname / Alias',
+                        'e.g., Kap Juan',
+                        Icons.face_rounded,
+                      ),
                     ),
-                  ),
-                  const SizedBox(height: 16),
-                  TextField(
-                    controller: ageController,
-                    style: const TextStyle(color: Colors.black87),
-                    keyboardType: TextInputType.number,
-                    decoration: buildDecoration(
-                      'Age',
-                      'e.g., 45',
-                      Icons.calendar_today_rounded,
+                    const SizedBox(height: 16),
+                    TextField(
+                      controller: ageController,
+                      style: const TextStyle(color: Colors.black87),
+                      keyboardType: TextInputType.number,
+                      decoration: buildDecoration(
+                        'Age',
+                        'e.g., 45',
+                        Icons.calendar_today_rounded,
+                      ),
                     ),
-                  ),
-                  const SizedBox(height: 16),
-                  TextField(
-                    controller: addressController,
-                    style: const TextStyle(color: Colors.black87),
-                    decoration: buildDecoration(
-                      'Address',
-                      'e.g., Purok 1, Poblacion',
-                      Icons.location_on_outlined,
+                    const SizedBox(height: 16),
+                    TextField(
+                      controller: addressController,
+                      style: const TextStyle(color: Colors.black87),
+                      decoration: buildDecoration(
+                        'Address',
+                        'e.g., Purok 1, Poblacion',
+                        Icons.location_on_outlined,
+                      ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
             actions: [
@@ -461,63 +464,68 @@ class _ModeratorBrgyOfficialsPageState
   Future<void> _deleteOfficial(String docId, String officialName) async {
     final confirmDelete = await showDialog<bool>(
       context: context,
-      useRootNavigator: false, // Inside frame
-      builder: (ctx) => Padding(
-        // Ensure dialog respects outer constraints
-        padding: const EdgeInsets.symmetric(horizontal: 20.0),
-        child: AlertDialog(
-          backgroundColor: Colors.white,
-          surfaceTintColor: Colors.white,
-          // Use rounded corners to match the image
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(20),
-          ),
+      useRootNavigator: false,
+      builder: (ctx) {
+        double screenWidth = MediaQuery.of(context).size.width;
+        double dialogWidth = kIsWeb ? 300 : screenWidth * 0.85;
 
-          title: Text(
-            'Confirm Deletion',
-            style: TextStyle(
-              color: Colors.grey.shade600,
-              fontWeight: FontWeight.bold,
-              fontSize: 22,
+        return Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 20.0),
+          child: AlertDialog(
+            backgroundColor: Colors.white,
+            surfaceTintColor: Colors.white,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(20),
             ),
-          ),
-          content: Text(
-            'Are you sure you want to delete "$officialName"?',
-            style: const TextStyle(color: Colors.black87),
-          ),
-          actions: [
-            // 1. Cancel Button (Light color, non-bold text)
-            TextButton(
-              onPressed: () => Navigator.of(ctx).pop(false),
+            title: Text(
+              'Confirm Deletion',
+              style: TextStyle(
+                color: Colors.grey.shade600,
+                fontWeight: FontWeight.bold,
+                fontSize: 22,
+              ),
+            ),
+            content: SizedBox(
+              width: dialogWidth,
               child: Text(
-                'Cancel',
-                style: TextStyle(
-                  color: Colors.blue.shade400, // Light blue/grey tone
-                  fontWeight: FontWeight.w500,
-                ),
+                'Are you sure you want to delete "$officialName"?',
+                style: const TextStyle(color: Colors.black87),
               ),
             ),
-            // 2. Delete Button (Large, Red, Elevated)
-            ElevatedButton(
-              onPressed: () => Navigator.of(ctx).pop(true),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.red, // Red background
-                foregroundColor: Colors.white, // White text
-                elevation: 2,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(10), // Rounded corners
+            actions: [
+              // 1. Cancel Button (Light color, non-bold text)
+              TextButton(
+                onPressed: () => Navigator.of(ctx).pop(false),
+                child: Text(
+                  'Cancel',
+                  style: TextStyle(
+                    color: Colors.blue.shade400, // Light blue/grey tone
+                    fontWeight: FontWeight.w500,
+                  ),
                 ),
-                minimumSize: const Size(90, 40), // Ensures it's a decent size
-                padding: const EdgeInsets.symmetric(horizontal: 16),
               ),
-              child: const Text(
-                'Delete',
-                style: TextStyle(fontWeight: FontWeight.bold),
+              // 2. Delete Button (Large, Red, Elevated)
+              ElevatedButton(
+                onPressed: () => Navigator.of(ctx).pop(true),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.red, // Red background
+                  foregroundColor: Colors.white, // White text
+                  elevation: 2,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10), // Rounded corners
+                  ),
+                  minimumSize: const Size(90, 40), // Ensures it's a decent size
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                ),
+                child: const Text(
+                  'Delete',
+                  style: TextStyle(fontWeight: FontWeight.bold),
+                ),
               ),
-            ),
-          ],
-        ),
-      ),
+            ],
+          ),
+        );
+      },
     );
     if (confirmDelete == true) {
       try {
@@ -531,7 +539,7 @@ class _ModeratorBrgyOfficialsPageState
         );
         // ▲▲▲ END TRACKING ▲▲▲
 
-        _showSnackBar('Official deleted successfully');
+        _showSnackBar('Official deleted successfully', isError: true);
       } catch (e) {
         _showSnackBar('Failed to delete: $e', isError: true);
       }
@@ -752,35 +760,47 @@ class _ModeratorBrgyOfficialsPageState
     final inputController = TextEditingController(text: currentValue);
     final result = await showDialog<String>(
       context: context,
-      useRootNavigator: false, // Inside frame
-      builder: (ctx) => AlertDialog(
-        backgroundColor: Colors.white, // White background for consistency
-        title: Text('Edit $label', style: const TextStyle(color: Colors.black)),
-        content: TextField(
-          controller: inputController,
-          style: const TextStyle(color: Colors.black),
-          decoration: InputDecoration(
-            hintText: 'Enter $label',
-            enabledBorder: const UnderlineInputBorder(
-              borderSide: BorderSide(color: Colors.grey),
+      useRootNavigator: false,
+      builder: (ctx) {
+        double screenWidth = MediaQuery.of(context).size.width;
+        double dialogWidth = kIsWeb ? 300 : screenWidth * 0.85;
+
+        return AlertDialog(
+          backgroundColor: Colors.white,
+          title: Text(
+            'Edit $label',
+            style: const TextStyle(color: Colors.black),
+          ),
+          content: SizedBox(
+            width: dialogWidth,
+            child: TextField(
+              controller: inputController,
+              style: const TextStyle(color: Colors.black),
+              decoration: InputDecoration(
+                hintText: 'Enter $label',
+                enabledBorder: const UnderlineInputBorder(
+                  borderSide: BorderSide(color: Colors.grey),
+                ),
+                focusedBorder: const UnderlineInputBorder(
+                  borderSide: BorderSide(color: Colors.blue),
+                ),
+              ),
+              autofocus: true,
             ),
-            focusedBorder: const UnderlineInputBorder(
-              borderSide: BorderSide(color: Colors.blue),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(null),
+              child: const Text('Cancel'),
             ),
-          ),
-          autofocus: true,
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(null),
-            child: const Text('Cancel'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(inputController.text.trim()),
-            child: const Text('Save'),
-          ),
-        ],
-      ),
+            TextButton(
+              onPressed: () =>
+                  Navigator.of(ctx).pop(inputController.text.trim()),
+              child: const Text('Save'),
+            ),
+          ],
+        );
+      },
     );
     inputController.dispose();
 
