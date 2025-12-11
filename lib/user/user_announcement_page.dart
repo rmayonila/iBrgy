@@ -419,18 +419,123 @@ class _UserAnnouncementPageState extends State<UserAnnouncementPage> {
     );
   }
 
-  // --- RECENT UPDATE CARD (User View - With Expandable Text & Image) ---
+  // --- RECENT UPDATE CARD (User View - With Expandable Text & Multiple Images) ---
   Widget _buildPostCard(DocumentSnapshot doc) {
     final data = doc.data() as Map<String, dynamic>;
-    final imageUrl = data['imageUrl']?.toString() ?? '';
 
-    // Helper to decode image string
-    ImageProvider? getPostImage() {
-      if (imageUrl.isEmpty) return null;
-      try {
-        return MemoryImage(base64Decode(imageUrl));
-      } catch (e) {
-        return null;
+    // Support both old single image and new multiple images
+    List<String> images = [];
+    if (data['images'] != null && data['images'] is List) {
+      images = List<String>.from(data['images']);
+    } else if (data['imageUrl'] != null &&
+        data['imageUrl'].toString().isNotEmpty) {
+      // Backward compatibility
+      images = [data['imageUrl'].toString()];
+    }
+
+    // Helper to build image grid
+    Widget? buildImageGrid() {
+      if (images.isEmpty) return null;
+
+      List<Widget> imageWidgets = [];
+      for (int i = 0; i < images.length; i++) {
+        try {
+          final imageProvider = MemoryImage(base64Decode(images[i]));
+          imageWidgets.add(
+            GestureDetector(
+              onTap: () => _showFullImageDialog(context, imageProvider),
+              child: Container(
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(8),
+                  color: Colors.grey.shade100,
+                  image: DecorationImage(
+                    image: imageProvider,
+                    fit: BoxFit.cover,
+                  ),
+                ),
+              ),
+            ),
+          );
+        } catch (e) {
+          // Skip invalid images
+        }
+      }
+
+      if (imageWidgets.isEmpty) return null;
+
+      // Layout based on number of images
+      if (imageWidgets.length == 1) {
+        return Container(
+          margin: const EdgeInsets.only(top: 12),
+          height: 200,
+          child: imageWidgets[0],
+        );
+      } else if (imageWidgets.length == 2) {
+        return Container(
+          margin: const EdgeInsets.only(top: 12),
+          height: 150,
+          child: Row(
+            children: [
+              Expanded(child: imageWidgets[0]),
+              const SizedBox(width: 4),
+              Expanded(child: imageWidgets[1]),
+            ],
+          ),
+        );
+      } else if (imageWidgets.length == 3) {
+        return Container(
+          margin: const EdgeInsets.only(top: 12),
+          child: Column(
+            children: [
+              SizedBox(height: 150, child: imageWidgets[0]),
+              const SizedBox(height: 4),
+              SizedBox(
+                height: 100,
+                child: Row(
+                  children: [
+                    Expanded(child: imageWidgets[1]),
+                    const SizedBox(width: 4),
+                    Expanded(child: imageWidgets[2]),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        );
+      } else {
+        // 4 or more images
+        return Container(
+          margin: const EdgeInsets.only(top: 12),
+          child: Column(
+            children: [
+              SizedBox(
+                height: 150,
+                child: Row(
+                  children: [
+                    Expanded(child: imageWidgets[0]),
+                    const SizedBox(width: 4),
+                    Expanded(child: imageWidgets[1]),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 4),
+              SizedBox(
+                height: 100,
+                child: Row(
+                  children: [
+                    Expanded(child: imageWidgets[2]),
+                    const SizedBox(width: 4),
+                    Expanded(
+                      child: imageWidgets.length > 3
+                          ? imageWidgets[3]
+                          : Container(color: Colors.grey.shade100),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        );
       }
     }
 
@@ -463,7 +568,7 @@ class _UserAnnouncementPageState extends State<UserAnnouncementPage> {
                   ),
                   child: Center(
                     child: Text(
-                      (data['author']?.toString() ?? 'U')
+                      (data['author']?.toString() ?? 'B')
                           .substring(0, 1)
                           .toUpperCase(),
                       style: const TextStyle(
@@ -505,32 +610,11 @@ class _UserAnnouncementPageState extends State<UserAnnouncementPage> {
             ),
             const SizedBox(height: 12),
 
-            // 1. Expandable Text Feature
+            // Expandable Text Feature
             _ExpandableText(text: data['content']?.toString() ?? ''),
 
-            // 2. Full Image Viewer Feature
-            if (getPostImage() != null) ...[
-              const SizedBox(height: 12),
-              Builder(
-                builder: (context) {
-                  return GestureDetector(
-                    onTap: () => _showFullImageDialog(context, getPostImage()!),
-                    child: Container(
-                      width: double.infinity,
-                      height: 180,
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(12),
-                        color: Colors.grey.shade100,
-                        image: DecorationImage(
-                          image: getPostImage()!,
-                          fit: BoxFit.cover,
-                        ),
-                      ),
-                    ),
-                  );
-                },
-              ),
-            ],
+            // Multiple Images Grid
+            if (buildImageGrid() != null) buildImageGrid()!,
           ],
         ),
       ),

@@ -1,4 +1,4 @@
-// ignore_for_file: use_build_context_synchronously
+﻿// ignore_for_file: use_build_context_synchronously
 import 'dart:convert'; // Required for Base64 images
 import 'package:flutter/foundation.dart'; // For web check
 import 'package:flutter/material.dart';
@@ -56,7 +56,6 @@ class _BrgyOfficialsPageState extends State<BrgyOfficialsPage> {
     final nickname = data['nickname']?.toString() ?? '';
     final age = data['age']?.toString() ?? ''; // Added Age
     final address = data['address']?.toString() ?? '';
-    final category = data['category']?.toString() ?? '';
     final imageUrl = data['imageUrl']?.toString() ?? '';
 
     // --- CORRECTED FIX: Always use only 'title' (Position) as the position text ---
@@ -266,7 +265,7 @@ class _BrgyOfficialsPageState extends State<BrgyOfficialsPage> {
         ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05), // Corrected Opacity
+            color: Colors.black.withValues(alpha: 0.05), // Corrected Opacity
             blurRadius: 15,
             offset: const Offset(0, 5),
           ),
@@ -331,7 +330,7 @@ class _BrgyOfficialsPageState extends State<BrgyOfficialsPage> {
         borderRadius: BorderRadius.circular(20),
         boxShadow: [
           BoxShadow(
-            color: Colors.blue.withOpacity(0.3), // Corrected Opacity
+            color: Colors.blue.withValues(alpha: 0.3), // Corrected Opacity
             blurRadius: 10,
             offset: const Offset(0, 5),
           ),
@@ -365,7 +364,7 @@ class _BrgyOfficialsPageState extends State<BrgyOfficialsPage> {
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.03), // Corrected Opacity
+            color: Colors.black.withValues(alpha: 0.03), // Corrected Opacity
             blurRadius: 10,
             offset: const Offset(0, 4),
           ),
@@ -418,7 +417,7 @@ class _BrgyOfficialsPageState extends State<BrgyOfficialsPage> {
         border: Border.all(color: Colors.grey.shade200),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.02), // Corrected Opacity
+            color: Colors.black.withValues(alpha: 0.02), // Corrected Opacity
             blurRadius: 8,
             offset: const Offset(0, 2),
           ),
@@ -579,7 +578,7 @@ class _BrgyOfficialsPageState extends State<BrgyOfficialsPage> {
         color: Colors.white,
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05), // Corrected Opacity
+            color: Colors.black.withValues(alpha: 0.05), // Corrected Opacity
             blurRadius: 10,
             offset: const Offset(0, -5),
           ),
@@ -859,7 +858,7 @@ class PhoneFrame extends StatelessWidget {
             borderRadius: BorderRadius.circular(40),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withOpacity(0.1), // Corrected Opacity
+                color: Colors.black.withValues(alpha: 0.1), // Corrected Opacity
                 blurRadius: 30,
                 spreadRadius: 5,
                 offset: const Offset(0, 10),

@@ -1,4 +1,4 @@
-// services/notification_service.dart
+﻿// services/notification_service.dart
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
@@ -23,7 +23,7 @@ class NotificationService {
       if (user == null) return;
 
       // Determine notification type based on action
-      String notificationType = 'moderator_${action}';
+      String notificationType = 'moderator_$action';
 
       // Create appropriate message based on action
       String message = '';
@@ -68,9 +68,9 @@ class NotificationService {
       };
 
       await _firestore.collection('notifications').add(notificationData);
-      print('Notification created for moderator $action action');
+      // print('Notification created for moderator $action action');
     } catch (e) {
-      print('Error creating moderator action notification: $e');
+      // print('Error creating moderator action notification: $e');
     }
   }
 
@@ -324,7 +324,7 @@ class NotificationService {
       };
       await _firestore.collection('notifications').add(notificationData);
     } catch (e) {
-      print('Error creating user registration notification: $e');
+      // print('Error creating user registration notification: $e');
     }
   }
 
@@ -347,7 +347,7 @@ class NotificationService {
       };
       await _firestore.collection('notifications').add(notificationData);
     } catch (e) {
-      print('Error creating document request notification: $e');
+      // print('Error creating document request notification: $e');
     }
   }
 
@@ -367,7 +367,7 @@ class NotificationService {
         'read': true,
       });
     } catch (e) {
-      print('Error marking notification as read: $e');
+      // print('Error marking notification as read: $e');
     }
   }
 
@@ -386,7 +386,7 @@ class NotificationService {
       }
       await batch.commit();
     } catch (e) {
-      print('Error marking all notifications as read: $e');
+      // print('Error marking all notifications as read: $e');
     }
   }
 
@@ -395,7 +395,7 @@ class NotificationService {
     try {
       await _firestore.collection('notifications').doc(notificationId).delete();
     } catch (e) {
-      print('Error deleting notification: $e');
+      // print('Error deleting notification: $e');
     }
   }
 }

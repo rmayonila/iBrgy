@@ -322,12 +322,12 @@ class _UserHomePageState extends State<UserHomePage> {
               width: 40,
               decoration: BoxDecoration(
                 color: Color.fromRGBO(
-                  ((config['color'] as Color).value >> 16) &
-                      0xFF, // FIXED: .red replaced
-                  ((config['color'] as Color).value >> 8) &
-                      0xFF, // FIXED: .green replaced
-                  (config['color'] as Color).value &
-                      0xFF, // FIXED: .blue replaced
+                  ((config['color'] as Color).toARGB32() >> 16) &
+                      0xFF, // Extract red component
+                  ((config['color'] as Color).toARGB32() >> 8) &
+                      0xFF, // Extract green component
+                  (config['color'] as Color).toARGB32() &
+                      0xFF, // Extract blue component
                   0.1,
                 ),
                 borderRadius: BorderRadius.circular(8),

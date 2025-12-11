@@ -1,4 +1,4 @@
-// ignore_for_file: use_build_context_synchronously
+﻿// ignore_for_file: use_build_context_synchronously
 import 'package:flutter/foundation.dart'; // For web check
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -586,7 +586,7 @@ class _ModeratorEmergencyHotlinePageState
         ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
+            color: Colors.black.withValues(alpha: 0.05),
             blurRadius: 15,
             offset: const Offset(0, 5),
           ),
@@ -644,7 +644,7 @@ class _ModeratorEmergencyHotlinePageState
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.03),
+            color: Colors.black.withValues(alpha: 0.03),
             blurRadius: 10,
             offset: const Offset(0, 4),
           ),
@@ -750,7 +750,7 @@ class _ModeratorEmergencyHotlinePageState
               color: Colors.white,
               borderRadius: BorderRadius.circular(8),
               boxShadow: [
-                BoxShadow(color: Colors.black.withOpacity(0.1), blurRadius: 4),
+                BoxShadow(color: Colors.black.withValues(alpha: 0.1), blurRadius: 4),
               ],
             ),
             child: IconButton(
@@ -777,8 +777,8 @@ class _ModeratorEmergencyHotlinePageState
         boxShadow: [
           BoxShadow(
             color: isUrgent
-                ? Colors.red.withOpacity(0.3)
-                : Colors.black.withOpacity(0.03),
+                ? Colors.red.withValues(alpha: 0.3)
+                : Colors.black.withValues(alpha: 0.03),
             blurRadius: 10,
             offset: const Offset(0, 4),
           ),
@@ -790,7 +790,7 @@ class _ModeratorEmergencyHotlinePageState
           padding: const EdgeInsets.all(10),
           decoration: BoxDecoration(
             color: isUrgent
-                ? Colors.white.withOpacity(0.2)
+                ? Colors.white.withValues(alpha: 0.2)
                 : Colors.red.shade50,
             borderRadius: BorderRadius.circular(12),
           ),
@@ -814,7 +814,7 @@ class _ModeratorEmergencyHotlinePageState
             item['number'],
             style: TextStyle(
               color: isUrgent
-                  ? Colors.white.withOpacity(0.9)
+                  ? Colors.white.withValues(alpha: 0.9)
                   : Colors.grey.shade600,
               fontSize: 15,
               fontWeight: FontWeight.w500,
@@ -911,7 +911,7 @@ class _ModeratorEmergencyHotlinePageState
         color: Colors.white,
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
+            color: Colors.black.withValues(alpha: 0.05),
             blurRadius: 10,
             offset: const Offset(0, -5),
           ),
@@ -1170,7 +1170,7 @@ class PhoneFrame extends StatelessWidget {
             borderRadius: BorderRadius.circular(40),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withOpacity(0.1),
+                color: Colors.black.withValues(alpha: 0.1),
                 blurRadius: 30,
                 spreadRadius: 5,
                 offset: const Offset(0, 10),

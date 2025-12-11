@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
@@ -35,8 +35,9 @@ class _AccountPageState extends State<AccountPage> {
   void initState() {
     super.initState();
     if (widget.initialName != null) nameController.text = widget.initialName!;
-    if (widget.initialEmail != null)
+    if (widget.initialEmail != null) {
       emailController.text = widget.initialEmail!;
+    }
     _loadProfile();
   }
 
@@ -57,7 +58,7 @@ class _AccountPageState extends State<AccountPage> {
             }
           }
         } catch (e) {
-          print("Could not fetch admin settings: $e");
+          // print("Could not fetch admin settings: $e");
         }
 
         if (mounted) {
@@ -91,7 +92,7 @@ class _AccountPageState extends State<AccountPage> {
         }
       }
     } catch (e) {
-      print('Error loading profile: $e');
+      // print('Error loading profile: $e');
     } finally {
       if (mounted) setState(() => isLoading = false);
     }
@@ -192,7 +193,7 @@ class _AccountPageState extends State<AccountPage> {
         border: Border.all(color: Colors.grey.shade200),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.03),
+            color: Colors.black.withValues(alpha: 0.03),
             blurRadius: 10,
             offset: const Offset(0, 4),
           ),
@@ -486,7 +487,7 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
                 'updatedAt': FieldValue.serverTimestamp(),
               });
         } catch (e) {
-          print("Error updating admin settings in Firestore: $e");
+          // print("Error updating admin settings in Firestore: $e");
         }
 
         // Mock delay for UX
@@ -498,7 +499,9 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
 
           // 3. PASS DATA BACK TO ACCOUNT PAGE
           // Return the new password so Account Page updates immediately
-          Navigator.pop(context, newPassword);
+          if (mounted) {
+            Navigator.pop(context, newPassword);
+          }
         }
       } else {
         // --- FIREBASE USER LOGIC ---
@@ -521,14 +524,16 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
                 'updatedAt': FieldValue.serverTimestamp(),
               }, SetOptions(merge: true));
         } catch (e) {
-          print("Firestore update error: $e");
+          // print("Firestore update error: $e");
         }
 
         if (mounted) {
           _showSnackBar('Password updated successfully!', isError: false);
           await Future.delayed(const Duration(milliseconds: 1500));
           // Pass new password back (though for Auth users we hide it usually)
-          Navigator.pop(context, newPassword);
+          if (mounted) {
+            Navigator.pop(context, newPassword);
+          }
         }
       }
     } on FirebaseAuthException catch (e) {
@@ -715,7 +720,7 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
                         if (states.contains(WidgetState.disabled)) {
                           return const Color(
                             0xFF1877F2,
-                          ).withOpacity(0.3); // Pale Blue
+                          ).withValues(alpha: 0.3); // Pale Blue
                         }
                         return const Color(0xFF1877F2); // Solid Blue
                       }),
@@ -745,7 +750,7 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
                             style: TextStyle(
                               color: isButtonActive
                                   ? Colors.white
-                                  : Colors.white.withOpacity(0.7),
+                                  : Colors.white.withValues(alpha: 0.7),
                               fontSize: 16,
                               fontWeight: FontWeight.w600,
                             ),
@@ -783,7 +788,7 @@ class PhoneFrame extends StatelessWidget {
             borderRadius: BorderRadius.circular(40),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withOpacity(0.1),
+                color: Colors.black.withValues(alpha: 0.1),
                 blurRadius: 30,
                 spreadRadius: 5,
                 offset: const Offset(0, 10),

@@ -1,4 +1,4 @@
-// ignore_for_file: use_build_context_synchronously
+﻿// ignore_for_file: use_build_context_synchronously
 import 'dart:convert'; // Needed for Base64 images
 import 'dart:io';
 import 'package:flutter/foundation.dart'; // For kIsWeb check
@@ -163,12 +163,12 @@ class _ModeratorBrgyOfficialsPageState
                 return FileImage(File(pickedImageFile!.path));
               }
             } else if (currentImageBase64 != null &&
-                currentImageBase64!.isNotEmpty) {
+                currentImageBase64.isNotEmpty) {
               try {
-                if (currentImageBase64!.startsWith('http')) {
-                  return NetworkImage(currentImageBase64!);
+                if (currentImageBase64.startsWith('http')) {
+                  return NetworkImage(currentImageBase64);
                 } else {
-                  return MemoryImage(base64Decode(currentImageBase64!));
+                  return MemoryImage(base64Decode(currentImageBase64));
                 }
               } catch (e) {
                 return null;
@@ -408,7 +408,7 @@ class _ModeratorBrgyOfficialsPageState
                     if (isEditing) {
                       await _db
                           .collection('officials')
-                          .doc(existingDoc!.id)
+                          .doc(existingDoc.id)
                           .update(dataToSave);
 
                       // ▼▼▼ TRACKING: EDIT OFFICIAL ▼▼▼
@@ -838,7 +838,7 @@ class _ModeratorBrgyOfficialsPageState
         ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05), // Corrected Opacity
+            color: Colors.black.withValues(alpha: 0.05), // Corrected Opacity
             blurRadius: 15,
             offset: const Offset(0, 5),
           ),
@@ -903,7 +903,7 @@ class _ModeratorBrgyOfficialsPageState
         borderRadius: BorderRadius.circular(20),
         boxShadow: [
           BoxShadow(
-            color: Colors.blue.withOpacity(0.3), // Corrected Opacity
+            color: Colors.blue.withValues(alpha: 0.3), // Corrected Opacity
             blurRadius: 10,
             offset: const Offset(0, 5),
           ),
@@ -937,7 +937,7 @@ class _ModeratorBrgyOfficialsPageState
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.03), // Corrected Opacity
+            color: Colors.black.withValues(alpha: 0.03), // Corrected Opacity
             blurRadius: 10,
             offset: const Offset(0, 4),
           ),
@@ -984,7 +984,7 @@ class _ModeratorBrgyOfficialsPageState
         border: Border.all(color: Colors.grey.shade200),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.02), // Corrected Opacity
+            color: Colors.black.withValues(alpha: 0.02), // Corrected Opacity
             blurRadius: 10,
             offset: const Offset(0, 4),
           ),
@@ -1184,7 +1184,7 @@ class _ModeratorBrgyOfficialsPageState
         color: Colors.white,
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05), // Corrected Opacity
+            color: Colors.black.withValues(alpha: 0.05), // Corrected Opacity
             blurRadius: 10,
             offset: const Offset(0, -5),
           ),
@@ -1463,7 +1463,7 @@ class PhoneFrame extends StatelessWidget {
             borderRadius: BorderRadius.circular(40),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withOpacity(0.1), // Corrected Opacity
+                color: Colors.black.withValues(alpha: 0.1), // Corrected Opacity
                 blurRadius: 30,
                 spreadRadius: 5,
                 offset: const Offset(0, 10),

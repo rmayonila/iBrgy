@@ -1,0 +1,24 @@
+﻿Analyzing iBrgy...                                              
+
+warning - The declaration '_showFullImageDialog' isn't referenced - lib\Moderator\moderator_announcement_page.dart:109:8 - unused_element
+   info - The local variable '_buildImageTile' starts with an underscore - lib\Moderator\moderator_announcement_page.dart:484:20 - no_leading_underscores_for_local_identifiers
+   info - Use a 'SizedBox' to add whitespace to a layout - lib\Moderator\moderator_announcement_page.dart:1259:15 - sized_box_for_whitespace
+warning - The declaration '_showContactDialog' isn't referenced - lib\admin\help_support_page.dart:142:8 - unused_element
+   info - Unnecessary braces in a string interpolation - lib\services\notification_service.dart:26:44 - unnecessary_brace_in_string_interps
+
+flutter : 5 issues found. 
+(ran in 3.4s)
+At line:1 char:1
++ flutter analyze --no-pub 
+2>&1 | Out-File -FilePath 
+"final_analysis.tx ...
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~
+    + CategoryInfo          
+    : NotSpecified: (5 iss  
+  ues found. (ran in 3.4s   
+ ):String) [], RemoteExc    
+eption
+    + FullyQualifiedErrorId 
+    : NativeCommandError
+ 

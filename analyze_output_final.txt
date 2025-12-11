@@ -1,0 +1,53 @@
+﻿Analyzing iBrgy...                                              
+
+warning - The declaration '_showFullImageDialog' isn't referenced - lib\Moderator\moderator_announcement_page.dart:109:8 - unused_element
+warning - The '!' will have no effect because the receiver can't be null - lib\Moderator\moderator_announcement_page.dart:305:41 - unnecessary_non_null_assertion
+   info - The local variable '_buildImageTile' starts with an underscore - lib\Moderator\moderator_announcement_page.dart:484:20 - no_leading_underscores_for_local_identifiers
+warning - The '!' will have no effect because the receiver can't be null - lib\Moderator\moderator_announcement_page.dart:786:49 - unnecessary_non_null_assertion
+   info - Use a 'SizedBox' to add whitespace to a layout - lib\Moderator\moderator_announcement_page.dart:1259:15 - sized_box_for_whitespace
+warning - The '!' will have no effect because the receiver can't be null - lib\Moderator\moderator_brgy_officials_page.dart:166:35 - unnecessary_non_null_assertion
+warning - The '!' will have no effect because the receiver can't be null - lib\Moderator\moderator_brgy_officials_page.dart:168:39 - unnecessary_non_null_assertion
+warning - The '!' will have no effect because the receiver can't be null - lib\Moderator\moderator_brgy_officials_page.dart:169:57 - unnecessary_non_null_assertion
+warning - The '!' will have no effect because the receiver can't be null - lib\Moderator\moderator_brgy_officials_page.dart:171:69 - unnecessary_non_null_assertion
+warning - The '!' will have no effect because the receiver can't be null - lib\Moderator\moderator_brgy_officials_page.dart:411:43 - unnecessary_non_null_assertion
+   info - Don't invoke 'print' in production code - lib\access_code_page.dart:83:7 - avoid_print
+   info - Don't invoke 'print' in production code - lib\admin\account.dart:61:11 - avoid_print
+   info - Don't invoke 'print' in production code - lib\admin\account.dart:95:7 - avoid_print
+   info - Don't invoke 'print' in production code - lib\admin\account.dart:490:11 - avoid_print
+   info - Don't invoke 'print' in production code - lib\admin\account.dart:527:11 - avoid_print
+warning - The value of the local variable 'category' isn't used - lib\admin\brgy_officials_page.dart:59:11 - unused_local_variable
+warning - Unnecessary cast - lib\admin\emergency_hotline_page.dart:69:22 - unnecessary_cast
+warning - The declaration '_showContactDialog' isn't referenced - lib\admin\help_support_page.dart:142:8 - unused_element
+   info - Don't invoke 'print' in production code - lib\audit_log_service.dart:41:7 - avoid_print
+   info - Don't invoke 'print' in production code - lib\services\activity_service.dart:17:9 - avoid_print
+   info - Don't invoke 'print' in production code - lib\services\activity_service.dart:39:11 - avoid_print
+   info - Don't invoke 'print' in production code - lib\services\activity_service.dart:59:7 - avoid_print
+   info - Don't invoke 'print' in production code - lib\services\activity_service.dart:61:7 - avoid_print
+   info - Unnecessary braces in a string interpolation - lib\services\notification_service.dart:26:44 - unnecessary_brace_in_string_interps
+   info - Don't invoke 'print' in production code - lib\services\notification_service.dart:71:7 - avoid_print
+   info - Don't invoke 'print' in production code - lib\services\notification_service.dart:73:7 - avoid_print
+   info - Don't invoke 'print' in production code - lib\services\notification_service.dart:327:7 - avoid_print
+   info - Don't invoke 'print' in production code - lib\services\notification_service.dart:350:7 - avoid_print
+   info - Don't invoke 'print' in production code - lib\services\notification_service.dart:370:7 - avoid_print
+   info - Don't invoke 'print' in production code - lib\services\notification_service.dart:389:7 - avoid_print
+   info - Don't invoke 'print' in production code - lib\services\notification_service.dart:398:7 - avoid_print
+   info - 'value' is deprecated and shouldn't be used. Use component accessors like .r or .g, or toARGB32 for an explicit conversion - lib\user\user_home_page.dart:325:47 - deprecated_member_use
+   info - 'value' is deprecated and shouldn't be used. Use component accessors like .r or .g, or toARGB32 for an explicit conversion - lib\user\user_home_page.dart:327:47 - deprecated_member_use
+   info - 'value' is deprecated and shouldn't be used. Use component accessors like .r or .g, or toARGB32 for an explicit conversion - lib\user\user_home_page.dart:329:46 - deprecated_member_use
+
+flutter : 34 issues found. 
+(ran in 5.8s)
+At line:1 char:1
++ flutter analyze --no-pub 
+2>&1 | Out-File -FilePath 
+"analyze_output_fi ...
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~
+    + CategoryInfo          
+    : NotSpecified: (34 is  
+  sues found. (ran in 5.8   
+ s):String) [], RemoteEx    
+ception
+    + FullyQualifiedErrorId 
+    : NativeCommandError
+ 

@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'main.dart' show PhoneFrame;
@@ -80,7 +80,7 @@ class _AccessCodePageState extends State<AccessCodePage> {
         }
       }
     } catch (e) {
-      print('Error fetching access codes: $e');
+      // print('Error fetching access codes: $e');
     }
 
     // Return default codes if Firestore fails

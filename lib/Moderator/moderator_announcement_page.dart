@@ -1,4 +1,4 @@
-// ignore_for_file: use_build_context_synchronously
+﻿// ignore_for_file: use_build_context_synchronously
 
 import 'dart:convert';
 import 'dart:io';
@@ -106,6 +106,7 @@ class _ModeratorAnnouncementPageState extends State<ModeratorAnnouncementPage> {
   }
 
   // --- HELPER: SHOW FULL IMAGE MODAL ---
+  // ignore: unused_element
   void _showFullImageDialog(BuildContext context, ImageProvider imageProvider) {
     showDialog(
       context: context,
@@ -302,7 +303,7 @@ class _ModeratorAnnouncementPageState extends State<ModeratorAnnouncementPage> {
                   if (isEditing) {
                     await _db
                         .collection('important_reminders')
-                        .doc(existingDoc!.id)
+                        .doc(existingDoc.id)
                         .update({
                           'title': title,
                           'content': content,
@@ -481,7 +482,7 @@ class _ModeratorAnnouncementPageState extends State<ModeratorAnnouncementPage> {
         return StatefulBuilder(
           builder: (context, setDialogState) {
             // Helper to build individual image tile
-            Widget _buildImageTile({
+            Widget buildImageTile({
               required ImageProvider imageProvider,
               required VoidCallback onRemove,
             }) {
@@ -528,7 +529,7 @@ class _ModeratorAnnouncementPageState extends State<ModeratorAnnouncementPage> {
               // Add existing images
               for (int i = 0; i < currentImages.length; i++) {
                 imageWidgets.add(
-                  _buildImageTile(
+                  buildImageTile(
                     imageProvider: MemoryImage(base64Decode(currentImages[i])),
                     onRemove: () {
                       setDialogState(() {
@@ -548,7 +549,7 @@ class _ModeratorAnnouncementPageState extends State<ModeratorAnnouncementPage> {
                   provider = FileImage(File(pickedImageFiles[i].path));
                 }
                 imageWidgets.add(
-                  _buildImageTile(
+                  buildImageTile(
                     imageProvider: provider,
                     onRemove: () {
                       setDialogState(() {
@@ -783,7 +784,7 @@ class _ModeratorAnnouncementPageState extends State<ModeratorAnnouncementPage> {
                           if (isEditing) {
                             await _db
                                 .collection('announcements')
-                                .doc(existingDoc!.id)
+                                .doc(existingDoc.id)
                                 .update({
                                   'content': content,
                                   'images': finalImages,
@@ -809,6 +810,8 @@ class _ModeratorAnnouncementPageState extends State<ModeratorAnnouncementPage> {
                                 .add({
                                   'content': content,
                                   'images': finalImages,
+                                  'author':
+                                      'Barangay Office', // Always set to Barangay Office
                                   'createdAt': FieldValue.serverTimestamp(),
                                   'type': 'update',
                                 });
@@ -921,7 +924,7 @@ class _ModeratorAnnouncementPageState extends State<ModeratorAnnouncementPage> {
         ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
+            color: Colors.black.withValues(alpha: 0.05),
             blurRadius: 15,
             offset: const Offset(0, 5),
           ),
@@ -1000,7 +1003,7 @@ class _ModeratorAnnouncementPageState extends State<ModeratorAnnouncementPage> {
                 borderRadius: BorderRadius.circular(8),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withOpacity(0.1),
+                    color: Colors.black.withValues(alpha: 0.1),
                     blurRadius: 4,
                     offset: const Offset(0, 2),
                   ),
@@ -1082,7 +1085,7 @@ class _ModeratorAnnouncementPageState extends State<ModeratorAnnouncementPage> {
                     borderRadius: BorderRadius.circular(8),
                     boxShadow: [
                       BoxShadow(
-                        color: Colors.black.withOpacity(0.1),
+                        color: Colors.black.withValues(alpha: 0.1),
                         blurRadius: 4,
                         offset: const Offset(0, 2),
                       ),
@@ -1146,7 +1149,7 @@ class _ModeratorAnnouncementPageState extends State<ModeratorAnnouncementPage> {
               _formatTimestamp(data['createdAt']),
               style: TextStyle(
                 fontSize: 11,
-                color: Colors.orange.shade800.withOpacity(0.6),
+                color: Colors.orange.shade800.withValues(alpha: 0.6),
                 fontWeight: FontWeight.w500,
               ),
             ),
@@ -1166,7 +1169,7 @@ class _ModeratorAnnouncementPageState extends State<ModeratorAnnouncementPage> {
         border: Border.all(color: Colors.grey.shade200),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.02),
+            color: Colors.black.withValues(alpha: 0.02),
             blurRadius: 8,
             offset: const Offset(0, 2),
           ),
@@ -1256,7 +1259,7 @@ class _ModeratorAnnouncementPageState extends State<ModeratorAnnouncementPage> {
           margin: const EdgeInsets.only(top: 12),
           child: Column(
             children: [
-              Container(height: 150, child: imageWidgets[0]),
+              SizedBox(height: 150, child: imageWidgets[0]),
               const SizedBox(height: 4),
               SizedBox(
                 height: 100,
@@ -1311,7 +1314,7 @@ class _ModeratorAnnouncementPageState extends State<ModeratorAnnouncementPage> {
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.03),
+            color: Colors.black.withValues(alpha: 0.03),
             blurRadius: 10,
             offset: const Offset(0, 4),
           ),
@@ -1379,7 +1382,7 @@ class _ModeratorAnnouncementPageState extends State<ModeratorAnnouncementPage> {
                     borderRadius: BorderRadius.circular(8),
                     boxShadow: [
                       BoxShadow(
-                        color: Colors.black.withOpacity(0.1),
+                        color: Colors.black.withValues(alpha: 0.1),
                         blurRadius: 4,
                         offset: const Offset(0, 2),
                       ),
@@ -1440,7 +1443,7 @@ class _ModeratorAnnouncementPageState extends State<ModeratorAnnouncementPage> {
         color: Colors.white,
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
+            color: Colors.black.withValues(alpha: 0.05),
             blurRadius: 10,
             offset: const Offset(0, -5),
           ),
@@ -1548,7 +1551,7 @@ class _ModeratorAnnouncementPageState extends State<ModeratorAnnouncementPage> {
                           borderRadius: BorderRadius.circular(16),
                           boxShadow: [
                             BoxShadow(
-                              color: Colors.black.withOpacity(0.03),
+                              color: Colors.black.withValues(alpha: 0.03),
                               blurRadius: 10,
                               offset: const Offset(0, 4),
                             ),
@@ -1774,7 +1777,7 @@ class _ExpandableTextState extends State<_ExpandableText> {
           style: TextStyle(
             fontSize: 14,
             height: 1.5,
-            color: Colors.black87.withOpacity(0.8),
+            color: Colors.black87.withValues(alpha: 0.8),
           ),
         );
 
@@ -1798,7 +1801,7 @@ class _ExpandableTextState extends State<_ExpandableText> {
                 style: TextStyle(
                   fontSize: 14,
                   height: 1.5,
-                  color: Colors.black87.withOpacity(0.8),
+                  color: Colors.black87.withValues(alpha: 0.8),
                 ),
               ),
               const SizedBox(height: 4),
@@ -1825,7 +1828,7 @@ class _ExpandableTextState extends State<_ExpandableText> {
             style: TextStyle(
               fontSize: 14,
               height: 1.5,
-              color: Colors.black87.withOpacity(0.8),
+              color: Colors.black87.withValues(alpha: 0.8),
             ),
           );
         }
@@ -1851,7 +1854,7 @@ class PhoneFrame extends StatelessWidget {
             borderRadius: BorderRadius.circular(40),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withOpacity(0.1),
+                color: Colors.black.withValues(alpha: 0.1),
                 blurRadius: 30,
                 spreadRadius: 5,
                 offset: const Offset(0, 10),

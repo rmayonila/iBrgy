@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import '../models/subscription_tier.dart';
 import '../services/subscription_service.dart';
 import '../admin/subscription_management_page.dart';
@@ -53,7 +53,9 @@ class SubscriptionLimitWarning extends StatelessWidget {
                   style: TextStyle(
                     fontWeight: FontWeight.bold,
                     fontSize: 14,
-                    color: isAtLimit ? Colors.red.shade900 : Colors.orange.shade900,
+                    color: isAtLimit
+                        ? Colors.red.shade900
+                        : Colors.orange.shade900,
                   ),
                 ),
                 const SizedBox(height: 4),
@@ -63,7 +65,9 @@ class SubscriptionLimitWarning extends StatelessWidget {
                       : 'You are using $currentCount of $limit available.',
                   style: TextStyle(
                     fontSize: 12,
-                    color: isAtLimit ? Colors.red.shade800 : Colors.orange.shade800,
+                    color: isAtLimit
+                        ? Colors.red.shade800
+                        : Colors.orange.shade800,
                   ),
                 ),
               ],
@@ -101,9 +105,7 @@ class SubscriptionLimitDialog {
       context: context,
       builder: (context) => AlertDialog(
         backgroundColor: Colors.white,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         title: Row(
           children: [
             Icon(Icons.lock_outline, color: Colors.orange.shade700, size: 28),
@@ -111,10 +113,7 @@ class SubscriptionLimitDialog {
             const Expanded(
               child: Text(
                 'Upgrade Required',
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                ),
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
               ),
             ),
           ],
@@ -216,9 +215,9 @@ class SubscriptionBadge extends StatelessWidget {
       return Container(
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
         decoration: BoxDecoration(
-          color: badgeColor.withOpacity(0.1),
+          color: badgeColor.withValues(alpha: 0.1),
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: badgeColor.withOpacity(0.3)),
+          border: Border.all(color: badgeColor.withValues(alpha: 0.3)),
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
@@ -242,12 +241,12 @@ class SubscriptionBadge extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
         gradient: LinearGradient(
-          colors: [badgeColor, badgeColor.withOpacity(0.7)],
+          colors: [badgeColor, badgeColor.withValues(alpha: 0.7)],
         ),
         borderRadius: BorderRadius.circular(8),
         boxShadow: [
           BoxShadow(
-            color: badgeColor.withOpacity(0.3),
+            color: badgeColor.withValues(alpha: 0.3),
             blurRadius: 8,
             offset: const Offset(0, 2),
           ),
@@ -286,11 +285,14 @@ Future<bool> checkSubscriptionLimit({
 
   if (!canPerform) {
     final subscription = await subscriptionService.getCurrentSubscription();
-    await SubscriptionLimitDialog.show(
-      context: context,
-      feature: _getFeatureName(action),
-      currentTier: subscription.tier,
-    );
+    // Check if context is still mounted before using it
+    if (context.mounted) {
+      await SubscriptionLimitDialog.show(
+        context: context,
+        feature: _getFeatureName(action),
+        currentTier: subscription.tier,
+      );
+    }
     return false;
   }
 

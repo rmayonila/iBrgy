@@ -25,14 +25,17 @@ class _EmergencyHotlinePageState extends State<EmergencyHotlinePage> {
   String _searchQuery = '';
   final TextEditingController _searchController = TextEditingController();
 
-  // --- DATA STATE ---
-  List<Map<String, dynamic>> _allHotlines = [];
-  bool _isLoading = true;
+  // --- STREAM FOR REAL-TIME SYNC ---
+  late Stream<QuerySnapshot> _hotlinesStream;
 
   @override
   void initState() {
     super.initState();
-    _loadHotlines();
+    // Use real-time stream instead of one-time load for automatic sync
+    _hotlinesStream = _db
+        .collection('hotlines')
+        .orderBy('createdAt', descending: true)
+        .snapshots();
   }
 
   // --- ADMIN NAVIGATION LOGIC ---
@@ -53,44 +56,6 @@ class _EmergencyHotlinePageState extends State<EmergencyHotlinePage> {
     _searchController.dispose();
     _debounce?.cancel(); // Cancel the timer when the widget is disposed
     super.dispose();
-  }
-
-  // --- LOAD HOTLINES DATA ---
-  Future<void> _loadHotlines() async {
-    try {
-      final snapshot = await _db
-          .collection('hotlines')
-          .orderBy('createdAt', descending: true)
-          .get();
-
-      final List<Map<String, dynamic>> hotlines = [];
-
-      for (final doc in snapshot.docs) {
-        final data = doc.data() as Map<String, dynamic>;
-        final hotline = {
-          'id': doc.id,
-          'name': (data['name'] ?? '').toString(),
-          'number': (data['number'] ?? '').toString(),
-          'type': (data['type'] ?? 'local').toString(),
-          'isUrgent': data['isUrgent'] == true,
-          'icon': _getIconForType((data['type'] ?? 'local').toString()),
-        };
-        hotlines.add(hotline);
-      }
-
-      if (mounted) {
-        setState(() {
-          _allHotlines = hotlines;
-          _isLoading = false;
-        });
-      }
-    } catch (error) {
-      if (mounted) {
-        setState(() {
-          _isLoading = false;
-        });
-      }
-    }
   }
 
   IconData _getIconForType(String type) {
@@ -603,112 +568,138 @@ class _EmergencyHotlinePageState extends State<EmergencyHotlinePage> {
 
   // --- BUILD CONTENT BASED ON SEARCH ---
   Widget _buildContent() {
-    if (_isLoading) {
-      return const Center(child: CircularProgressIndicator());
-    }
-
-    final List<Map<String, dynamic>> nationalItems = [];
-    final List<Map<String, dynamic>> localItems = [];
-    final List<Map<String, dynamic>> barangayItems = [];
-
-    for (final hotline in _allHotlines) {
-      // Filter by search query
-      final search = _searchQuery;
-      final matchesSearch =
-          search.isEmpty ||
-          hotline['name'].toString().toLowerCase().contains(search) ||
-          hotline['number'].toString().toLowerCase().contains(search);
-
-      if (matchesSearch) {
-        if (hotline['type'] == 'national') {
-          nationalItems.add(hotline);
-        } else if (hotline['type'] == 'barangay') {
-          barangayItems.add(hotline);
-        } else {
-          localItems.add(hotline);
+    return StreamBuilder<QuerySnapshot>(
+      stream: _hotlinesStream,
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(child: CircularProgressIndicator());
         }
-      }
-    }
 
-    // Check if there are any results across all categories
-    final bool hasSearchResults =
-        nationalItems.isNotEmpty ||
-        localItems.isNotEmpty ||
-        barangayItems.isNotEmpty;
-    final bool isSearching = _searchQuery.isNotEmpty;
+        if (snapshot.hasError) {
+          return Center(child: Text('Error: ${snapshot.error}'));
+        }
 
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(20),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // 1. Search Bar
-          _buildSearchBar(),
-          const SizedBox(height: 24),
+        // Convert snapshot to list of hotlines
+        final List<Map<String, dynamic>> allHotlines = [];
+        if (snapshot.hasData) {
+          for (final doc in snapshot.data!.docs) {
+            final data = doc.data() as Map<String, dynamic>;
+            final hotline = {
+              'id': doc.id,
+              'name': (data['name'] ?? '').toString(),
+              'number': (data['number'] ?? '').toString(),
+              'type': (data['type'] ?? 'local').toString(),
+              'isUrgent': data['isUrgent'] == true,
+              'icon': _getIconForType((data['type'] ?? 'local').toString()),
+            };
+            allHotlines.add(hotline);
+          }
+        }
 
-          // 2. Description Note (Quick Guide) - MOVED HERE
-          _buildDescriptionNote(),
+        final List<Map<String, dynamic>> nationalItems = [];
+        final List<Map<String, dynamic>> localItems = [];
+        final List<Map<String, dynamic>> barangayItems = [];
 
-          // 3. Safety Quote - MOVED HERE
-          _buildSafetyQuote(),
+        for (final hotline in allHotlines) {
+          // Filter by search query
+          final search = _searchQuery;
+          final matchesSearch =
+              search.isEmpty ||
+              hotline['name'].toString().toLowerCase().contains(search) ||
+              hotline['number'].toString().toLowerCase().contains(search);
 
-          // 4. Page Title (Emergency Hotlines)
-          const Text(
-            "Emergency Hotlines",
-            style: TextStyle(
-              fontSize: 20,
-              fontWeight: FontWeight.bold,
-              color: Colors.black87,
-            ),
+          if (matchesSearch) {
+            if (hotline['type'] == 'national') {
+              nationalItems.add(hotline);
+            } else if (hotline['type'] == 'barangay') {
+              barangayItems.add(hotline);
+            } else {
+              localItems.add(hotline);
+            }
+          }
+        }
+
+        // Check if there are any results across all categories
+        final bool hasSearchResults =
+            nationalItems.isNotEmpty ||
+            localItems.isNotEmpty ||
+            barangayItems.isNotEmpty;
+        final bool isSearching = _searchQuery.isNotEmpty;
+
+        return SingleChildScrollView(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // 1. Search Bar
+              _buildSearchBar(),
+              const SizedBox(height: 24),
+
+              // 2. Description Note (Quick Guide) - MOVED HERE
+              _buildDescriptionNote(),
+
+              // 3. Safety Quote - MOVED HERE
+              _buildSafetyQuote(),
+
+              // 4. Page Title (Emergency Hotlines)
+              const Text(
+                "Emergency Hotlines",
+                style: TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.black87,
+                ),
+              ),
+              // Retaining the original admin subtitle below the title
+              const SizedBox(height: 4),
+              Text(
+                "Tap to copy the number",
+                style: TextStyle(color: Colors.grey.shade500, fontSize: 13),
+              ),
+              const SizedBox(height: 16),
+
+              // Show "No results" message when searching with no results
+              if (isSearching && !hasSearchResults) _buildNoSearchResults(),
+
+              // Show content only if we have results or not searching
+              if (!isSearching || hasSearchResults) ...[
+                // NATIONAL
+                if (nationalItems.isNotEmpty || !isSearching)
+                  _buildSectionTitle("NATIONAL EMERGENCY"),
+
+                if (nationalItems.isEmpty && !isSearching)
+                  _buildEmptyState("national")
+                else if (nationalItems.isNotEmpty)
+                  ...nationalItems.map((h) => _buildHotlineCard(h)),
+
+                const SizedBox(height: 20),
+
+                // LOCAL
+                if (localItems.isNotEmpty || !isSearching)
+                  _buildSectionTitle("LOCAL HOTLINES"),
+
+                if (localItems.isEmpty && !isSearching)
+                  _buildEmptyState("local")
+                else if (localItems.isNotEmpty)
+                  ...localItems.map((h) => _buildHotlineCard(h)),
+
+                const SizedBox(height: 20),
+
+                // BARANGAY
+                if (barangayItems.isNotEmpty || !isSearching)
+                  _buildSectionTitle("BARANGAY HOTLINES"),
+
+                if (barangayItems.isEmpty && !isSearching)
+                  _buildEmptyState("barangay")
+                else if (barangayItems.isNotEmpty)
+                  ...barangayItems.map((h) => _buildHotlineCard(h)),
+              ],
+
+              const SizedBox(height: 80),
+            ],
           ),
-          // Retaining the original admin subtitle below the title
-          const SizedBox(height: 4),
-          Text(
-            "Tap to copy the number",
-            style: TextStyle(color: Colors.grey.shade500, fontSize: 13),
-          ),
-          const SizedBox(height: 16),
-
-          // Show "No results" message when searching with no results
-          if (isSearching && !hasSearchResults) _buildNoSearchResults(),
-
-          // Show content only if we have results or not searching
-          if (!isSearching || hasSearchResults) ...[
-            // NATIONAL
-            if (nationalItems.isNotEmpty || !isSearching)
-              _buildSectionTitle("NATIONAL EMERGENCY"),
-
-            if (nationalItems.isEmpty && !isSearching)
-              _buildEmptyState("national")
-            else if (nationalItems.isNotEmpty)
-              ...nationalItems.map((h) => _buildHotlineCard(h)),
-
-            const SizedBox(height: 20),
-
-            // LOCAL
-            if (localItems.isNotEmpty || !isSearching)
-              _buildSectionTitle("LOCAL HOTLINES"),
-
-            if (localItems.isEmpty && !isSearching)
-              _buildEmptyState("local")
-            else if (localItems.isNotEmpty)
-              ...localItems.map((h) => _buildHotlineCard(h)),
-
-            const SizedBox(height: 20),
-
-            // BARANGAY
-            if (barangayItems.isNotEmpty || !isSearching)
-              _buildSectionTitle("BARANGAY HOTLINES"),
-
-            if (barangayItems.isEmpty && !isSearching)
-              _buildEmptyState("barangay")
-            else if (barangayItems.isNotEmpty)
-              ...barangayItems.map((h) => _buildHotlineCard(h)),
-          ],
-
-          const SizedBox(height: 80),
-        ],
-      ),
+        );
+      },
     );
   }
 

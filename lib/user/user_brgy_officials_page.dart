@@ -116,7 +116,6 @@ class _UserBrgyOfficialsPageState extends State<UserBrgyOfficialsPage> {
     final nickname = data['nickname']?.toString() ?? '';
     final age = data['age']?.toString() ?? ''; // Added Age
     final address = data['address']?.toString() ?? '';
-    final category = data['category']?.toString() ?? '';
     final imageUrl = data['imageUrl']?.toString() ?? '';
 
     // --- FIX: Always use 'title' (Position) as the combined position ---

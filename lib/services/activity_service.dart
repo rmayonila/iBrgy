@@ -1,4 +1,4 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
+﻿import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
@@ -14,7 +14,7 @@ class ActivityService {
       final user = FirebaseAuth.instance.currentUser;
 
       if (user == null) {
-        print("Logger Error: No user logged in.");
+        // print("Logger Error: No user logged in.");
         return;
       }
 
@@ -36,7 +36,7 @@ class ActivityService {
             moderatorName = userDoc.data()?['name'] ?? 'Unknown Moderator';
           }
         } catch (e) {
-          print("Error fetching name from DB: $e");
+          // print("Error fetching name from DB: $e");
         }
       }
 
@@ -56,17 +56,20 @@ class ActivityService {
         'timestamp': FieldValue.serverTimestamp(),
       });
 
-      print("Activity Logged: $actionTitle by $moderatorName");
+      // print("Activity Logged: $actionTitle by $moderatorName");
     } catch (e) {
-      print("Failed to log activity: $e");
+      // print("Failed to log activity: $e");
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text("LOGGER ERROR: $e"),
-          backgroundColor: Colors.red,
-          duration: const Duration(seconds: 5),
-        ),
-      );
+      // Check if context is still mounted before using it
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text("LOGGER ERROR: $e"),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 5),
+          ),
+        );
+      }
     }
   }
 }
