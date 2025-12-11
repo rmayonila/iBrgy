@@ -646,6 +646,7 @@ class _ModeratorHomePageState extends State<ModeratorHomePage> {
                 const SizedBox(height: 4),
                 const Text(
                   'Home contains the complete steps and requirements for all available Barangay services. Review the details first to save time and ensure you have everything needed before visiting the office.',
+                  textAlign: TextAlign.justify,
                   style: TextStyle(
                     fontSize: 13,
                     color: Colors.black87,

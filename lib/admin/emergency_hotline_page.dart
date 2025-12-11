@@ -5,8 +5,6 @@ import 'package:flutter/services.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'dart:async'; // Required for Timer
 
-import '../widgets/subscription_widgets.dart';
-
 class EmergencyHotlinePage extends StatefulWidget {
   const EmergencyHotlinePage({super.key});
 
@@ -543,6 +541,7 @@ class _EmergencyHotlinePageState extends State<EmergencyHotlinePage> {
           const SizedBox(height: 8),
           const Text(
             "Emergency Hotline provides ESSENTIAL EMERGENCY HOTLINE NUMBERS. Tap on any number to IMMEDIATELY COPY IT to your clipboard for quick pasting into your phone dialer. Your safety is our priority.",
+            textAlign: TextAlign.justify,
             style: TextStyle(fontSize: 13, color: Colors.black87, height: 1.4),
           ),
         ],
@@ -709,35 +708,7 @@ class _EmergencyHotlinePageState extends State<EmergencyHotlinePage> {
   Widget build(BuildContext context) {
     Widget mobileContent = Scaffold(
       backgroundColor: const Color(0xFFF8F9FA),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () async {
-          final snapshot = await FirebaseFirestore.instance
-              .collection('hotlines')
-              .get();
-          final currentCount = snapshot.docs.length;
 
-          if (context.mounted) {
-            final canAdd = await checkSubscriptionLimit(
-              context: context,
-              action: 'add_hotline',
-              currentCount: currentCount,
-            );
-
-            if (canAdd && context.mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Add Hotline functionality coming soon'),
-                ),
-              );
-            }
-          }
-        },
-        label: const Text('New Hotline'),
-        icon: const Icon(
-          Icons.add,
-        ), // Changed to generic Add, Phone was specific
-        backgroundColor: Colors.red.shade400, // Match theme
-      ),
       body: SafeArea(
         child: Column(
           children: [

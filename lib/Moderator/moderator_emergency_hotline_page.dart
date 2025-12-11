@@ -700,6 +700,7 @@ class _ModeratorEmergencyHotlinePageState
           const SizedBox(height: 8),
           const Text(
             "Emergency Hotline provides ESSENTIAL EMERGENCY HOTLINE NUMBERS. Tap on any number to IMMEDIATELY COPY IT to your clipboard for quick pasting into your phone dialer. Your safety is our priority.",
+            textAlign: TextAlign.justify,
             style: TextStyle(fontSize: 13, color: Colors.black87, height: 1.4),
           ),
         ],
@@ -750,7 +751,10 @@ class _ModeratorEmergencyHotlinePageState
               color: Colors.white,
               borderRadius: BorderRadius.circular(8),
               boxShadow: [
-                BoxShadow(color: Colors.black.withValues(alpha: 0.1), blurRadius: 4),
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.1),
+                  blurRadius: 4,
+                ),
               ],
             ),
             child: IconButton(

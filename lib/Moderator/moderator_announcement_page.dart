@@ -1514,6 +1514,7 @@ class _ModeratorAnnouncementPageState extends State<ModeratorAnnouncementPage> {
                 const SizedBox(height: 4),
                 const Text(
                   'The Barangay Updates provides the important reminders and recent updates from the barangay office.',
+                  textAlign: TextAlign.justify,
                   style: TextStyle(
                     fontSize: 13,
                     color: Colors.black87,

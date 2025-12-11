@@ -520,6 +520,7 @@ class _UserEmergencyHotlinePageState extends State<UserEmergencyHotlinePage> {
           const SizedBox(height: 8),
           const Text(
             "Emergency Hotline provides ESSENTIAL EMERGENCY HOTLINE NUMBERS. Tap on any number to IMMEDIATELY COPY IT to your clipboard for quick pasting into your phone dialer. Your safety is our priority.",
+            textAlign: TextAlign.justify,
             style: TextStyle(fontSize: 13, color: Colors.black87, height: 1.4),
           ),
         ],

@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart'; // For web check
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_core/firebase_core.dart'; // Added for secondary app
 import 'add_moderator_account_page.dart';
 import '../widgets/subscription_widgets.dart';
 
@@ -294,7 +295,6 @@ class ModeratorCard extends StatelessWidget {
     bool hasSavedPassword = savedPassword.isNotEmpty;
 
     // 2. Setup Controller
-    // If we have it, show it. If not, show "Not Available" (instead of stars)
     final currentPassController = TextEditingController(
       text: hasSavedPassword ? savedPassword : "Not Available (Reset Required)",
     );
@@ -379,25 +379,16 @@ class ModeratorCard extends StatelessWidget {
                   controller: currentPassController,
                   readOnly: true,
                   enableInteractiveSelection: false,
-                  // VISIBILITY LOGIC:
-                  // If we have a password -> Show it (obscureText: false)
-                  // If we don't -> Show text "Not Available" (obscureText: false)
-                  // We effectively NEVER obscure it now, per your request.
                   obscureText: false,
-                  style: TextStyle(
-                    // Black if real password, Red if missing
-                    color: hasSavedPassword ? Colors.black : Colors.red,
-                    fontWeight: hasSavedPassword
-                        ? FontWeight.normal
-                        : FontWeight.bold,
+                  style: const TextStyle(
+                    color: Colors.black,
+                    fontWeight: FontWeight.normal,
                   ),
                   decoration: InputDecoration(
                     labelText: "Current Password",
                     floatingLabelBehavior: FloatingLabelBehavior.always,
-                    // If hidden, explain why
-                    helperText: hasSavedPassword
-                        ? "Visible to Admin"
-                        : "Old account: Password was not saved.",
+                    helperText: "System stored password.",
+                    helperMaxLines: 1,
                     labelStyle: const TextStyle(color: Colors.black54),
                     border: const OutlineInputBorder(),
                     fillColor: const Color(0xFFF5F5F5),
@@ -479,54 +470,133 @@ class ModeratorCard extends StatelessWidget {
               if (context.mounted) {
                 ScaffoldMessenger.of(context).showSnackBar(
                   const SnackBar(
-                    content: Text("Saving changes..."),
+                    content: Text("Applying changes..."),
                     duration: Duration(seconds: 1),
                   ),
                 );
               }
 
-              await Future.delayed(const Duration(milliseconds: 600));
+              // Update map (Name/Email always get updated)
+              Map<String, dynamic> updateData = {
+                'name': newName,
+                'email': newEmail,
+              };
 
-              try {
-                // Update map
-                Map<String, dynamic> updateData = {
-                  'name': newName,
-                  'email': newEmail,
-                };
+              String feedbackMessage = "Details updated.";
+              bool authUpdateSuccess = false;
 
-                // CRITICAL: IF ADMIN CHANGES PASSWORD, SAVE THE NEW ONE TO DB
-                // This fixes the "Not Available" issue for old accounts if you reset them.
-                if (newPass.isNotEmpty) {
-                  updateData['password'] = newPass;
+              // --- PASSWORD LOGIC ---
+              if (newPass.isNotEmpty) {
+                // ATTEMPT AUTO-UPDATE IF WE HAVE THE OLD PASSWORD
+                final passwordToUse =
+                    currentPassController.text.trim().isNotEmpty
+                    ? currentPassController.text.trim()
+                    : savedPassword;
+
+                if (passwordToUse.isNotEmpty) {
+                  FirebaseApp? secondaryApp;
+                  try {
+                    // 1. Init temporary app
+                    secondaryApp = await Firebase.initializeApp(
+                      name: 'tempAuth-${DateTime.now().millisecondsSinceEpoch}',
+                      options: Firebase.app().options,
+                    );
+
+                    // 2. Sign in as the moderator
+                    final auth = FirebaseAuth.instanceFor(app: secondaryApp);
+
+                    // CRITICAL FIX FOR WEB: Set persistence to NONE to avoid conflicts with main admin session
+                    await auth.setPersistence(Persistence.NONE);
+
+                    final cred = await auth.signInWithEmailAndPassword(
+                      email: currentEmail,
+                      password: passwordToUse,
+                    );
+
+                    // 3. Update Password
+                    await cred.user?.updatePassword(newPass);
+
+                    // 4. Update Email if changed
+                    if (newEmail != currentEmail) {
+                      await cred.user?.verifyBeforeUpdateEmail(newEmail);
+                      feedbackMessage =
+                          "Password updated & Email verification sent.";
+                    } else {
+                      feedbackMessage = "Password is successfully changed.";
+                    }
+
+                    // Update Firestore ONLY on success
+                    updateData['password'] = newPass;
+                    authUpdateSuccess = true;
+
+                    await auth.signOut();
+                  } catch (e) {
+                    print("Auto-update failed: $e");
+
+                    String errorDetail = "Old password mismatch";
+                    if (e.toString().contains('invalid-credential'))
+                      errorDetail = "Current Password Incorrect";
+                    if (e.toString().contains('network'))
+                      errorDetail = "Network error";
+                    if (e.toString().contains('too-many-requests'))
+                      errorDetail = "Too many attempts";
+
+                    // Fallback
+                    try {
+                      await FirebaseAuth.instance.sendPasswordResetEmail(
+                        email: newEmail,
+                      );
+                      feedbackMessage =
+                          "Update Failed ($errorDetail). Reset email sent instead.";
+                    } catch (resetError) {
+                      feedbackMessage =
+                          "Failed to update password. Old password might be wrong.";
+                    }
+                  } finally {
+                    await secondaryApp?.delete();
+                  }
+                } else {
+                  // No old password known -> Must use reset email
+                  try {
+                    await FirebaseAuth.instance.sendPasswordResetEmail(
+                      email: newEmail,
+                    );
+                    feedbackMessage =
+                        "No stored password to verify. Reset email sent.";
+                  } catch (e) {
+                    feedbackMessage = "Failed to send reset email.";
+                  }
                 }
+              }
 
+              // --- FIRESTORE UPDATE ---
+              try {
                 await FirebaseFirestore.instance
                     .collection('users')
                     .doc(docId)
                     .update(updateData);
 
-                String message = "Details updated successfully";
-                if (newPass.isNotEmpty) {
-                  try {
-                    await FirebaseAuth.instance.sendPasswordResetEmail(
-                      email: newEmail,
-                    );
-                    message = "Details saved. Password reset email sent.";
-                  } catch (e) {
-                    message = "Saved, but failed to send password reset.";
-                  }
-                }
-
                 if (context.mounted) {
-                  ScaffoldMessenger.of(
-                    context,
-                  ).showSnackBar(SnackBar(content: Text(message)));
+                  // Show specific feedback
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(feedbackMessage),
+                      // Red background if we intended to update pass but failed (and fell back)
+                      backgroundColor:
+                          (newPass.isNotEmpty &&
+                              !authUpdateSuccess &&
+                              !feedbackMessage.contains("successfully"))
+                          ? Colors.orange
+                          : Colors.green,
+                      duration: const Duration(seconds: 4),
+                    ),
+                  );
                 }
               } catch (e) {
                 if (context.mounted) {
-                  ScaffoldMessenger.of(
-                    context,
-                  ).showSnackBar(SnackBar(content: Text("Update failed: $e")));
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text("Database update failed: $e")),
+                  );
                 }
               }
             },

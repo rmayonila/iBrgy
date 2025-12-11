@@ -4,8 +4,6 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'dart:async'; // Keep this import
 
-import '../widgets/subscription_widgets.dart';
-
 // --- CONFIG: Synced with Moderator Page ---
 const Map<String, Map<String, dynamic>> categoryConfig = {
   'Health & Welfare': {'color': Color(0xFF4CAF50), 'icon': Icons.favorite},
@@ -224,6 +222,7 @@ class _AdminHomePageState extends State<AdminHomePage> {
                 const SizedBox(height: 4),
                 const Text(
                   'Home contains the complete steps and requirements  for all available Barangay services. Review the details first to save time and ensure you have everything needed before visiting the office.',
+                  textAlign: TextAlign.justify,
                   style: TextStyle(
                     fontSize: 13,
                     color: Colors.black87,
@@ -439,33 +438,7 @@ class _AdminHomePageState extends State<AdminHomePage> {
   Widget build(BuildContext context) {
     Widget mobileContent = Scaffold(
       backgroundColor: const Color(0xFFF8F9FA),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () async {
-          final snapshot = await FirebaseFirestore.instance
-              .collection('barangay_services')
-              .get();
-          final currentCount = snapshot.docs.length;
 
-          if (context.mounted) {
-            final canAdd = await checkSubscriptionLimit(
-              context: context,
-              action: 'add_service',
-              currentCount: currentCount,
-            );
-
-            if (canAdd && context.mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Create Service functionality coming soon'),
-                ),
-              );
-            }
-          }
-        },
-        label: const Text('New Service'),
-        icon: const Icon(Icons.add),
-        backgroundColor: Colors.blue,
-      ),
       body: SafeArea(
         child: Column(
           children: [

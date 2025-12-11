@@ -923,6 +923,7 @@ class _ModeratorBrgyOfficialsPageState
           const SizedBox(height: 8),
           Text(
             "Dedicated to serving the community with integrity and transparency.",
+            textAlign: TextAlign.justify,
             style: TextStyle(color: Colors.blue.shade50, fontSize: 14),
           ),
         ],
