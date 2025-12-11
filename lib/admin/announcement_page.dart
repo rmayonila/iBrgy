@@ -4,6 +4,8 @@ import 'package:flutter/foundation.dart'; // For web check
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
+import '../widgets/subscription_widgets.dart';
+
 class AnnouncementPage extends StatefulWidget {
   const AnnouncementPage({super.key});
 
@@ -629,6 +631,33 @@ class _AnnouncementPageState extends State<AnnouncementPage> {
   Widget build(BuildContext context) {
     Widget mobileContent = Scaffold(
       backgroundColor: const Color(0xFFF8F9FA),
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: () async {
+          final snapshot = await FirebaseFirestore.instance
+              .collection('announcements')
+              .get();
+          final currentCount = snapshot.docs.length;
+
+          if (context.mounted) {
+            final canAdd = await checkSubscriptionLimit(
+              context: context,
+              action: 'add_announcement',
+              currentCount: currentCount,
+            );
+
+            if (canAdd && context.mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('Create Post functionality coming soon'),
+                ),
+              );
+            }
+          }
+        },
+        label: const Text('New Post'),
+        icon: const Icon(Icons.add),
+        backgroundColor: Colors.blue,
+      ),
       body: SafeArea(
         child: Column(
           children: [

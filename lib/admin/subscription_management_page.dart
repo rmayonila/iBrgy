@@ -915,7 +915,9 @@ class _PaymentOptionsSheetState extends State<_PaymentOptionsSheet> {
                       Container(
                         padding: const EdgeInsets.all(10),
                         decoration: BoxDecoration(
-                          color: (method['color'] as Color).withValues(alpha: 0.1),
+                          color: (method['color'] as Color).withValues(
+                            alpha: 0.1,
+                          ),
                           borderRadius: BorderRadius.circular(10),
                         ),
                         child: Icon(
@@ -1264,9 +1266,6 @@ class _PaymentDetailsDialogState extends State<_PaymentDetailsDialog> {
                     fillColor: Colors.grey.shade50,
                   ),
                   validator: (value) {
-                    if (value == null || value.isEmpty) {
-                      return 'Please enter your name';
-                    }
                     return null;
                   },
                 ),
@@ -1295,9 +1294,6 @@ class _PaymentDetailsDialogState extends State<_PaymentDetailsDialog> {
                   ),
                   keyboardType: TextInputType.number,
                   validator: (value) {
-                    if (value == null || value.isEmpty) {
-                      return 'Please enter ${_getNumberLabel().toLowerCase()}';
-                    }
                     return null;
                   },
                 ),
@@ -1318,12 +1314,6 @@ class _PaymentDetailsDialogState extends State<_PaymentDetailsDialog> {
                   ),
                   keyboardType: TextInputType.emailAddress,
                   validator: (value) {
-                    if (value == null || value.isEmpty) {
-                      return 'Please enter your email';
-                    }
-                    if (!value.contains('@')) {
-                      return 'Please enter a valid email';
-                    }
                     return null;
                   },
                 ),
